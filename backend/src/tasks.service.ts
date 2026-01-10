@@ -11,8 +11,8 @@ export class TasksService {
   ) {}
   private readonly logger = new Logger(TasksService.name);
 
-  @Interval(100000) // Runs every 10 seconds (10000ms)
-  async pollOrders() {
+  @Interval(10000000) // Runs every 10 seconds (10000ms)
+  async poll() {
     try {
       await this.ordersQueue.add(
         'faire.orders',
@@ -24,9 +24,44 @@ export class TasksService {
           removeOnComplete: true,
         },
       );
-      this.logger.log('Queued Faire order polling job');
+      await this.productsQueue.add(
+        'faire.products',
+        {
+          platform: 'FAIRE',
+        },
+        {
+          jobId: 'faire-products-poll',
+          removeOnComplete: true,
+        },
+      );
+      this.logger.log('Queued Faire polling job');
     } catch (error) {
-      this.logger.error('Failed to queue order polling job', error);
+      this.logger.error('Failed to queue polling job', error);
+    }
+    try {
+      await this.ordersQueue.add(
+        'target.orders',
+        {
+          platform: 'TARGET',
+        },
+        {
+          jobId: 'target-orders-poll',
+          removeOnComplete: true,
+        },
+      );
+      await this.productsQueue.add(
+        'target.products',
+        {
+          platform: 'TARGET',
+        },
+        {
+          jobId: 'target-orders-poll',
+          removeOnComplete: true,
+        },
+      );
+      this.logger.log('Queued Faire polling job');
+    } catch (error) {
+      this.logger.error('Failed to queue polling job', error);
     }
   }
 }
