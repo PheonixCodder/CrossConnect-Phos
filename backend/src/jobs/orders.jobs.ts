@@ -67,13 +67,15 @@ export class OrdersProcessor extends WorkerHost {
 
     // 6️⃣ Map order_items to internal order_id + internal product_id
     const orderItemsDB: Database['public']['Tables']['order_items']['Insert'][] =
-      rawItems.map((item) => ({
-        ...item,
-        order_id: orderIdMap.get(item.order_id)!,
-        product_id: item.product_id
-          ? (productMap.get(item.product_id) ?? null)
-          : null,
-      }));
+      rawItems
+        .filter((item) => orderIdMap.has(item.order_id))
+        .map((item) => ({
+          ...item,
+          order_id: orderIdMap.get(item.order_id)!,
+          product_id: item.product_id
+            ? (productMap.get(item.product_id) ?? null)
+            : null,
+        }));
 
     // 7️⃣ Map shipments to internal order_id + internal product_id
     const shipmentsDB: Database['public']['Tables']['fulfillments']['Insert'][] =
