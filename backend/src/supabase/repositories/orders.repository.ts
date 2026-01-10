@@ -10,13 +10,21 @@ export class OrdersRepository {
     private readonly supabaseClient: SupabaseClient<Database>,
   ) {}
 
-  async insertOrders(
+  async insertOrdersAndReturn(
     orders: Database['public']['Tables']['orders']['Insert'][],
   ) {
-    return this.supabaseClient.from('orders').upsert(orders, {
-      onConflict: 'external_order_id',
-    });
+    // Use upsert and return the inserted rows including generated 'id'
+    const { data, error } = await this.supabaseClient
+      .from('orders')
+      .upsert(orders, {
+        onConflict: 'external_order_id',
+      })
+      .select('*');
+
+    if (error) throw error;
+    return { data }; // This will contain 'id' (internal UUID) and 'external_order_id'
   }
+
   async syncOrdersItemsAndShipments(
     orders: Database['public']['Tables']['orders']['Insert'][],
     items: Database['public']['Tables']['order_items']['Insert'][],

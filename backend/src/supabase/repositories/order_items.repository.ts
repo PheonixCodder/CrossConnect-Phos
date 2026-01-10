@@ -14,7 +14,7 @@ export class OrderItemsRepository {
     orderItems: Database['public']['Tables']['order_items']['Insert'][],
   ) {
     return this.supabaseClient.from('order_items').upsert(orderItems, {
-      onConflict: 'order_id',
+      onConflict: 'order_id,sku',
     });
   }
 }

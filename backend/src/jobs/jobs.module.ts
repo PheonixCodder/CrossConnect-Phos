@@ -15,9 +15,27 @@ import { FulfillmentsRepository } from 'src/supabase/repositories/fulfillments.r
   imports: [
     BullModule.registerQueue({
       name: 'products',
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
     }),
     BullModule.registerQueue({
       name: 'orders',
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
     }),
     FaireModule,
     SupabaseModule.injectClient(),

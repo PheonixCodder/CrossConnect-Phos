@@ -13,11 +13,18 @@ export class InventoryRepository {
   ) {}
 
   // Single update (existing)
-  async updateInventory(inventory: any, sku: string) {
-    await this.supabaseClient
+  async updateInventory(
+    inventory: Partial<Database['public']['Tables']['inventory']['Update']>,
+    sku: string,
+  ) {
+    const { error } = await this.supabaseClient
       .from('inventory')
       .update(inventory)
       .eq('sku', sku);
+
+    if (error) {
+      throw error;
+    }
   }
 
   // New batch update method

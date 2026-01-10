@@ -11,15 +11,21 @@ export class ProductsRepository {
   ) {}
   private logger = new Logger(ProductsRepository.name);
 
-  async insertProducts(orders: any) {
+  async insertProducts(
+    products: Database['public']['Tables']['products']['Insert'][],
+  ): Promise<Database['public']['Tables']['products']['Row'][]> {
     const { data, error } = await this.supabaseClient
       .from('products')
-      .upsert(orders, {
+      .upsert(products, {
         onConflict: 'external_product_id',
       })
-      .select('*');
+      .select('*'); // return all columns including internal 'id'
 
-    return { data, error };
+    if (error) {
+      throw new Error(`Failed to insert products: ${error.message}`);
+    }
+
+    return data ?? [];
   }
   async syncProductsAndInventory(
     products: Database['public']['Tables']['products']['Insert'][],
@@ -29,5 +35,19 @@ export class ProductsRepository {
       products,
       inventory,
     });
+  }
+  async getAllProductsByStore(storeId: string) {
+    const { data, error } = await this.supabaseClient
+      .from('products')
+      .select('id, external_product_id, title, sku')
+      .eq('store_id', storeId);
+
+    if (error) {
+      throw new Error(
+        `Failed to fetch products for store ${storeId}: ${error.message}`,
+      );
+    }
+
+    return data ?? [];
   }
 }

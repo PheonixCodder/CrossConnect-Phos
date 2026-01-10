@@ -27,96 +27,99 @@ export class ProductsProcessor extends WorkerHost {
   async process(job: Job): Promise<void> {
     const platform = job.data.platform as string;
 
-    if (platform === 'FAIRE') {
-      /* ------------------------------------------------------------------ */
-      /* 1. Resolve Store                                                    */
-      /* ------------------------------------------------------------------ */
-      const storeId = await this.storeRepo.getStoreId(platform);
+    if (platform !== 'FAIRE') return;
 
-      if (!storeId) {
-        throw new Error(`Store not found for platform: ${platform}`);
-      }
+    // ------------------------------
+    // 1️⃣ Resolve Store
+    // ------------------------------
+    const storeId = await this.storeRepo.getStoreId(platform);
+    if (!storeId) throw new Error(`Store not found for platform: ${platform}`);
 
-      /* ------------------------------------------------------------------ */
-      /* 2. Fetch Products from Faire                                        */
-      /* ------------------------------------------------------------------ */
-      const { products } = await this.faireService.getProducts();
-
-      if (!products || products.length === 0) {
-        this.logger.warn('No products returned from FAIRE');
-        return;
-      }
-
-      /* ------------------------------------------------------------------ */
-      /* 3. Map + Flatten Variants                                           */
-      /* ------------------------------------------------------------------ */
-      const mappedProducts = products.flatMap((product) =>
-        mapProductsToDB(product, storeId),
-      );
-
-      if (mappedProducts.length === 0) {
-        this.logger.warn('No products mapped after transformation');
-        return;
-      }
-
-      /* ------------------------------------------------------------------ */
-      /* 4. Fetch Inventory from Faire                                       */
-      /* ------------------------------------------------------------------ */
-      let inventoryData: GetInventory;
-
-      try {
-        inventoryData = await this.faireService.getInventory(mappedProducts);
-      } catch (err) {
-        this.logger.error('Failed to fetch inventory from FAIRE', err);
-        return;
-      }
-
-      /* ------------------------------------------------------------------ */
-      /* 5. Fetch Existing Inventory (for change detection)                  */
-      /* ------------------------------------------------------------------ */
-      const existingInventory = await this.inventoryRepo.getBySkus(
-        mappedProducts.map((p) => p.sku),
-        storeId,
-      );
-
-      /* ------------------------------------------------------------------ */
-      /* 6. Prepare Inventory Updates (change-aware)                         */
-      /* ------------------------------------------------------------------ */
-      const inventoryBatch = mapInventoryToDB(
-        inventoryData,
-        storeId,
-        mappedProducts,
-        existingInventory,
-      );
-
-      if (inventoryBatch.length === 0) {
-        this.logger.log(
-          'Inventory already up to date — no inventory writes required',
-        );
-      }
-
-      /* ------------------------------------------------------------------ */
-      /* 7. Atomic Sync: Products + Inventory                                */
-      /* ------------------------------------------------------------------ */
-      const { error } = await this.productsRepo.syncProductsAndInventory(
-        mappedProducts,
-        inventoryBatch,
-      );
-
-      if (error) {
-        this.logger.error(
-          'Atomic FAIRE sync failed (products + inventory)',
-          error,
-        );
-        throw error;
-      }
-
-      /* ------------------------------------------------------------------ */
-      /* 8. Success Log                                                      */
-      /* ------------------------------------------------------------------ */
-      this.logger.log(
-        `FAIRE sync completed — ${mappedProducts.length} products, ${inventoryBatch.length} inventory updates`,
-      );
+    // ------------------------------
+    // 2️⃣ Fetch Products from Faire
+    // ------------------------------
+    const { products } = await this.faireService.getProducts();
+    if (!products || products.length === 0) {
+      this.logger.warn('No products returned from FAIRE');
+      return;
     }
+
+    // ------------------------------
+    // 3️⃣ Map Products → DB schema
+    // ------------------------------
+    const mappedProducts = products.flatMap((product) =>
+      mapProductsToDB(product, storeId),
+    );
+
+    if (mappedProducts.length === 0) {
+      this.logger.warn('No products mapped after transformation');
+      return;
+    }
+
+    // ------------------------------
+    // 4️⃣ Insert products first to get internal IDs
+    // ------------------------------
+    const insertedProducts =
+      await this.productsRepo.insertProducts(mappedProducts);
+
+    // ------------------------------
+    // 5️⃣ Build map: SKU → internal ID
+    // ------------------------------
+    const productBySku = new Map<string, (typeof insertedProducts)[0]>();
+    for (const p of insertedProducts) {
+      productBySku.set(p.sku, p);
+    }
+
+    // ------------------------------
+    // 6️⃣ Fetch Inventory from Faire
+    // ------------------------------
+    let inventoryData: GetInventory;
+    try {
+      inventoryData = await this.faireService.getInventory(insertedProducts);
+    } catch (err) {
+      this.logger.error('Failed to fetch inventory from FAIRE', err);
+      return;
+    }
+
+    // ------------------------------
+    // 7️⃣ Fetch Existing Inventory
+    // ------------------------------
+    const existingInventory = await this.inventoryRepo.getBySkus(
+      insertedProducts.map((p) => p.sku),
+      storeId,
+    );
+
+    // ------------------------------
+    // 8️⃣ Map Inventory → DB schema with internal product IDs
+    // ------------------------------
+    const inventoryBatch = mapInventoryToDB(
+      inventoryData,
+      storeId,
+      insertedProducts,
+      existingInventory,
+    );
+
+    // ------------------------------
+    // 9️⃣ Atomic sync: Products + Inventory
+    // ------------------------------
+    const { error } = await this.productsRepo.syncProductsAndInventory(
+      insertedProducts,
+      inventoryBatch,
+    );
+
+    if (error) {
+      this.logger.error(
+        'Atomic FAIRE sync failed (products + inventory)',
+        error,
+      );
+      throw error;
+    }
+
+    // ------------------------------
+    // 🔟 Success Log
+    // ------------------------------
+    this.logger.log(
+      `FAIRE sync completed — ${insertedProducts.length} products, ${inventoryBatch.length} inventory updates`,
+    );
   }
 }

@@ -1,8 +1,5 @@
 import { Database } from 'src/supabase/supabase.types';
 import { GetInventory } from './faire.types';
-import { Logger } from '@nestjs/common';
-
-const logger = new Logger('InventoryMapper');
 
 // Products
 
@@ -188,7 +185,7 @@ const mapOrderStatus = (
     case 'BACKORDERED':
       return 'pending';
     case 'IN_TRANSIT':
-      return 'paid';
+      return 'completed';
     case 'DELIVERED':
       return 'completed';
     case 'CANCELED':
@@ -201,6 +198,8 @@ const mapOrderStatus = (
 export const mapOrdersToDB = (
   orders: FaireOrder[],
   storeId: string,
+  productMap?: Map<string, string>, // external_product_id -> internal UUID
+  orderIdMap?: Map<string, string>, // external_order_id -> internal UUID
 ): {
   orders: Database['public']['Tables']['orders']['Insert'][];
   orderItems: Database['public']['Tables']['order_items']['Insert'][];
@@ -213,12 +212,11 @@ export const mapOrdersToDB = (
     [];
 
   for (const order of orders) {
-    // Compute subtotal and total
     const subtotalCents = order.items.reduce(
       (sum, item) => sum + item.price_cents * item.quantity,
       0,
     );
-    const total = subtotalCents / 100; // in dollars
+    const total = subtotalCents / 100;
 
     // --- Orders ---
     const orderInsert: Database['public']['Tables']['orders']['Insert'] = {
@@ -245,9 +243,11 @@ export const mapOrdersToDB = (
 
       const itemInsert: Database['public']['Tables']['order_items']['Insert'] =
         {
-          order_id: order.id,
+          order_id: orderIdMap?.get(order.id) ?? order.id, // use internal ID if available
           sku: item.sku,
-          product_id: item.product_id ?? null,
+          product_id: item.product_id
+            ? (productMap?.get(item.product_id) ?? null)
+            : null,
           quantity: item.quantity,
           fulfilled_quantity: 0,
           refunded_quantity: 0,
@@ -268,9 +268,8 @@ export const mapOrdersToDB = (
             store_id: storeId,
             platform: 'FAIRE',
             external_fulfillment_id: shipment.id,
-            order_id: order.id,
-            product_id: null, // optional, leave null if shipment is for full order
-            status: 'pending', // or map shipment state if available
+            order_id: orderIdMap?.get(order.id) ?? order.id,
+            status: 'pending',
             carrier: shipment.carrier ?? null,
             tracking_number: shipment.tracking_code ?? null,
             created_at: shipment.created_at,
@@ -292,20 +291,17 @@ export const generateInventoryUrl = (
   if (!products || products.length === 0) {
     throw new Error('No products provided to generate inventory URL');
   }
-
-  const baseUrl =
-    'https://www.faire.com/external-api/v2/product-inventory/by-skus';
-
+  const baseUrl = '/product-inventory/by-skus';
   // Map all skus and encode them for URL safety
-  const skuParams = products
-    .map((p) => p.sku)
-    .filter(Boolean)
+  const skus = products.map((p) => p.sku).filter(Boolean);
+  if (skus.length === 0) {
+    throw new Error('No valid SKUs found in products');
+  }
+  const skuParams = skus
     .map((sku) => `skus=${encodeURIComponent(sku)}`)
     .join('&');
-
   return `${baseUrl}?${skuParams}`;
 };
-
 type InventoryRow = Database['public']['Tables']['inventory']['Row'];
 type InventoryInsert = Database['public']['Tables']['inventory']['Insert'];
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
@@ -343,7 +339,7 @@ export const mapInventoryToDB = (
     const product = productBySku.get(sku);
 
     if (!product) {
-      logger.warn(
+      console.warn(
         `Skipping inventory sync — SKU not found in products: ${sku}`,
       );
       continue;
@@ -356,7 +352,7 @@ export const mapInventoryToDB = (
 
     const existing = existingInventoryBySku[sku];
 
-    // 🔍 Change detection
+    // Change detection: skip unchanged inventory
     if (
       existing &&
       existing.warehouse_quantity === warehouseQty &&
@@ -364,21 +360,17 @@ export const mapInventoryToDB = (
       existing.platform_quantity === platformQty &&
       existing.inventory_status === status
     ) {
-      logger.debug(`No inventory change — skipping SKU: ${sku}`);
       continue;
     }
 
     updates.push({
       store_id: storeId,
-      product_id: product.id,
+      product_id: product.id, // internal DB ID
       sku,
-
       warehouse_quantity: warehouseQty,
       reserved_quantity: reservedQty,
       platform_quantity: platformQty,
-
       inventory_status: status,
-
       last_platform_event: 'FAIRE_SYNC',
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
