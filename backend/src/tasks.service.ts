@@ -30,7 +30,7 @@ export class TasksService {
           platform: 'FAIRE',
         },
         {
-          jobId: 'faire-orders-poll',
+          jobId: 'faire-products-poll',
           removeOnComplete: true,
         },
       );
