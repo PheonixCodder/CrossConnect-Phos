@@ -77,7 +77,7 @@ export const mapProductsToDB = (
 ): Database['public']['Tables']['products']['Insert'][] => {
   return product.variants.map((variant) => ({
     store_id: storeId,
-    platform: 'FAIRE',
+    platform: 'faire',
     external_product_id: variant.id,
     sku: variant.sku,
     title: `${product.name} - ${variant.name}`,
@@ -221,7 +221,7 @@ export const mapOrdersToDB = (
     // --- Orders ---
     const orderInsert: Database['public']['Tables']['orders']['Insert'] = {
       store_id: storeId,
-      platform: 'FAIRE',
+      platform: 'faire',
       external_order_id: order.id,
       status: mapOrderStatus(order.state),
       currency: 'USD',
@@ -266,7 +266,7 @@ export const mapOrdersToDB = (
         const shipmentInsert: Database['public']['Tables']['fulfillments']['Insert'] =
           {
             store_id: storeId,
-            platform: 'FAIRE',
+            platform: 'faire',
             external_fulfillment_id: shipment.id,
             order_id: orderIdMap?.get(order.id) ?? order.id,
             status: 'pending',

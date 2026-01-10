@@ -50,4 +50,18 @@ export class ProductsRepository {
 
     return data ?? [];
   }
+  async getIdsBySkus(
+    storeId: string,
+    skus: string[],
+    platform: string,
+  ): Promise<{ id: string; sku: string }[]> {
+    return this.supabaseClient
+      .from('products')
+      .select('id, sku')
+      .eq('store_id', storeId)
+      .eq('platform', platform)
+      .in('sku', skus)
+      .throwOnError()
+      .then((res) => res.data ?? []);
+  }
 }

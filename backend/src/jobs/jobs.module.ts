@@ -10,6 +10,7 @@ import { SupabaseModule } from 'nestjs-supabase-js';
 import { OrderItemsRepository } from 'src/supabase/repositories/order_items.repository';
 import { InventoryRepository } from 'src/supabase/repositories/inventory.repository';
 import { FulfillmentsRepository } from 'src/supabase/repositories/fulfillments.repository';
+import { TargetModule } from 'src/connectors/target/target.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { FulfillmentsRepository } from 'src/supabase/repositories/fulfillments.r
       },
     }),
     FaireModule,
+    TargetModule,
     SupabaseModule.injectClient(),
   ],
   providers: [
