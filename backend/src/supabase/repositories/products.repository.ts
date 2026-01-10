@@ -55,7 +55,7 @@ export class ProductsRepository {
     skus: string[],
     platform: string,
   ): Promise<{ id: string; sku: string }[]> {
-    return this.supabaseClient
+    return await this.supabaseClient
       .from('products')
       .select('id, sku')
       .eq('store_id', storeId)

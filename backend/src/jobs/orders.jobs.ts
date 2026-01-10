@@ -36,7 +36,7 @@ export class OrdersProcessor extends WorkerHost {
 
   async process(job: Job): Promise<void> {
     const platform = job.data.platform as string;
-    if (platform === 'FAIRE') {
+    if (platform === 'faire') {
       // 1️⃣ Fetch store
       const storeId = await this.storeRepo.getStoreId(platform);
       if (!storeId)
@@ -88,13 +88,15 @@ export class OrdersProcessor extends WorkerHost {
 
       // 7️⃣ Map shipments to internal order_id + internal product_id
       const shipmentsDB: Database['public']['Tables']['fulfillments']['Insert'][] =
-        rawShipments.map((shipment) => ({
-          ...shipment,
-          order_id: orderIdMap.get(shipment.order_id)!,
-          product_id: shipment.product_id
-            ? (productMap.get(shipment.product_id) ?? null)
-            : null,
-        }));
+        rawShipments
+          .filter((shipment) => orderIdMap.has(shipment.order_id))
+          .map((shipment) => ({
+            ...shipment,
+            order_id: orderIdMap.get(shipment.order_id)!,
+            product_id: shipment.product_id
+              ? (productMap.get(shipment.product_id) ?? null)
+              : null,
+          }));
 
       // 8️⃣ Insert order items
       const { error: itemsError } =
@@ -110,7 +112,7 @@ export class OrdersProcessor extends WorkerHost {
         `Successfully synced ${rawOrders.length} orders, ${orderItemsDB.length} items, ${shipmentsDB.length} shipments`,
       );
     }
-    if (platform === 'TARGET') {
+    if (platform === 'target') {
       // 1️⃣ Fetch store
       const storeId = await this.storeRepo.getStoreId(platform);
       if (!storeId)
@@ -237,13 +239,15 @@ export class OrdersProcessor extends WorkerHost {
 
       // 9️⃣ Insert shipments
       if (dbFulfillments.length) {
-        await this.shipmentRepo.insertShipments(dbFulfillments);
+        const { error: shipmentsError } =
+          await this.shipmentRepo.insertShipments(dbFulfillments);
+        if (shipmentsError) throw shipmentsError;
       } else {
         this.logger.log('No fulfillments to insert for this run');
       }
 
       this.logger.log(
-        `TARGET orders sync complete: ${insertedOrders.length} orders, ${dbOrderItems.length} items, ${dbFulfillments.length} fulfillments`,
+        `target orders sync complete: ${insertedOrders.length} orders, ${dbOrderItems.length} items, ${dbFulfillments.length} fulfillments`,
       );
     }
   }

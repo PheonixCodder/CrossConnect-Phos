@@ -34,7 +34,7 @@ export class ProductsProcessor extends WorkerHost {
   async process(job: Job): Promise<void> {
     const platform = job.data.platform as string;
 
-    if (platform === 'FAIRE') {
+    if (platform === 'faire') {
       // ------------------------------
       // 1️⃣ Resolve Store
       // ------------------------------
@@ -47,7 +47,7 @@ export class ProductsProcessor extends WorkerHost {
       // ------------------------------
       const { products } = await this.faireService.getProducts();
       if (!products || products.length === 0) {
-        this.logger.warn('No products returned from FAIRE');
+        this.logger.warn('No products returned from faire');
         return;
       }
 
@@ -84,7 +84,7 @@ export class ProductsProcessor extends WorkerHost {
       try {
         inventoryData = await this.faireService.getInventory(insertedProducts);
       } catch (err) {
-        this.logger.error('Failed to fetch inventory from FAIRE', err);
+        this.logger.error('Failed to fetch inventory from faire', err);
         return;
       }
 
@@ -116,7 +116,7 @@ export class ProductsProcessor extends WorkerHost {
 
       if (error) {
         this.logger.error(
-          'Atomic FAIRE sync failed (products + inventory)',
+          'Atomic faire sync failed (products + inventory)',
           error,
         );
         throw error;
@@ -126,10 +126,10 @@ export class ProductsProcessor extends WorkerHost {
       // 🔟 Success Log
       // ------------------------------
       this.logger.log(
-        `FAIRE sync completed — ${insertedProducts.length} products, ${inventoryBatch.length} inventory updates`,
+        `faire sync completed — ${insertedProducts.length} products, ${inventoryBatch.length} inventory updates`,
       );
     }
-    if (platform === 'TARGET') {
+    if (platform === 'target') {
       // ------------------------------
       // 1️⃣ Resolve Store
       // ------------------------------

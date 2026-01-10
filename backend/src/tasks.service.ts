@@ -17,7 +17,7 @@ export class TasksService {
       await this.ordersQueue.add(
         'faire.orders',
         {
-          platform: 'FAIRE',
+          platform: 'faire',
         },
         {
           jobId: 'faire-orders-poll',
@@ -27,7 +27,7 @@ export class TasksService {
       await this.productsQueue.add(
         'faire.products',
         {
-          platform: 'FAIRE',
+          platform: 'faire',
         },
         {
           jobId: 'faire-products-poll',
@@ -42,7 +42,7 @@ export class TasksService {
       await this.ordersQueue.add(
         'target.orders',
         {
-          platform: 'TARGET',
+          platform: 'target',
         },
         {
           jobId: 'target-orders-poll',
@@ -52,7 +52,7 @@ export class TasksService {
       await this.productsQueue.add(
         'target.products',
         {
-          platform: 'TARGET',
+          platform: 'target',
         },
         {
           jobId: 'target-orders-poll',

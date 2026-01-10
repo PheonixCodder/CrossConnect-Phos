@@ -62,7 +62,10 @@ function getFieldValue(
   fields: { name: string; value: string }[] | undefined,
   fieldName: string,
 ): string | null {
-  return fields?.find((f) => f.name.toLowerCase() === fieldName)?.value ?? null;
+  return (
+    fields?.find((f) => f.name.toLowerCase() === fieldName.toLowerCase())
+      ?.value ?? null
+  );
 }
 
 function getCurrentStatus(statuses: TargetProductStatus[]) {

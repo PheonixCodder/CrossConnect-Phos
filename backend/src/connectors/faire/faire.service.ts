@@ -28,7 +28,7 @@ export class FaireService {
 
   private get headers() {
     return {
-      'X-FAIRE-ACCESS-TOKEN': this.accessToken,
+      'X-faire-ACCESS-TOKEN': this.accessToken,
       'Content-Type': 'application/json',
     };
   }
