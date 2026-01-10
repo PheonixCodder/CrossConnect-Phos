@@ -1,0 +1,10 @@
+Webhook: Endpoint -> Service -> Event -> Repository
+
+  "type": 1,  Order status change
+  "type": 27, Inventory status change
+  "type": 12, Return status change
+  "type": 6,  Seller deauthorization
+  "type": 7,  Upcoming authorization expiration
+  "type": 24, FBT inventory update
+  "type": 21, Inbound FBT order status change
+
