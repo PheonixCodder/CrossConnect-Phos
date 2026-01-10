@@ -11,12 +11,22 @@ export class TasksService {
   ) {}
   private readonly logger = new Logger(TasksService.name);
 
-  @Interval(10000) // Runs every 10 seconds (10000ms)
+  @Interval(100000) // Runs every 10 seconds (10000ms)
   async pollOrders() {
-    this.logger.log('Initialized Order Polling Service');
-
-    await this.ordersQueue.add('faire.orders', {
-      platform: 'FAIRE',
-    });
+    try {
+      await this.ordersQueue.add(
+        'faire.orders',
+        {
+          platform: 'FAIRE',
+        },
+        {
+          jobId: 'faire-orders-poll',
+          removeOnComplete: true,
+        },
+      );
+      this.logger.log('Queued Faire order polling job');
+    } catch (error) {
+      this.logger.error('Failed to queue order polling job', error);
+    }
   }
 }
