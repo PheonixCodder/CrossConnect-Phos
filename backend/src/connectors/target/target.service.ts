@@ -199,7 +199,7 @@ export class TargetService {
     per_page?: number;
     sort?: string;
   }): Promise<TargetProductReturn[]> {
-    const allReturns: any[] = [];
+    const allReturns: TargetProductReturn[] = [];
     let afterId = options?.after_id;
     let page = options?.page ?? 1;
     const perPage = options?.per_page ?? 100;

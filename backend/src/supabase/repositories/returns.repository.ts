@@ -17,7 +17,7 @@ export class ReturnsRepository {
       return { data: [], error: null };
     }
 
-    return this.supabaseClient.from('returns').upsert(returns, {
+    return await this.supabaseClient.from('returns').upsert(returns, {
       onConflict: 'external_return_id',
     });
   }

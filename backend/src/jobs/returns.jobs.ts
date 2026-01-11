@@ -22,7 +22,8 @@ export class ReturnsProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
-    const platform = typeof job.data?.platform === 'string' ? job.data.platform : undefined;
+    const platform =
+      typeof job.data?.platform === 'string' ? job.data.platform : undefined;
     if (!platform) {
       this.logger.warn(`Skipping job ${job.id}: missing/invalid platform`);
       return;
