@@ -22,7 +22,11 @@ export class ReturnsProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
-    const platform = job.data.platform as string;
+    const platform = typeof job.data?.platform === 'string' ? job.data.platform : undefined;
+    if (!platform) {
+      this.logger.warn(`Skipping job ${job.id}: missing/invalid platform`);
+      return;
+    }
 
     if (platform !== 'target') return;
 
@@ -39,7 +43,7 @@ export class ReturnsProcessor extends WorkerHost {
     // ------------------------------
     const targetReturns = await this.targetService.getAllProductReturns();
     if (!targetReturns.length) {
-      this.logger.warn('No products returned from Target');
+      this.logger.warn('No returns returned from Target');
       return;
     }
 
