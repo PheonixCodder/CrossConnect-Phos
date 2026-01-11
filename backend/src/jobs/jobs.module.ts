@@ -11,6 +11,7 @@ import { OrderItemsRepository } from 'src/supabase/repositories/order_items.repo
 import { InventoryRepository } from 'src/supabase/repositories/inventory.repository';
 import { FulfillmentsRepository } from 'src/supabase/repositories/fulfillments.repository';
 import { TargetModule } from 'src/connectors/target/target.module';
+import { WalmartModule } from 'src/connectors/walmart/walmart.module';
 
 @Module({
   imports: [
@@ -38,7 +39,20 @@ import { TargetModule } from 'src/connectors/target/target.module';
         removeOnFail: false,
       },
     }),
+    BullModule.registerQueue({
+      name: 'returns',
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    }),
     FaireModule,
+    WalmartModule,
     TargetModule,
     SupabaseModule.injectClient(),
   ],

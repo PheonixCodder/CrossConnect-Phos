@@ -17,6 +17,12 @@ import {
   TargetFulfillment,
   TargetOrder,
 } from 'src/connectors/target/target.mapper';
+import { WalmartService } from 'src/connectors/walmart/walmart.service';
+import {
+  mapWalmartFulfillmentsToDB,
+  mapWalmartOrderItemsToDB,
+  mapWalmartOrderToDB,
+} from 'src/connectors/walmart/walmart.mapper';
 
 @Processor('orders', { concurrency: 5 })
 export class OrdersProcessor extends WorkerHost {
@@ -30,6 +36,7 @@ export class OrdersProcessor extends WorkerHost {
     private readonly shipmentRepo: FulfillmentsRepository,
     private readonly storeRepo: StoresRepository,
     private readonly productsRepo: ProductsRepository,
+    private readonly walmartService: WalmartService,
   ) {
     super();
   }
@@ -248,6 +255,67 @@ export class OrdersProcessor extends WorkerHost {
 
       this.logger.log(
         `target orders sync complete: ${insertedOrders.length} orders, ${dbOrderItems.length} items, ${dbFulfillments.length} fulfillments`,
+      );
+    }
+    if (platform === 'walmart') {
+      // 1️⃣ Store
+      const storeId = await this.storeRepo.getStoreId(platform);
+      if (!storeId) throw new Error(`Store not found for ${platform}`);
+
+      // 2️⃣ Products → productId map
+      const products = await this.productsRepo.getAllProductsByStore(storeId);
+      const productMap = new Map(
+        products.map((p) => [p.external_product_id, p.id]),
+      );
+
+      // 3️⃣ Orders
+      const response = await this.walmartService.getOrders();
+      const orders = response?.list?.elements?.order ?? [];
+      if (!orders.length) return;
+
+      // 4️⃣ Orders → DB
+      const dbOrders = orders.map((o) => mapWalmartOrderToDB(o, storeId));
+      const { data: insertedOrders } =
+        await this.ordersRepo.insertOrdersAndReturn(dbOrders);
+
+      const orderIdByExternal = new Map(
+        insertedOrders.map((o) => [o.external_order_id, o.id]),
+      );
+
+      const orderItems: Database['public']['Tables']['order_items']['Insert'][] =
+        [];
+      const fulfillments: Database['public']['Tables']['fulfillments']['Insert'][] =
+        [];
+
+      // 5️⃣ Items + Fulfillments
+      for (const order of orders) {
+        const orderId = orderIdByExternal.get(order.purchaseOrderId);
+        if (!orderId) continue;
+
+        for (const line of order.orderLines.orderLine ?? []) {
+          const productId = productMap.get(line.item.sku);
+
+          orderItems.push(mapWalmartOrderItemsToDB(line, orderId, productId));
+
+          const fulfillment = mapWalmartFulfillmentsToDB(
+            line,
+            orderId,
+            storeId,
+            productId,
+          );
+          if (fulfillment) fulfillments.push(fulfillment);
+        }
+      }
+
+      // 6️⃣ Persist children
+      if (orderItems.length)
+        await this.orderItemsRepo.insertOrderItems(orderItems);
+
+      if (fulfillments.length)
+        await this.shipmentRepo.insertShipments(fulfillments);
+
+      this.logger.log(
+        `Walmart orders synced: ${insertedOrders.length} orders, ${orderItems.length} items, ${fulfillments.length} fulfillments`,
       );
     }
   }
