@@ -1,5 +1,6 @@
 import { Database } from 'src/supabase/supabase.types';
 
+// Product
 export interface TargetProductField {
   name: string;
   value: string;
@@ -312,4 +313,86 @@ export function mapFulfillmentToDB(
     created_at: fulfillment.created,
     updated_at: fulfillment.last_modified,
   };
+}
+
+// Product Returns
+export interface TargetInboundTrackingData {
+  inbound_location_id?: number;
+  inbound_ship_date?: string; // ISO 8601
+  inbound_tracking_number?: string;
+}
+
+export interface TargetReturnTrackingData {
+  bill_of_lading?: string;
+  crc_received_date?: string; // ISO 8601
+  license_plate?: number;
+  scac?: string;
+  ship_date?: string; // ISO 8601
+  store_physical_disposition?: string;
+  tracking_number?: string;
+}
+
+export interface TargetProductReturn {
+  // --- Audit ---
+  id: string;
+  created: string; // ISO 8601
+  created_by: string;
+  last_modified: string;
+  last_modified_by: string;
+
+  // --- Seller / Order ---
+  seller_id: string;
+  order_id: string; // External Target order ID
+  order_number?: string;
+  reference_id?: string;
+
+  // --- Product ---
+  external_id: string; // External SKU
+  tcin: string;
+  quantity: number;
+
+  // --- Return info ---
+  return_date: string; // ISO 8601
+  return_reason: string;
+  customer_can_keep?: boolean;
+  is_online?: boolean;
+  location_id?: number;
+
+  // --- Dispositions ---
+  financial_disposition?: string;
+  physical_disposition?: string;
+
+  // --- Logistics ---
+  inbound_tracking_data?: TargetInboundTrackingData;
+  tracking_data?: TargetReturnTrackingData[];
+}
+
+type ReturnInsert = Database['public']['Tables']['returns']['Insert'];
+
+export function mapTargetReturnsToDB(
+  returns: TargetProductReturn[],
+  storeId: string,
+): ReturnInsert[] {
+  return returns.map((ret) => ({
+    // External return ID from Target
+    external_return_id: ret.id,
+
+    // ⚠️ IMPORTANT
+    // This is STILL the EXTERNAL order ID
+    // It will be replaced later with internal DB order.id
+    order_id: ret.order_id,
+
+    store_id: storeId,
+    platform: 'target',
+
+    status: ret.return_reason ?? 'UNKNOWN',
+
+    // Optional / nullable fields
+    currency: 'USD', // Target is USD unless otherwise stated
+    refund_amount: null,
+
+    // Audit timestamps (optional – Supabase can default these)
+    created_at: ret.created,
+    updated_at: ret.last_modified,
+  }));
 }
