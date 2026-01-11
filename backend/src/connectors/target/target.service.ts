@@ -6,7 +6,13 @@ import {
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
-import { TargetFulfillment, TargetOrder, TargetProduct } from './target.mapper';
+import {
+  TargetFulfillment,
+  TargetOrder,
+  TargetProduct,
+  TargetProductReturn,
+} from './target.mapper';
+import { TargetProductReturnsResponse } from './target.types';
 
 @Injectable()
 export class TargetService {
@@ -171,5 +177,65 @@ export class TargetService {
     );
 
     return data ?? [];
+  }
+
+  // --------------------------------
+  // PRODUCT RETURNS
+  // --------------------------------
+  async getAllProductReturns(options?: {
+    order_id?: string;
+    order_number?: string;
+    return_order_number?: string;
+    tcin?: string;
+    license_plate?: string;
+    tracking_number?: string;
+    bill_of_lading?: string;
+    receiving_location_id?: string;
+    return_date?: string; // ISO 8601 interval
+    is_online?: string;
+    location_id?: string;
+    after_id?: string;
+    page?: number;
+    per_page?: number;
+    sort?: string;
+  }): Promise<TargetProductReturn[]> {
+    const allReturns: any[] = [];
+    let afterId = options?.after_id;
+    let page = options?.page ?? 1;
+    const perPage = options?.per_page ?? 100;
+
+    while (true) {
+      const params = {
+        ...options,
+        after_id: afterId,
+        page,
+        per_page: perPage,
+      };
+
+      const data = await this.request<TargetProductReturnsResponse>(
+        'GET',
+        `/sellers/${this.sellerId}/product_returns_search`,
+        params,
+      );
+
+      if (!data?.items.length) break;
+
+      allReturns.push(...data.items);
+
+      /**
+       * Prefer after_id pagination for large datasets.
+       * Fallback to page-based pagination if after_id is not returned.
+       */
+      const lastItem = data.items.at(-1);
+      if (lastItem?.id) {
+        afterId = lastItem.id;
+      } else if (data.items.length < perPage) {
+        break;
+      } else {
+        page++;
+      }
+    }
+
+    return allReturns;
   }
 }

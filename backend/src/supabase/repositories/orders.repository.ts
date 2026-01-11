@@ -36,4 +36,22 @@ export class OrdersRepository {
       shipments,
     });
   }
+  async getByExternalOrderIds(
+    storeId: string,
+    externalOrderIds: string[],
+  ): Promise<Database['public']['Tables']['orders']['Row'][]> {
+    if (!externalOrderIds.length) return [];
+
+    const { data, error } = await this.supabaseClient
+      .from('orders')
+      .select('*')
+      .eq('store_id', storeId)
+      .in('external_order_id', externalOrderIds);
+
+    if (error) {
+      throw error;
+    }
+
+    return data ?? [];
+  }
 }

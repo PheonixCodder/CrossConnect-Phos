@@ -9,4 +9,16 @@ export class ReturnsRepository {
     @InjectSupabaseClient()
     private readonly supabaseClient: SupabaseClient<Database>,
   ) {}
+
+  async insertReturns(
+    returns: Database['public']['Tables']['returns']['Insert'][],
+  ) {
+    if (!returns.length) {
+      return { data: [], error: null };
+    }
+
+    return this.supabaseClient.from('returns').upsert(returns, {
+      onConflict: 'external_return_id',
+    });
+  }
 }
