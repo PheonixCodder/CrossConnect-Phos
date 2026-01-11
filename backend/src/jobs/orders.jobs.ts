@@ -278,6 +278,10 @@ export class OrdersProcessor extends WorkerHost {
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(dbOrders);
 
+      if (!insertedOrders || !insertedOrders.length) {
+        throw new Error('Failed to insert Walmart orders or no rows returned');
+      }
+
       const orderIdByExternal = new Map(
         insertedOrders.map((o) => [o.external_order_id, o.id]),
       );

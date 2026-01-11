@@ -123,7 +123,7 @@ export class ReturnsProcessor extends WorkerHost {
       }
 
       // ------------------------------
-      // 2️⃣ Fetch ALL Target Returns
+      // 2️⃣ Fetch ALL Walmart Returns
       // ------------------------------
       const walmartReturns =
         await this.walmartService.getWalmartProductReturns();
@@ -136,7 +136,7 @@ export class ReturnsProcessor extends WorkerHost {
       // ------------------------------
       const externalOrderIds = [
         ...new Set(
-          walmartReturns.returnOrders
+          walmartReturns?.returnOrders
             .map(
               (r) =>
                 r.customerOrderId! ?? r.returnOrderLines?.[0]?.purchaseOrderId,
@@ -146,7 +146,7 @@ export class ReturnsProcessor extends WorkerHost {
       ];
 
       if (!externalOrderIds.length) {
-        this.logger.warn('No order IDs found in Target returns');
+        this.logger.warn('No order IDs found in Walmart returns');
         return;
       }
       // ------------------------------
@@ -159,7 +159,7 @@ export class ReturnsProcessor extends WorkerHost {
 
       if (!orders.length) {
         this.logger.warn(
-          `No matching orders found for ${externalOrderIds.length} Target returns`,
+          `No matching orders found for ${externalOrderIds.length} Walmart returns`,
         );
         return;
       }
@@ -171,7 +171,7 @@ export class ReturnsProcessor extends WorkerHost {
         orderIdMap.set(order.external_order_id, order.id),
       );
       // ------------------------------
-      // 6️⃣ Map Target returns → DB returns (EXTERNAL order_id for now)
+      // 6️⃣ Map Walmart returns → DB returns (EXTERNAL order_id for now)
       // ------------------------------
       const rawReturns = mapWalmartReturnsToDB(walmartReturns, storeId);
 

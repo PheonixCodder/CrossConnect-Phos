@@ -160,7 +160,7 @@ export function mapWalmartFulfillmentsToDB(
     platform: 'walmart',
 
     product_id: productId ?? null,
-    status: 'shipped',
+    status: 'pending',
   };
 }
 

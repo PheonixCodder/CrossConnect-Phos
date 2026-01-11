@@ -12,6 +12,7 @@ import { InventoryRepository } from 'src/supabase/repositories/inventory.reposit
 import { FulfillmentsRepository } from 'src/supabase/repositories/fulfillments.repository';
 import { TargetModule } from 'src/connectors/target/target.module';
 import { WalmartModule } from 'src/connectors/walmart/walmart.module';
+import { ReturnsProcessor } from './returns.jobs';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { WalmartModule } from 'src/connectors/walmart/walmart.module';
     OrderItemsRepository,
     InventoryRepository,
     FulfillmentsRepository,
+    ReturnsProcessor,
   ],
   exports: [BullModule],
 })

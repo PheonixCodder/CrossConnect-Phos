@@ -17,6 +17,7 @@ import { InlineResponse2003ItemResponse } from '@whitebox-co/walmart-marketplace
 import { InlineResponse200 } from '@whitebox-co/walmart-marketplace-api/lib/src/apis/inventory';
 import { Database } from 'src/supabase/supabase.types';
 import { InlineResponse2002 } from '@whitebox-co/walmart-marketplace-api/lib/src/apis/returns';
+import { InlineResponse2001 } from '@whitebox-co/walmart-marketplace-api/lib/src/apis/orders';
 
 @Injectable()
 export class WalmartService implements OnModuleInit {
@@ -37,7 +38,7 @@ export class WalmartService implements OnModuleInit {
   // -------------------------
   // ORDERS
   // -------------------------
-  async getOrders() {
+  async getOrders(): Promise<InlineResponse2001 | undefined> {
     try {
       const ordersApi = await this.walmart.getConfiguredApi(OrdersApi);
       // Fetches created orders by default; adjust parameters for specific statuses
@@ -59,12 +60,41 @@ export class WalmartService implements OnModuleInit {
   async getProducts(): Promise<InlineResponse2003ItemResponse[] | undefined> {
     try {
       const itemsApi = await this.walmart.getConfiguredApi(ItemsApi);
-      // Walmart retrieves items via a lifecycle/status filter
-      const response = await itemsApi.getAllItems({
-        ...defaultParams,
-        limit: '50',
-      });
-      return response.data.ItemResponse;
+
+      const allItems: InlineResponse2003ItemResponse[] = [];
+      let nextCursor: string | undefined;
+      let retries = 0;
+      const maxRetries = 3;
+
+      do {
+        try {
+          const response = await itemsApi.getAllItems({
+            ...defaultParams,
+            limit: '50',
+            ...(nextCursor ? { nextCursor } : {}),
+          });
+
+          const items = response.data?.ItemResponse ?? [];
+          allItems.push(...items);
+
+          nextCursor = response.data?.nextCursor;
+          retries = 0; // reset retries after a successful call
+        } catch (err: any) {
+          const status = err?.response?.status;
+
+          // Simple backoff on rate limiting
+          if (status === 429 && retries < maxRetries) {
+            retries++;
+            const backoffMs = 500 * Math.pow(2, retries);
+            await new Promise((res) => setTimeout(res, backoffMs));
+            continue;
+          }
+
+          throw err;
+        }
+      } while (nextCursor);
+
+      return allItems;
     } catch (error) {
       this.handleError('getProducts', error);
     }
@@ -100,7 +130,7 @@ export class WalmartService implements OnModuleInit {
       });
       return response.data;
     } catch (error) {
-      this.handleError('getInventory', error);
+      this.handleError('getWalmartProductReturns', error);
     }
   }
 
