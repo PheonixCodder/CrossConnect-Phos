@@ -12,6 +12,13 @@ import {
   mapTargetProductToSupabaseProduct,
 } from 'src/connectors/target/target.mapper';
 import { TargetService } from 'src/connectors/target/target.service';
+import {
+  fetchInventoryAdaptive,
+  mapWalmartInventoryToDB,
+  mapWalmartProductToDB,
+  shouldUpdateInventory,
+} from 'src/connectors/walmart/walmart.mapper';
+import { WalmartService } from 'src/connectors/walmart/walmart.service';
 import { InventoryRepository } from 'src/supabase/repositories/inventory.repository';
 import { ProductsRepository } from 'src/supabase/repositories/products.repository';
 import { StoresRepository } from 'src/supabase/repositories/stores.repository';
@@ -27,6 +34,7 @@ export class ProductsProcessor extends WorkerHost {
     private readonly inventoryRepo: InventoryRepository,
     private readonly storeRepo: StoresRepository,
     private readonly targetService: TargetService,
+    private readonly walmartService: WalmartService,
   ) {
     super();
   }
@@ -198,6 +206,90 @@ export class ProductsProcessor extends WorkerHost {
 
       this.logger.log(
         `Target sync complete: ${productInserts.length} products, ${inventoryInserts.length} inventory rows`,
+      );
+    }
+    if (platform === 'walmart') {
+      // ------------------------------
+      // 1️⃣ Resolve Store
+      // ------------------------------
+      const storeId = await this.storeRepo.getStoreId(platform);
+      if (!storeId)
+        throw new Error(`Store not found for platform: ${platform}`);
+
+      // ------------------------------
+      // 2️⃣ Fetch Products
+      // ------------------------------
+      const walmartProducts = await this.walmartService.getProducts();
+      if (!walmartProducts?.length) {
+        this.logger.warn('No products returned from Walmart');
+        return;
+      }
+
+      // ------------------------------
+      // 3️⃣ Upsert Products
+      // ------------------------------
+      const productInserts = mapWalmartProductToDB(walmartProducts, storeId);
+      await this.productsRepo.insertProducts(productInserts);
+
+      // ------------------------------
+      // 4️⃣ Resolve product_id by SKU
+      // ------------------------------
+      const skus = productInserts.map((p) => p.sku);
+      const productIdRows = await this.productsRepo.getIdsBySkus(
+        storeId,
+        skus,
+        'walmart',
+      );
+      const productIdBySku = new Map(
+        productIdRows.map((row) => [row.sku, row.id]),
+      );
+
+      // ------------------------------
+      // 5️⃣ Fetch existing inventory for delta comparison
+      // ------------------------------
+      const existingInventory = await this.inventoryRepo.getBySkus(
+        skus,
+        storeId,
+      );
+
+      // ------------------------------
+      // 6️⃣ Adaptive Inventory Fetch & Delta Mapping
+      // ------------------------------
+      const inventoryInserts: Database['public']['Tables']['inventory']['Insert'][] =
+        [];
+
+      await fetchInventoryAdaptive(productInserts, {
+        batchSize: 3,
+        initialDelayMs: 500,
+        maxRetries: 3,
+        handler: async (product) => {
+          const productId = productIdBySku.get(product.sku);
+          if (!productId) return;
+
+          const inventory = await this.walmartService.getInventory(product);
+          if (!inventory) return;
+
+          const existing = existingInventory[product.sku];
+          if (!existing || shouldUpdateInventory(existing, inventory)) {
+            inventoryInserts.push(
+              mapWalmartInventoryToDB(inventory, storeId, productId),
+            );
+          }
+        },
+      });
+
+      if (!inventoryInserts.length) {
+        this.logger.log('No inventory changes detected for Walmart');
+        return;
+      }
+
+      // ------------------------------
+      // 7️⃣ Upsert inventory changes
+      // ------------------------------
+      await this.inventoryRepo.updateInventoryBatch(inventoryInserts);
+
+      this.logger.log(
+        `Walmart sync complete: ${productInserts.length} products, ${inventoryInserts.length} inventory updates`,
       );
     }
   }
