@@ -2,6 +2,12 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import {
+  mapAmazonInventoryFromFbaSummary,
+  mapAmazonProductToSupabaseProduct,
+  shouldUpdateAmazonInventory,
+} from 'src/connectors/amazon/amazon.mapper';
+import { AmazonService } from 'src/connectors/amazon/amazon.service';
+import {
   mapInventoryToDB,
   mapProductsToDB,
 } from 'src/connectors/faire/faire.mapper';
@@ -35,6 +41,7 @@ export class ProductsProcessor extends WorkerHost {
     private readonly storeRepo: StoresRepository,
     private readonly targetService: TargetService,
     private readonly walmartService: WalmartService,
+    private readonly amazonService: AmazonService,
   ) {
     super();
   }
@@ -290,6 +297,106 @@ export class ProductsProcessor extends WorkerHost {
 
       this.logger.log(
         `Walmart sync complete: ${productInserts.length} products, ${inventoryInserts.length} inventory updates`,
+      );
+    }
+
+    if (platform === 'amazon') {
+      // ------------------------------
+      // 1️⃣ Resolve Store
+      // ------------------------------
+      const store = await this.storeRepo.getStore('amazon');
+      const storeId = store.id;
+
+      // ------------------------------
+      // 2️⃣ Fetch Products (Listings Report)
+      // ------------------------------
+      const listings = await this.amazonService.getAllProducts(store);
+
+      if (!listings.length) {
+        this.logger.warn('No Amazon listings returned');
+        return;
+      }
+
+      // ------------------------------
+      // 3️⃣ Upsert Products
+      // ------------------------------
+      const productInserts: Database['public']['Tables']['products']['Insert'][] =
+        listings.map((row) => mapAmazonProductToSupabaseProduct(row, storeId));
+
+      await this.productsRepo.insertProducts(productInserts);
+
+      // ------------------------------
+      // 4️⃣ Resolve product_id by SKU
+      // ------------------------------
+      const skus = productInserts.map((p) => p.sku);
+
+      const productIdRows = await this.productsRepo.getIdsBySkus(
+        storeId,
+        skus,
+        'amazon',
+      );
+
+      const productIdBySku = new Map(
+        productIdRows.map((row) => [row.sku, row.id]),
+      );
+
+      // ------------------------------
+      // 5️⃣ Fetch existing inventory for delta comparison
+      // ------------------------------
+      const existingInventory = await this.inventoryRepo.getBySkus(
+        skus,
+        storeId,
+      );
+
+      // ------------------------------
+      // 6️⃣ Fetch FBA Inventory & Delta Mapping
+      // ------------------------------
+      const inventorySummaries =
+        await this.amazonService.getInventorySummaries(store);
+
+      if (!inventorySummaries.length) {
+        this.logger.warn('No Amazon inventory summaries returned');
+        return;
+      }
+
+      const inventoryInserts: Database['public']['Tables']['inventory']['Insert'][] =
+        [];
+
+      for (const summary of inventorySummaries) {
+        const sku = summary.sellerSku;
+        if (!sku) continue;
+
+        const productId = productIdBySku.get(sku);
+        if (!productId) continue;
+
+        const mappedInventory = mapAmazonInventoryFromFbaSummary(
+          summary,
+          storeId,
+          productId,
+        );
+
+        const existing = existingInventory[sku];
+
+        if (
+          !existing ||
+          shouldUpdateAmazonInventory(existing, mappedInventory)
+        ) {
+          inventoryInserts.push(mappedInventory);
+        }
+      }
+
+      if (!inventoryInserts.length) {
+        this.logger.log('No inventory changes detected for Amazon');
+        return;
+      }
+
+      // ------------------------------
+      // 7️⃣ Upsert inventory changes
+      // ------------------------------
+      await this.inventoryRepo.updateInventoryBatch(inventoryInserts);
+
+      this.logger.log(
+        `Amazon sync complete: ${productInserts.length} products, ${inventoryInserts.length} inventory updates`,
       );
     }
   }

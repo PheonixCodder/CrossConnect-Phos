@@ -26,4 +26,21 @@ export class StoresRepository {
 
     return data.id;
   }
+  async getStore(
+    platform: string,
+  ): Promise<Database['public']['Tables']['stores']['Row']> {
+    const { data, error } = await this.supabaseClient
+      .from('stores')
+      .select('*')
+      .eq('platform', platform)
+      .single();
+
+    if (error) {
+      this.logger.error(`Store not found for platform: ${platform}`, error);
+
+      throw new Error(`Store not found for platform: ${platform}`);
+    }
+
+    return data;
+  }
 }

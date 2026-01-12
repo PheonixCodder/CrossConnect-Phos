@@ -23,6 +23,12 @@ import {
   mapWalmartOrderItemsToDB,
   mapWalmartOrderToDB,
 } from 'src/connectors/walmart/walmart.mapper';
+import { AmazonService } from 'src/connectors/amazon/amazon.service';
+import {
+  mapAmazonOrderItemToDB,
+  mapAmazonOrderToDB,
+  mapAmazonShipmentToDB,
+} from 'src/connectors/amazon/amazon.mapper';
 
 @Processor('orders', { concurrency: 5 })
 export class OrdersProcessor extends WorkerHost {
@@ -37,6 +43,7 @@ export class OrdersProcessor extends WorkerHost {
     private readonly storeRepo: StoresRepository,
     private readonly productsRepo: ProductsRepository,
     private readonly walmartService: WalmartService,
+    private readonly amazonService: AmazonService,
   ) {
     super();
   }
@@ -320,6 +327,101 @@ export class OrdersProcessor extends WorkerHost {
 
       this.logger.log(
         `Walmart orders synced: ${insertedOrders.length} orders, ${orderItems.length} items, ${fulfillments.length} fulfillments`,
+      );
+    }
+
+    if (platform === 'amazon') {
+      // ------------------------------
+      // 1️⃣ Fetch store
+      // ------------------------------
+      const store = await this.storeRepo.getStore(platform);
+      if (!store) throw new Error(`Store not found for platform: ${platform}`);
+
+      // ------------------------------
+      // 2️⃣ Fetch all products for this store -> external_product_id -> product.id
+      // ------------------------------
+      const products = await this.productsRepo.getAllProductsByStore(store.id);
+      const productMap: Record<string, string> = {};
+      products.forEach((p) => {
+        if (p.external_product_id) productMap[p.external_product_id] = p.id!;
+      });
+
+      // ------------------------------
+      // 3️⃣ Fetch orders from Amazon
+      // ------------------------------
+      const orders = await this.amazonService.getOrders(store);
+      if (!orders?.length) {
+        this.logger.warn('No orders fetched from Amazon');
+        return;
+      }
+
+      // ------------------------------
+      // 4️⃣ Map orders -> DB insert objects
+      // ------------------------------
+      const orderInserts = orders.map((o) =>
+        mapAmazonOrderToDB(o, store.id, platform),
+      );
+
+      // ------------------------------
+      // 5️⃣ Insert orders & capture internal IDs
+      // ------------------------------
+      const { data: insertedOrders } =
+        await this.ordersRepo.insertOrdersAndReturn(orderInserts);
+
+      const orderIdByExternal = new Map(
+        insertedOrders.map((o) => [o.external_order_id, o.id]),
+      );
+
+      // ------------------------------
+      // 6️⃣ Fetch order items per order & map to DB
+      // ------------------------------
+      const orderItemsInserts: Database['public']['Tables']['order_items']['Insert'][] =
+        [];
+      const shipmentsInserts: Database['public']['Tables']['fulfillments']['Insert'][] =
+        [];
+
+      for (const order of orders) {
+        const orderId = orderIdByExternal.get(order.AmazonOrderId);
+        if (!orderId) continue;
+
+        // Fetch items from Amazon service
+        const items = await this.amazonService.getOrderItems(
+          order.AmazonOrderId,
+        );
+
+        for (const item of items) {
+          const productId = productMap[item.ASIN] ?? undefined;
+
+          // Map order items
+          orderItemsInserts.push(
+            mapAmazonOrderItemToDB(item, orderId, productId),
+          );
+
+          // Map shipments (fulfillments)
+          if (order.FulfillmentChannel) {
+            shipmentsInserts.push(
+              mapAmazonShipmentToDB(order, item, store.id, orderId, productId),
+            );
+          }
+        }
+      }
+
+      // ------------------------------
+      // 7️⃣ Insert order items
+      // ------------------------------
+      if (orderItemsInserts.length) {
+        await this.orderItemsRepo.insertOrderItems(orderItemsInserts);
+      }
+
+      // ------------------------------
+      // 8️⃣ Insert shipments
+      // ------------------------------
+      if (shipmentsInserts.length) {
+        await this.shipmentRepo.insertShipments(shipmentsInserts);
+      }
+
+      this.logger.log(
+        `Amazon sync complete: ${orders.length} orders, ${orderItemsInserts.length} items, ${shipmentsInserts.length} shipments`,
       );
     }
   }
