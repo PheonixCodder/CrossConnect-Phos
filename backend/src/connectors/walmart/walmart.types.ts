@@ -1,61 +1,41 @@
-/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
+// Get All Orders
+export interface GetAllOrdersResponse {
+  list: {
+    meta: {
+      totalCount: number;
+      limit: number;
+      nextCursor: string;
+    };
+    elements: {
+      order: Order[];
+    };
+  };
+}
+
+export interface Order {
+  purchaseOrderId: string;
+  customerOrderId: string;
+  customerEmailId: string;
+  customerRfc: string;
+  orderDate: number;
+  orderSummary: OrderSummary;
+  shippingInfo: ShippingInfo;
+  orderLines: {
+    orderLine: OrderLine[];
+  };
+}
+
+export interface OrderSummary {
+  totalAmount: Money;
+  orderSubTotals: {
+    subTotalType: string;
+    taxAmount: Money;
+  }[];
+}
+
 export interface Money {
-  currency: string;
   amount: number;
-}
-
-export interface Tax {
-  taxName: string;
-  taxAmount: Money;
-}
-
-export interface Charges {
-  charge: Charge[];
-}
-
-export interface Item {
-  productName: string;
-  sku: string;
-}
-
-export interface Quantity {
-  unitOfMeasurement: string;
-  amount: string;
-}
-
-export interface OrderLineStatus {
-  status: string;
-  statusQuantity: Quantity;
-}
-
-export interface OrderLineStatuses {
-  orderLineStatus: OrderLineStatus[];
-}
-
-export interface Fulfillment {
-  fulfillmentOption: string;
-  shipMethod: string;
-  pickUpDateTime: number;
-}
-export interface OrderLine {
-  lineNumber: string;
-  item: Item;
-  charges: Charges;
-  orderLineQuantity: Quantity;
-  statusDate: number;
-  orderLineStatuses: OrderLineStatuses;
-  fulfillment: Fulfillment;
-}
-
-export interface PostalAddress {
-  name: string;
-  address1: string;
-  address2?: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-  addressType: string;
+  currency: string;
 }
 
 export interface ShippingInfo {
@@ -65,225 +45,136 @@ export interface ShippingInfo {
   methodCode: string;
   postalAddress: PostalAddress;
 }
-export interface Order {
-  purchaseOrderId: string;
-  customerOrderId: string;
-  customerEmailId: string;
-  orderType: string;
-  originalCustomerOrderID?: string;
-  orderDate: number;
-  shippingInfo: ShippingInfo;
-  orderLines: {
-    orderLine: OrderLine[];
-  };
-}
 
-export interface VariantGroupingAttribute {
+export interface PostalAddress {
   name: string;
-  value: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
 }
 
-export interface VariantGroupInfo {
-  isPrimary: boolean;
-  groupingAttributes: VariantGroupingAttribute[];
+export interface OrderLine {
+  lineNumber: string;
+  item: {
+    productName: string;
+    sku: string;
+  };
+  charges: {
+    charge: {
+      chargeType: string;
+      chargeName: string;
+      chargeAmount: Money;
+      tax: {
+        taxAmount: Money;
+      };
+    }[];
+  };
+  orderLineQuantity: {
+    unitOfMeasurement: string;
+    amount: number;
+  };
+  orderLineStatuses: {
+    orderLineStatus: {
+      status: string;
+      statusQuantity: {
+        unitOfMeasurement: string;
+        amount: number;
+      };
+      trackingInfo: {
+        carrierName: {
+          otherCarrier: string;
+        };
+        methodCode: string;
+        shipmentNo: string;
+      };
+      cancellationReason: string;
+    }[];
+  };
+  fulfillment: {
+    fulfillmentOption: string;
+    shipMethod: string;
+    storeId: string;
+    offerId: string;
+    predictedShipNodeId: string;
+    predictedShipNodeName: string;
+  };
+  statusDate: number;
 }
 
-export interface DestinationItem {
-  mart: string;
-  wpid: string;
-  upc?: string;
-  itemId?: string;
-  productName: string;
-  productType: string;
-}
-
-export interface DuplicateItemInfo {
-  status: 'IN_REVIEW' | 'RESOLVED' | string;
-  lastUpdatedDate: string;
-  identifiedDate: string;
-  destinationItem: DestinationItem;
-}
-
-export interface UnpublishedReasons {
-  reason: string[];
+// get All Items
+export interface GetAllItemsResponse {
+  ItemResponse: WalmartItem[];
+  totalItems: number;
+  nextCursor: string;
 }
 
 export interface WalmartItem {
-  mart: 'WALMART_US' | string;
+  mart: string;
   sku: string;
-  availability: 'In_stock' | 'Preorder' | string;
-
-  wpid?: string;
-  upc?: string;
-  gtin?: string;
-
-  productName?: string;
-  shelf?: string[];
-  productType?: string;
-
-  price?: Money;
-
-  publishedStatus: 'PUBLISHED' | 'UNPUBLISHED';
-  unpublishedReasons?: UnpublishedReasons;
-
-  lifecycleStatus: 'ACTIVE' | 'ARCHIVED' | 'RETIRED' | string;
-
-  isDuplicate: boolean;
-
-  variantGroupId?: string;
-  variantGroupInfo?: VariantGroupInfo;
-
-  duplicateItemInfo?: DuplicateItemInfo;
-}
-export interface WalmartItemsResponse {
-  ItemResponse: WalmartItem[];
-  totalItems: number;
-  nextCursor?: string;
-}
-
-export interface InventoryQuantity {
-  unit: 'EACH' | string;
-  amount: number;
-}
-
-export interface Inventory {
-  sku: string;
-  quantity: InventoryQuantity;
-  inventoryAvailableDate?: string;
-}
-
-export interface CurrencyAmount {
-  currencyAmount: number;
-  currencyUnit: 'USD' | string;
-}
-
-export interface Quantity {
-  unitOfMeasure?: string;
-  measurementValue: number;
-}
-
-export interface CustomerName {
-  firstName: string;
-  lastName: string;
-}
-
-export interface ReturnChannel {
-  channelName: string;
-}
-export interface ItemWeight {
-  unitOfMeasure: string;
-  measurementValue: number;
-}
-
-export interface ReturnItem {
-  sku?: string;
-  condition: string;
+  wpid: string;
+  gtin: string;
   productName: string;
-  itemWeight?: ItemWeight;
-}
-
-export interface TaxDetail {
-  taxName: string;
-  excessTax?: CurrencyAmount;
-  taxPerUnit: CurrencyAmount;
-}
-
-export interface ChargeReference {
-  name: string;
-  value: string;
-}
-
-export interface Charge {
-  chargeCategory: string;
-  chargeName: string;
-  chargePerUnit: CurrencyAmount;
-  isDiscount: boolean;
-  isBillable: boolean;
-  tax?: TaxDetail[];
-  excessCharge?: CurrencyAmount;
-  references?: ChargeReference[];
-}
-
-export interface TrackingReference {
-  name: string;
-  value: string;
-}
-
-export interface ReturnTrackingDetail {
-  sequenceNo: number;
-  eventTag: string;
-  eventDescription: string;
-  eventTime: string;
-  references?: TrackingReference[];
-}
-export interface RefundChannel {
-  refundChannelName: string;
-  quantity: {
-    measurementValue: number;
+  shelf: string[];
+  productType: string;
+  price: {
+    currency: string;
+    amount: number;
+  };
+  publishedStatus: string;
+  lifecycleStatus: string;
+  variantGroupId: string;
+  variantGroupInfo: {
+    isPrimary: boolean;
+    groupingAttributes: {
+      name: string;
+      value: string;
+    }[];
   };
 }
-export interface ReturnOrderLine {
-  returnOrderLineNumber: number;
-  salesOrderLineNumber: number;
-  returnReason: string;
-  returnDescription?: string;
-
-  purchaseOrderId: string;
-  purchaseOrderLineNumber: number;
-
-  sellerOrderId?: string;
-
-  isReturnForException: boolean;
-  exceptionItemType?: string;
-
-  item: ReturnItem;
-  charges: Charge[];
-
-  unitPrice: CurrencyAmount;
-  chargeTotals: {
-    name: string;
-    value: CurrencyAmount;
-  }[];
-
-  quantity: Quantity;
-
-  cancellableQty: number;
-  refundedQty: number;
-  rechargeableQty: number;
-
-  refundCoveredBy: string;
-
-  returnExpectedFlag: boolean;
-  isFastReplacement: boolean;
-  isKeepIt: boolean;
-  lastItem: boolean;
-
-  status: string;
-  statusTime: string;
-
-  currentDeliveryStatus?: string;
-  currentRefundStatus?: string;
-
-  currentTrackingStatuses?: {
-    status: string;
-    statusTime: string;
-    currentRefundStatus: string;
-    quantity: Quantity;
-  }[];
-
-  refundChannels?: RefundChannel[];
-  returnTrackingDetail?: ReturnTrackingDetail[];
+//getInventory
+export interface GetInventoryResponse {
+  sku: string;
+  quantity: {
+    unit: string;
+    amount: number;
+  };
 }
-export interface CarrierInfo {
-  carrierId: string;
-  carrierName: string;
-  serviceType: string;
-  trackingNo: string;
+//getReturns
+export interface WalmartReturnsResponse {
+  meta: {
+    totalCount: number;
+    limit: number;
+    nextCursor: string;
+  };
+  returnOrders: ReturnOrder[];
 }
 
-export interface ReturnLabel {
-  labelImageURL: string;
-  carrierInfoList: CarrierInfo[];
+export interface ReturnOrder {
+  returnOrderId: string;
+  customerEmailId: string;
+  customerName: {
+    firstName: string;
+    lastName: string;
+  };
+  customerOrderId: string;
+  returnByDate: string;
+  refundMode: string;
+  totalRefundAmount: {
+    currencyAmount: number;
+    currencyUnit: string;
+  };
+  returnLineGroups: ReturnLineGroup[];
+  returnOrderLines: ReturnOrderLine[];
+  returnOrderShipments: {
+    shipmentNo: string;
+    trackingNumber: string;
+  }[];
+  returnChannel: {
+    channelName: string;
+  };
 }
 
 export interface ReturnLineGroup {
@@ -291,37 +182,58 @@ export interface ReturnLineGroup {
   returnLines: {
     returnOrderLineNumber: number;
   }[];
-  labels?: ReturnLabel[];
+  labels: {
+    labelImageURL: string;
+    carrierInfoList: {
+      carrierId: string;
+      carrierName: string;
+      serviceType: string;
+      trackingNo: string;
+    }[];
+  }[];
   returnExpectedFlag: boolean;
 }
-export interface ReturnOrder {
-  returnOrderId: string;
-  customerEmailId: string;
 
-  customerName?: CustomerName;
-  customerOrderId: string;
-
-  refundMode: string;
-  returnType?: string;
-
-  replacementCustomerOrderId?: string;
-
-  returnOrderDate: string;
-  returnByDate?: string;
-
-  totalRefundAmount: CurrencyAmount;
-
-  returnLineGroups: ReturnLineGroup[];
-  returnOrderLines: ReturnOrderLine[];
-
-  returnChannel: ReturnChannel;
-}
-
-export interface WalmartReturnsResponse {
-  meta: {
-    totalCount: number;
-    limit: number;
-    nextCursor?: string;
+export interface ReturnOrderLine {
+  returnOrderLineNumber: number;
+  primeLineNumber: string;
+  salesOrderLineNumber: number;
+  returnReason: string;
+  returnDescription: string;
+  purchaseOrderId: string;
+  purchaseOrderLineNumber: number;
+  isReturnForException: boolean;
+  item: {
+    condition: string;
+    productName: string;
+    itemWeight: {
+      unitOfMeasure: string;
+      measurementValue: number;
+    };
   };
-  returnOrders: ReturnOrder[];
+  charges: {
+    chargeCategory: string;
+    chargeName: string;
+    chargePerUnit: {
+      currencyAmount: number;
+      currencyUnit: string;
+    };
+    isDiscount: boolean;
+    isBillable: boolean;
+    tax: {
+      taxName: string;
+      excessTax: {
+        currencyAmount: number;
+        currencyUnit: string;
+      };
+      taxPerUnit: {
+        currencyAmount: number;
+        currencyUnit: string;
+      };
+    }[];
+    references: {
+      name: string;
+      value: string;
+    }[];
+  }[];
 }

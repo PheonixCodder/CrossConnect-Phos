@@ -1,10 +1,10 @@
 import { Database } from 'src/supabase/supabase.types';
 import {
   WalmartItem,
-  Inventory,
   ReturnOrder,
   Order,
   OrderLine as WalmartOrderLine,
+  GetInventoryResponse,
 } from './walmart.types';
 
 /**
@@ -19,8 +19,7 @@ export function mapWalmartProductToDB(
     const title = product.productName ?? null;
 
     // External product id: prefer wpid > gtin > upc > sku
-    const externalId =
-      product.wpid ?? product.gtin ?? product.upc ?? product.sku;
+    const externalId = product.wpid ?? product.gtin ?? product.sku;
 
     return {
       sku: product.sku,
@@ -40,7 +39,7 @@ export function mapWalmartProductToDB(
  * Inventory mapping
  */
 export function mapWalmartInventoryToDB(
-  inventory: Inventory,
+  inventory: GetInventoryResponse,
   storeId: string,
   productId: string,
 ): Database['public']['Tables']['inventory']['Insert'] {
@@ -131,7 +130,7 @@ export async function fetchInventoryAdaptive<T>(
  */
 export function shouldUpdateInventory(
   existing: Database['public']['Tables']['inventory']['Row'],
-  incoming: Inventory,
+  incoming: GetInventoryResponse,
 ) {
   const newQty = incoming.quantity?.amount ?? 0;
   const newStatus = newQty > 0 ? 'in_stock' : 'out_of_stock';
@@ -206,34 +205,39 @@ export function mapWalmartOrderToDB(
   order: Order,
   storeId: string,
 ): Database['public']['Tables']['orders']['Insert'] {
-  const summary = (order as any).orderSummary ?? {};
+  const summary = order.orderSummary;
   const status = deriveOrderStatus(order);
 
-  const subtotal =
-    summary?.orderSubTotals?.find((s: any) => s.subTotalType === 'PRODUCT')
-      ?.totalAmount?.currencyAmount ?? null;
+  // -------------------------
+  // Subtotals (Walmart uses Money, NOT CurrencyAmount here)
+  // -------------------------
+  const productSubTotal =
+    summary?.orderSubTotals?.find((s) => s.subTotalType === 'PRODUCT')
+      ?.taxAmount?.amount ?? null;
 
-  const tax =
-    summary?.orderSubTotals?.find((s: any) => s.subTotalType === 'TAX')
-      ?.totalAmount?.currencyAmount ?? null;
+  const taxTotal =
+    summary?.orderSubTotals?.find((s) => s.subTotalType === 'TAX')?.taxAmount
+      ?.amount ?? null;
 
-  const shipping =
-    summary?.orderSubTotals?.find((s: any) => s.subTotalType === 'SHIPPING')
-      ?.totalAmount?.currencyAmount ?? null;
-
-  const total = summary?.totalAmount?.currencyAmount ?? null;
+  const shippingTotal =
+    summary?.orderSubTotals?.find((s) => s.subTotalType === 'SHIPPING')
+      ?.taxAmount?.amount ?? null;
 
   return {
     external_order_id: order.purchaseOrderId,
     store_id: storeId,
     platform: 'walmart',
-    currency: summary?.totalAmount?.currencyUnit ?? 'USD',
+
+    currency: summary?.totalAmount?.currency ?? 'USD',
     ordered_at: new Date(order.orderDate).toISOString(),
-    subtotal,
-    tax,
-    shipping,
-    total,
-    status,
+
+    subtotal: productSubTotal,
+    tax: taxTotal,
+    shipping: shippingTotal,
+
+    total: summary?.totalAmount?.amount ?? null,
+
+    status, // ENUM SAFE
     payment_status: status === 'paid' || status === 'completed' ? 'paid' : null,
     fulfillment_status: status === 'completed' ? 'fulfilled' : 'unfulfilled',
   };
@@ -251,9 +255,8 @@ export function mapWalmartOrderItemsToDB(
 
   // Best-effort to find product charge
   const productCharge =
-    (line.charges as any)?.charge?.find(
-      (c: any) => c.chargeType === 'PRODUCT',
-    ) ?? (line.charges as any)?.charge?.[0];
+    line.charges?.charge?.find((c: any) => c.chargeType === 'PRODUCT') ??
+    line.charges?.charge?.[0];
 
   const unitPrice = productCharge?.chargeAmount?.amount ?? 0;
 
@@ -284,48 +287,53 @@ export function mapWalmartReturnsToDB(
 ): Database['public']['Tables']['returns']['Insert'][] {
   const results: Database['public']['Tables']['returns']['Insert'][] = [];
 
-  for (const returnOrder of walmartReturns ?? []) {
-    if (!returnOrder || !returnOrder.returnOrderId) continue;
+  for (const returnOrder of walmartReturns) {
+    // -------------------------
+    // Required identifiers
+    // -------------------------
+    if (!returnOrder.returnOrderId) continue;
 
-    // try to determine external order id: customerOrderId || first line purchaseOrderId
     const externalOrderId =
       returnOrder.customerOrderId ??
       returnOrder.returnOrderLines?.[0]?.purchaseOrderId;
 
     if (!externalOrderId) continue;
 
+    // -------------------------
+    // Refund amount
+    // -------------------------
     const refundAmount = returnOrder.totalRefundAmount?.currencyAmount ?? null;
+
     const currency = returnOrder.totalRefundAmount?.currencyUnit ?? null;
 
-    // Normalize status
-    let status = 'processing';
-    const lineStatuses =
-      returnOrder.returnOrderLines?.map((l) => ({
-        status: l.status,
-        refundStatus: l.currentRefundStatus,
-      })) ?? [];
+    // -------------------------
+    // Status normalization (ONLY using available fields)
+    // -------------------------
+    let status: 'processing' | 'pending' | 'refunded' = 'processing';
 
-    if (
-      lineStatuses.some(
-        (l) =>
-          l.refundStatus === 'REFUND_COMPLETED' ||
-          l.refundStatus === 'COMPLETED',
-      )
-    ) {
+    const hasRefundAmount =
+      typeof refundAmount === 'number' && refundAmount > 0;
+
+    const expectedReturn =
+      returnOrder.returnLineGroups?.some(
+        (g) => g.returnExpectedFlag === true,
+      ) ?? false;
+
+    if (hasRefundAmount) {
       status = 'refunded';
-    } else if (
-      lineStatuses.some((l) =>
-        ['INITIATED', 'RECEIVED'].includes(l.status ?? ''),
-      )
-    ) {
+    } else if (expectedReturn) {
       status = 'pending';
     }
 
+    // -------------------------
+    // Insert row
+    // -------------------------
     results.push({
       external_return_id: returnOrder.returnOrderId,
-      order_id: externalOrderId, // temporary — resolved to internal id in job
+      order_id: externalOrderId, // external → resolved later
       store_id: storeId,
       platform: 'walmart',
+
       refund_amount: refundAmount,
       currency,
       status,

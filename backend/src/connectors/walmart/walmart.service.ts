@@ -7,11 +7,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import WalmartMarketplace from '@mediocre/walmart-marketplace';
 import {
-  Inventory,
+  GetAllItemsResponse,
+  GetInventoryResponse,
   Order,
   ReturnOrder,
   WalmartItem,
-  WalmartItemsResponse,
   WalmartReturnsResponse,
 } from './walmart.types';
 import { Database } from 'src/supabase/supabase.types';
@@ -48,7 +48,7 @@ export class WalmartService implements OnModuleInit {
         const page = (await this.walmart.items.getAllItems({
           autoPagination: true,
           limit: 50,
-        })) as WalmartItemsResponse;
+        })) as GetAllItemsResponse;
 
         if (Array.isArray(page.ItemResponse)) {
           allItems.push(...page.ItemResponse);
@@ -86,7 +86,7 @@ export class WalmartService implements OnModuleInit {
   // -------------------------
   async getInventory(
     product: Database['public']['Tables']['products']['Insert'],
-  ): Promise<Inventory | null> {
+  ): Promise<GetInventoryResponse | null> {
     try {
       if (!product.sku) {
         throw new Error('SKU is required to fetch inventory');
@@ -94,7 +94,7 @@ export class WalmartService implements OnModuleInit {
 
       const inventory = (await this.walmart.inventory.getInventory(
         product.sku,
-      )) as Inventory;
+      )) as GetInventoryResponse;
 
       return inventory;
     } catch (error) {
