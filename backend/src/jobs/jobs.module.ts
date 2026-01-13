@@ -14,6 +14,7 @@ import { TargetModule } from 'src/connectors/target/target.module';
 import { WalmartModule } from 'src/connectors/walmart/walmart.module';
 import { ReturnsProcessor } from './returns.jobs';
 import { ReturnsRepository } from 'src/supabase/repositories/returns.repository';
+import { AmazonModule } from 'src/connectors/amazon/amazon.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { ReturnsRepository } from 'src/supabase/repositories/returns.repository'
     FaireModule,
     WalmartModule,
     TargetModule,
+    AmazonModule,
     SupabaseModule.injectClient(),
   ],
   providers: [
