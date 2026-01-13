@@ -16,7 +16,7 @@ export function mapAmazonInventoryFromFbaSummary(
   return {
     store_id: storeId,
     product_id: productId,
-    sku: summary.sellerSku!,
+    sku: summary.sellerSku ?? '',
 
     platform_quantity: totalQty,
     warehouse_quantity: totalQty,
