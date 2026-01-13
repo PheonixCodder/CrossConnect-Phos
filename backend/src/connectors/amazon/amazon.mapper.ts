@@ -90,15 +90,14 @@ export function shouldUpdateAmazonInventory(
    * Fields that actually represent inventory state
    * (timestamps and metadata excluded)
    */
-  const comparableFields: (keyof InventoryInsert)[] = [
+  const numericFields: (keyof InventoryInsert)[] = [
     'platform_quantity',
     'warehouse_quantity',
     'inbound_quantity',
     'reserved_quantity',
-    'inventory_status',
   ];
 
-  for (const field of comparableFields) {
+  for (const field of numericFields) {
     const prev = norm(existing[field] as number | null);
     const next = norm(incoming[field] as number | null);
 
@@ -106,6 +105,13 @@ export function shouldUpdateAmazonInventory(
       return true;
     }
   }
+
+  // Compare string fields directly
+  if (existing.inventory_status !== incoming.inventory_status) {
+    return true;
+  }
+
+  return false;
 
   return false;
 }
