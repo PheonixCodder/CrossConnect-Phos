@@ -49,14 +49,19 @@ export class WalmartService implements OnModuleInit {
       return Array.isArray(response.ItemResponse) ? response.ItemResponse : [];
     } catch (error) {
       this.handleError('getProducts', error);
-      return [];
+      this.logger.error(
+        'Walmart API error in getProducts',
+        error?.response?.data || error.message,
+      );
+
+      throw error;
     }
   }
 
   // -------------------------
   // ORDERS
   // -------------------------
-  async getOrders(): Promise<Order[] | undefined> {
+  async getOrders(): Promise<Order[]> {
     try {
       // Uses official getAllOrders method per package docs
       const orders = await this.walmart.orders.getAllOrders({
@@ -67,6 +72,7 @@ export class WalmartService implements OnModuleInit {
       return Array.isArray(orders) ? orders : [];
     } catch (error) {
       this.handleError('getOrders', error);
+      throw error;
     }
   }
 
