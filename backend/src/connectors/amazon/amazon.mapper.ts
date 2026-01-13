@@ -127,7 +127,7 @@ export function mapAmazonOrderToDB(
     total: order.OrderTotal?.Amount ? Number(order.OrderTotal.Amount) : null,
     tax: null, // Can be mapped if Amazon provides tax breakdown
     shipping: order.ShipmentServiceLevelCategory ? 0 : null, // Placeholder
-    payment_status: order.PaymentMethod ?? null,
+    payment_status: order.OrderStatus === 'Pending' ? 'pending' : 'paid',
   };
 }
 function mapOrderStatus(
