@@ -390,7 +390,10 @@ export class OrdersProcessor extends WorkerHost {
         );
 
         for (const item of items) {
-          const productId = productMap[item.ASIN] ?? undefined;
+          const productId =
+            productMap[item.ASIN] ??
+            productMap[item.SellerSKU ?? ''] ??
+            undefined;
 
           // Map order items
           orderItemsInserts.push(
