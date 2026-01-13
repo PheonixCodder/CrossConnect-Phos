@@ -277,7 +277,7 @@ export class OrdersProcessor extends WorkerHost {
 
       // 3️⃣ Orders
       const response = await this.walmartService.getOrders();
-      const orders = response?.list?.elements?.order ?? [];
+      const orders = response ?? [];
       if (!orders.length) return;
 
       // 4️⃣ Orders → DB

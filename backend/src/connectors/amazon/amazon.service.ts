@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/require-await */
+import { parseStringPromise } from 'xml2js';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SellingPartnerApiAuth } from '@sp-api-sdk/auth';
@@ -9,7 +11,10 @@ import {
 } from '@sp-api-sdk/fba-inventory-api-v1';
 import axios from 'axios';
 import * as zlib from 'zlib';
-import { AmazonMerchantListingRow } from './amazon.types';
+import {
+  AmazonMerchantListingRow,
+  AmazonReturnReportItem,
+} from './amazon.types';
 import { Database } from 'src/supabase/supabase.types';
 
 @Injectable()
@@ -164,8 +169,51 @@ export class AmazonService implements OnModuleInit {
   // ------------------------------------------------------------------
   async getReturns(
     store: Database['public']['Tables']['stores']['Row'],
-    createdAfter: string,
-  ) {}
+  ): Promise<AmazonReturnReportItem[]> {
+    const client = new ReportsApiClient({
+      auth: this.auth,
+      region: 'eu',
+    });
+
+    const { data } = await client.createReport({
+      body: {
+        reportType: 'GET_XML_RETURNS_DATA_BY_RETURN_DATE',
+        marketplaceIds: [store.marketplaceId!],
+      },
+    });
+
+    const reportId = data.reportId;
+    let report;
+
+    for (let i = 0; i < 15; i++) {
+      await this.sleep(30_000);
+      report = await client.getReport({ reportId });
+
+      if (report.data.processingStatus === 'DONE') break;
+      if (report.data.processingStatus === 'CANCELLED') {
+        throw new Error('Returns report cancelled');
+      }
+    }
+
+    if (report.data.processingStatus !== 'DONE') {
+      throw new Error('Returns report timeout');
+    }
+
+    const doc = await client.getReportDocument({
+      reportDocumentId: report.data.reportDocumentId!,
+    });
+
+    const raw = await axios.get(doc.data.url, {
+      responseType: 'arraybuffer',
+    });
+
+    let buffer = Buffer.from(raw.data);
+    if (doc.data.compressionAlgorithm === 'GZIP') {
+      buffer = zlib.gunzipSync(buffer);
+    }
+
+    return this.parseReturnsXml(buffer.toString('utf8'));
+  }
 
   // ------------------------------------------------------------------
   // HELPERS
@@ -185,6 +233,47 @@ export class AmazonService implements OnModuleInit {
       return row;
     });
   }
+
+  async parseReturnsXml(xml: string): Promise<AmazonReturnReportItem[]> {
+    const parsed = await parseStringPromise(xml, {
+      explicitArray: false,
+      ignoreAttrs: true,
+    });
+
+    const rows =
+      parsed?.AmazonEnvelope?.Message?.ReturnDetails ??
+      parsed?.AmazonEnvelope?.Message ??
+      [];
+
+    const normalized = Array.isArray(rows) ? rows : [rows];
+
+    return normalized.map((r) => ({
+      item_name: r.ItemName,
+      asin: r.ASIN,
+      merchant_sku: r.MerchantSKU,
+
+      order_id: r.OrderID,
+      order_date: r.OrderDate,
+
+      amazon_rma_id: r.AmazonRMAID,
+      return_request_date: r.ReturnRequestDate,
+      return_request_status: r.ReturnRequestStatus,
+
+      return_reason_code: r.ReturnReasonCode,
+      return_quantity: Number(r.ReturnQuantity ?? 0),
+      resolution: r.Resolution,
+
+      refund_amount: Number(r.RefundAmount ?? 0),
+      currency_code: r.CurrencyCode,
+
+      in_policy: r.InPolicy === 'true',
+      a_to_z_claim: r.AToZClaim === 'true',
+      is_prime: r.IsPrime === 'true',
+
+      return_type: r.ReturnType,
+    }));
+  }
+
   private sleep(ms: number) {
     return new Promise((r) => setTimeout(r, ms));
   }

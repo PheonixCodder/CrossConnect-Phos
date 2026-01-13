@@ -1,6 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
+import { mapAmazonReturnToDB } from 'src/connectors/amazon/amazon.mapper';
+import { AmazonService } from 'src/connectors/amazon/amazon.service';
 import { mapTargetReturnsToDB } from 'src/connectors/target/target.mapper';
 import { TargetService } from 'src/connectors/target/target.service';
 import { mapWalmartReturnsToDB } from 'src/connectors/walmart/walmart.mapper';
@@ -18,6 +20,7 @@ export class ReturnsProcessor extends WorkerHost {
     private readonly storeRepo: StoresRepository,
     private readonly targetService: TargetService,
     private readonly walmartService: WalmartService,
+    private readonly amazonService: AmazonService,
     private readonly ordersRepo: OrdersRepository,
     private readonly returnsRepo: ReturnsRepository,
   ) {
@@ -127,7 +130,7 @@ export class ReturnsProcessor extends WorkerHost {
       // ------------------------------
       const walmartReturns =
         await this.walmartService.getWalmartProductReturns();
-      if (!walmartReturns?.returnOrders.length) {
+      if (!walmartReturns?.length) {
         this.logger.warn('No returns returned from Walmart');
         return;
       }
@@ -136,10 +139,10 @@ export class ReturnsProcessor extends WorkerHost {
       // ------------------------------
       const externalOrderIds = [
         ...new Set(
-          walmartReturns?.returnOrders
+          walmartReturns
             .map(
               (r) =>
-                r.customerOrderId! ?? r.returnOrderLines?.[0]?.purchaseOrderId,
+                r.customerOrderId ?? r.returnOrderLines?.[0]?.purchaseOrderId,
             )
             .filter(Boolean),
         ),
@@ -200,6 +203,51 @@ export class ReturnsProcessor extends WorkerHost {
       this.logger.log(
         `Successfully synced ${returnsDB.length} Walmart returns`,
       );
+    }
+    if (platform === 'amazon') {
+      // ------------------------------
+      // 1️⃣ Resolve Store
+      // ------------------------------
+      const store = await this.storeRepo.getStore(platform);
+      if (!store) {
+        throw new Error(`Store not found for platform: ${platform}`);
+      }
+
+      // ------------------------------
+      // 2️⃣ Fetch ALL Amazon Returns
+      // ------------------------------
+      const reportReturns = await this.amazonService.getReturns(store);
+      if (!reportReturns.length) return;
+
+      // 2️⃣ Resolve orders
+      const externalOrderIds = [
+        ...new Set(reportReturns.map((r) => r.order_id)),
+      ];
+
+      const orders = await this.ordersRepo.getByExternalOrderIds(
+        store.id,
+        externalOrderIds,
+      );
+
+      const orderIdByExternal = new Map(
+        orders.map((o) => [o.external_order_id, o.id]),
+      );
+
+      // 3️⃣ Map returns (FK-safe)
+      const inserts: Database['public']['Tables']['returns']['Insert'][] = [];
+
+      for (const r of reportReturns) {
+        const orderId = orderIdByExternal.get(r.order_id);
+        if (!orderId) continue; // hard FK safety
+
+        inserts.push(mapAmazonReturnToDB(r, store.id, orderId));
+      }
+
+      // 4️⃣ Upsert
+      const { error } = await this.returnsRepo.insertReturns(inserts);
+      if (error) throw error;
+
+      this.logger.log(`Successfully synced ${inserts.length} Walmart returns`);
     }
   }
 }
