@@ -5,132 +5,117 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import WalmartMarketplace from '@mediocre/walmart-marketplace';
 import {
-  WalmartApi,
-  OrdersApi,
-  ItemsApi,
-  InventoryApi,
-  ReturnsRefundsApi,
-  defaultParams,
-} from '@whitebox-co/walmart-marketplace-api';
-import { InlineResponse2003ItemResponse } from '@whitebox-co/walmart-marketplace-api/lib/src/apis/items';
-import { InlineResponse200 } from '@whitebox-co/walmart-marketplace-api/lib/src/apis/inventory';
+  GetAllItemsResponse,
+  GetInventoryResponse,
+  Order,
+  ReturnOrder,
+  WalmartItem,
+  WalmartReturnsResponse,
+} from './walmart.types';
 import { Database } from 'src/supabase/supabase.types';
-import { InlineResponse2002 } from '@whitebox-co/walmart-marketplace-api/lib/src/apis/returns';
-import { InlineResponse2001 } from '@whitebox-co/walmart-marketplace-api/lib/src/apis/orders';
 
 @Injectable()
 export class WalmartService implements OnModuleInit {
   private readonly logger = new Logger(WalmartService.name);
-  private walmart: WalmartApi;
+  private walmart: WalmartMarketplace;
 
   constructor(private readonly config: ConfigService) {}
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async onModuleInit() {
-    this.walmart = new WalmartApi({
-      clientId: this.config.get<string>('WALMART_CLIENT_ID')!,
-      clientSecret: this.config.get<string>('WALMART_CLIENT_SECRET')!,
-      // consumerChannelType is optional but often required for certain reports
-    });
+    try {
+      this.walmart = new WalmartMarketplace({
+        clientId: this.config.get<string>('WALMART_CLIENT_ID')!,
+        clientSecret: this.config.get<string>('WALMART_CLIENT_SECRET')!,
+        url: this.config.get<string>('WALMART_API_URL')!,
+      });
+    } catch (error) {
+      this.logger.error('Failed to init Walmart client', error);
+      throw error;
+    }
+  }
+  // -------------------------
+  // PRODUCTS
+  // -------------------------
+  async getProducts(): Promise<WalmartItem[]> {
+    try {
+      const response = (await this.walmart.items.getAllItems({
+        autoPagination: true,
+        limit: 50,
+      })) as GetAllItemsResponse;
+
+      return Array.isArray(response.ItemResponse) ? response.ItemResponse : [];
+    } catch (error) {
+      this.handleError('getProducts', error);
+      return [];
+    }
   }
 
   // -------------------------
   // ORDERS
   // -------------------------
-  async getOrders(): Promise<InlineResponse2001 | undefined> {
+  async getOrders(): Promise<Order[] | undefined> {
     try {
-      const ordersApi = await this.walmart.getConfiguredApi(OrdersApi);
-      // Fetches created orders by default; adjust parameters for specific statuses
-      const response = await ordersApi.getAllOrders({
-        ...defaultParams,
+      // Uses official getAllOrders method per package docs
+      const orders = await this.walmart.orders.getAllOrders({
         createdStartDate: new Date(
           Date.now() - 7 * 24 * 60 * 60 * 1000,
-        ).toISOString(), // Last 7 days
+        ).toISOString(),
       });
-      return response.data;
+      return Array.isArray(orders) ? orders : [];
     } catch (error) {
       this.handleError('getOrders', error);
     }
   }
 
   // -------------------------
-  // PRODUCTS
-  // -------------------------
-  async getProducts(): Promise<InlineResponse2003ItemResponse[] | undefined> {
-    try {
-      const itemsApi = await this.walmart.getConfiguredApi(ItemsApi);
-
-      const allItems: InlineResponse2003ItemResponse[] = [];
-      let nextCursor: string | undefined;
-      let retries = 0;
-      const maxRetries = 3;
-
-      do {
-        try {
-          const response = await itemsApi.getAllItems({
-            ...defaultParams,
-            limit: '50',
-            ...(nextCursor ? { nextCursor } : {}),
-          });
-
-          const items = response.data?.ItemResponse ?? [];
-          allItems.push(...items);
-
-          nextCursor = response.data?.nextCursor;
-          retries = 0; // reset retries after a successful call
-        } catch (err: any) {
-          const status = err?.response?.status;
-
-          // Simple backoff on rate limiting
-          if (status === 429 && retries < maxRetries) {
-            retries++;
-            const backoffMs = 500 * Math.pow(2, retries);
-            await new Promise((res) => setTimeout(res, backoffMs));
-            continue;
-          }
-
-          throw err;
-        }
-      } while (nextCursor);
-
-      return allItems;
-    } catch (error) {
-      this.handleError('getProducts', error);
-    }
-  }
-  // -------------------------
   // INVENTORY
   // -------------------------
   async getInventory(
     product: Database['public']['Tables']['products']['Insert'],
-  ): Promise<InlineResponse200 | undefined> {
+  ): Promise<GetInventoryResponse | null> {
     try {
-      const inventoryApi = await this.walmart.getConfiguredApi(InventoryApi);
+      if (!product.sku) {
+        throw new Error('SKU is required to fetch inventory');
+      }
 
-      const response = await inventoryApi.getInventory({
-        ...defaultParams,
-        sku: product.sku, // Assumes your DB has a 'sku' field
-      });
-      return response.data;
+      const inventory = (await this.walmart.inventory.getInventory(
+        product.sku,
+      )) as GetInventoryResponse;
+
+      return inventory;
     } catch (error) {
       this.handleError('getInventory', error);
+      return null;
     }
   }
 
   // -------------------------
   // Product Returns
   // -------------------------
-  async getWalmartProductReturns(): Promise<InlineResponse2002 | undefined> {
+  async getWalmartProductReturns(): Promise<ReturnOrder[]> {
     try {
-      const returnsApi = await this.walmart.getConfiguredApi(ReturnsRefundsApi);
+      const allReturns: ReturnOrder[] = [];
+      let nextCursor: string | undefined;
 
-      const response = await returnsApi.getReturns({
-        ...defaultParams,
-      });
-      return response.data;
+      do {
+        const response = (await this.walmart.returns.getReturns({
+          ...(nextCursor ? { nextCursor } : {}),
+        })) as WalmartReturnsResponse;
+
+        if (Array.isArray(response.returnOrders)) {
+          allReturns.push(...response.returnOrders);
+        }
+
+        nextCursor = response.meta?.nextCursor;
+      } while (nextCursor);
+
+      return allReturns;
     } catch (error) {
       this.handleError('getWalmartProductReturns', error);
+      return [];
     }
   }
 

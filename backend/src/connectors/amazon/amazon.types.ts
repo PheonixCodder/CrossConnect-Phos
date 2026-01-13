@@ -91,3 +91,41 @@ export interface AmazonMerchantListingRow {
   /** Listing status (Active, Inactive) */
   status: string | null;
 }
+
+export interface AmazonReturnReportItem {
+  item_details?: string;
+  item_name?: string;
+  asin?: string;
+  merchant_sku?: string;
+
+  order_id: string;
+  order_date?: string;
+
+  amazon_rma_id: string;
+  return_request_date: string;
+  return_request_status: string;
+
+  return_reason_code?: string;
+  return_quantity?: number;
+  resolution?: string;
+
+  refund_amount?: number;
+  currency_code?: string;
+
+  in_policy?: boolean;
+  a_to_z_claim?: boolean;
+  is_prime?: boolean;
+
+  return_type?: string;
+
+  label_details?: {
+    tracking_id?: string;
+    return_carrier?: string;
+    label_cost?: number;
+    label_type?: string;
+    label_to_be_paid_by?: string;
+  };
+
+  order_amount?: number;
+  order_quantity?: number;
+}

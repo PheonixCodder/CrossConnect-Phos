@@ -1,5 +1,8 @@
 import { Database } from 'src/supabase/supabase.types';
-import { AmazonMerchantListingRow } from './amazon.types';
+import {
+  AmazonMerchantListingRow,
+  AmazonReturnReportItem,
+} from './amazon.types';
 import { InventorySummary } from '@sp-api-sdk/fba-inventory-api-v1';
 import { Order, OrderItem } from '@sp-api-sdk/orders-api-v0';
 
@@ -196,5 +199,22 @@ export function mapAmazonShipmentToDB(
     status: order.OrderStatus,
     carrier: item.ShippingPrice ? 'Amazon' : null,
     tracking_number: null,
+  };
+}
+
+export function mapAmazonReturnToDB(
+  r: AmazonReturnReportItem,
+  storeId: string,
+  orderId: string,
+): Database['public']['Tables']['returns']['Insert'] {
+  return {
+    external_return_id: r.amazon_rma_id,
+    order_id: orderId,
+    store_id: storeId,
+    platform: 'amazon',
+
+    status: r.return_request_status,
+    refund_amount: r.refund_amount ?? null,
+    currency: r.currency_code ?? null,
   };
 }

@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@mediocre/walmart-marketplace": "^1.5.2",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.11",
@@ -34,14 +35,15 @@
     "@sp-api-sdk/reports-api-2021-06-30": "^3.1.13",
     "@sp-api-sdk/sellers-api-v1": "^4.1.13",
     "@supabase/supabase-js": "^2.90.0",
-    "@whitebox-co/walmart-marketplace-api": "^3.0.1",
+    "@types/xml2js": "^0.4.14",
     "amazon-sp-api": "^1.2.0",
     "bullmq": "^5.66.4",
     "joi": "^18.0.2",
     "nestjs-pino": "^4.5.0",
     "nestjs-supabase-js": "^1.1.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
