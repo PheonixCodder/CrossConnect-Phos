@@ -51,7 +51,8 @@ export function mapAmazonProductToSupabaseProduct(
 
     // Core identifiers
     sku: row['seller-sku'],
-    external_product_id: row['product-id'] ?? row['listing-id'] ?? row['seller-sku'],
+    external_product_id:
+      row['product-id'] ?? row['listing-id'] ?? row['seller-sku'],
 
     // Descriptive
     title: row['item-name'] ?? null,
