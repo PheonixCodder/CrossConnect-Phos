@@ -368,6 +368,10 @@ export class OrdersProcessor extends WorkerHost {
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(orderInserts);
 
+      if (!insertedOrders || !insertedOrders.length) {
+        throw new Error('Failed to insert Amazon orders or no rows returned');
+      }
+
       const orderIdByExternal = new Map(
         insertedOrders.map((o) => [o.external_order_id, o.id]),
       );
@@ -390,7 +394,10 @@ export class OrdersProcessor extends WorkerHost {
         );
 
         for (const item of items) {
-          const productId = productMap[item.ASIN] ?? undefined;
+          const productId =
+            productMap[item.ASIN] ??
+            productMap[item.SellerSKU ?? ''] ??
+            undefined;
 
           // Map order items
           orderItemsInserts.push(

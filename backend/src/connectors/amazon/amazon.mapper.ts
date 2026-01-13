@@ -16,7 +16,7 @@ export function mapAmazonInventoryFromFbaSummary(
   return {
     store_id: storeId,
     product_id: productId,
-    sku: summary.sellerSku!,
+    sku: summary.sellerSku ?? '',
 
     platform_quantity: totalQty,
     warehouse_quantity: totalQty,
@@ -51,7 +51,7 @@ export function mapAmazonProductToSupabaseProduct(
 
     // Core identifiers
     sku: row['seller-sku'],
-    external_product_id: row['product-id']! ?? row['listing-id'],
+    external_product_id: row['product-id'] ?? row['listing-id'] ?? row['seller-sku'],
 
     // Descriptive
     title: row['item-name'] ?? null,
@@ -90,15 +90,14 @@ export function shouldUpdateAmazonInventory(
    * Fields that actually represent inventory state
    * (timestamps and metadata excluded)
    */
-  const comparableFields: (keyof InventoryInsert)[] = [
+  const numericFields: (keyof InventoryInsert)[] = [
     'platform_quantity',
     'warehouse_quantity',
     'inbound_quantity',
     'reserved_quantity',
-    'inventory_status',
   ];
 
-  for (const field of comparableFields) {
+  for (const field of numericFields) {
     const prev = norm(existing[field] as number | null);
     const next = norm(incoming[field] as number | null);
 
@@ -106,6 +105,13 @@ export function shouldUpdateAmazonInventory(
       return true;
     }
   }
+
+  // Compare string fields directly
+  if (existing.inventory_status !== incoming.inventory_status) {
+    return true;
+  }
+
+  return false;
 
   return false;
 }
