@@ -247,7 +247,7 @@ export class ReturnsProcessor extends WorkerHost {
       const { error } = await this.returnsRepo.insertReturns(inserts);
       if (error) throw error;
 
-      this.logger.log(`Successfully synced ${inserts.length} Walmart returns`);
+      this.logger.log(`Successfully synced ${inserts.length} Amazon returns`);
     }
   }
 }
