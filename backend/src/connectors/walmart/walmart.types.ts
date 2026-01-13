@@ -29,7 +29,7 @@ export interface OrderSummary {
   totalAmount: Money;
   orderSubTotals: {
     subTotalType: string;
-    taxAmount: Money;
+    totalAmount: Money;
   }[];
 }
 

@@ -185,9 +185,6 @@ export function deriveOrderStatus(
   );
   if (hasCancelled) return 'cancelled';
 
-  const hasRefund = lines.some((l) => Boolean((l as any).refund));
-  if (hasRefund) return 'refunded';
-
   const allShipped =
     lines.length > 0 &&
     lines.every((l) =>
@@ -213,15 +210,15 @@ export function mapWalmartOrderToDB(
   // -------------------------
   const productSubTotal =
     summary?.orderSubTotals?.find((s) => s.subTotalType === 'PRODUCT')
-      ?.taxAmount?.amount ?? null;
+      ?.totalAmount?.amount ?? null;
 
   const taxTotal =
-    summary?.orderSubTotals?.find((s) => s.subTotalType === 'TAX')?.taxAmount
+    summary?.orderSubTotals?.find((s) => s.subTotalType === 'TAX')?.totalAmount
       ?.amount ?? null;
 
   const shippingTotal =
     summary?.orderSubTotals?.find((s) => s.subTotalType === 'SHIPPING')
-      ?.taxAmount?.amount ?? null;
+      ?.totalAmount?.amount ?? null;
 
   return {
     external_order_id: order.purchaseOrderId,
@@ -255,7 +252,7 @@ export function mapWalmartOrderItemsToDB(
 
   // Best-effort to find product charge
   const productCharge =
-    line.charges?.charge?.find((c: any) => c.chargeType === 'PRODUCT') ??
+    line.charges?.charge?.find((c) => c.chargeType === 'PRODUCT') ??
     line.charges?.charge?.[0];
 
   const unitPrice = productCharge?.chargeAmount?.amount ?? 0;
@@ -272,7 +269,6 @@ export function mapWalmartOrderItemsToDB(
     price: unitPrice,
     total: unitPrice * quantity,
     fulfilled_quantity: isShipped ? quantity : 0,
-    refunded_quantity: (line as any).refund ? quantity : 0,
   };
 }
 

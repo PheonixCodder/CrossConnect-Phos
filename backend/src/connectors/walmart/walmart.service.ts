@@ -41,23 +41,12 @@ export class WalmartService implements OnModuleInit {
   // -------------------------
   async getProducts(): Promise<WalmartItem[]> {
     try {
-      const allItems: WalmartItem[] = [];
-      let nextCursor: string | undefined;
+      const response = (await this.walmart.items.getAllItems({
+        autoPagination: true,
+        limit: 50,
+      })) as GetAllItemsResponse;
 
-      do {
-        const page = (await this.walmart.items.getAllItems({
-          autoPagination: true,
-          limit: 50,
-        })) as GetAllItemsResponse;
-
-        if (Array.isArray(page.ItemResponse)) {
-          allItems.push(...page.ItemResponse);
-        }
-
-        nextCursor = page.nextCursor;
-      } while (nextCursor);
-
-      return allItems;
+      return Array.isArray(response.ItemResponse) ? response.ItemResponse : [];
     } catch (error) {
       this.handleError('getProducts', error);
       return [];
