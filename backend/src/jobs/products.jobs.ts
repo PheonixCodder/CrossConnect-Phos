@@ -25,6 +25,12 @@ import {
   shouldUpdateInventory,
 } from 'src/connectors/walmart/walmart.mapper';
 import { WalmartService } from 'src/connectors/walmart/walmart.service';
+import {
+  mapPlatformInventoryToDB,
+  mapWarehanceProductsToDB,
+  shouldUpdateWarehouseInventory,
+} from 'src/connectors/warehouse/warehance.mapper';
+import { WarehanceService } from 'src/connectors/warehouse/warehance.service';
 import { InventoryRepository } from 'src/supabase/repositories/inventory.repository';
 import { ProductsRepository } from 'src/supabase/repositories/products.repository';
 import { StoresRepository } from 'src/supabase/repositories/stores.repository';
@@ -42,6 +48,7 @@ export class ProductsProcessor extends WorkerHost {
     private readonly targetService: TargetService,
     private readonly walmartService: WalmartService,
     private readonly amazonService: AmazonService,
+    private readonly warehanceService: WarehanceService,
   ) {
     super();
   }
@@ -397,6 +404,99 @@ export class ProductsProcessor extends WorkerHost {
 
       this.logger.log(
         `Amazon sync complete: ${productInserts.length} products, ${inventoryInserts.length} inventory updates`,
+      );
+    }
+    if (platform === 'warehouse') {
+      // ------------------------------
+      // 1️⃣ Resolve Store
+      // ------------------------------
+      const storeId = await this.storeRepo.getStoreId(platform);
+      if (!storeId)
+        throw new Error(`Store not found for platform: ${platform}`);
+
+      // ------------------------------
+      // 2️⃣ Fetch Products
+      // ------------------------------
+      const response = await this.warehanceService.getProducts();
+      const products = response?.products ?? [];
+
+      if (!products.length) {
+        this.logger.warn('No products returned from platform');
+        return;
+      }
+
+      // ------------------------------
+      // 3️⃣ Upsert Products
+      // ------------------------------
+      const productInserts = mapWarehanceProductsToDB(
+        response,
+        storeId,
+        platform,
+      );
+
+      await this.productsRepo.insertProducts(productInserts);
+
+      // ------------------------------
+      // 4️⃣ Resolve product_id by SKU
+      // ------------------------------
+      const skus = productInserts.map((p) => p.sku);
+
+      const productIdRows = await this.productsRepo.getIdsBySkus(
+        storeId,
+        skus,
+        platform,
+      );
+
+      const productIdBySku = new Map(
+        productIdRows.map((row) => [row.sku, row.id]),
+      );
+
+      // ------------------------------
+      // 5️⃣ Fetch existing inventory
+      // ------------------------------
+      const existingInventory = await this.inventoryRepo.getBySkus(
+        skus,
+        storeId,
+      );
+
+      // ------------------------------
+      // 6️⃣ Inventory Delta Mapping
+      // ------------------------------
+      const inventoryInserts: Database['public']['Tables']['inventory']['Insert'][] =
+        [];
+
+      for (const product of products) {
+        const productId = productIdBySku.get(product.sku!);
+        if (!productId) continue;
+
+        const existing = existingInventory[product.sku!];
+
+        const nextInventory = mapPlatformInventoryToDB(
+          product,
+          storeId,
+          productId,
+        );
+
+        if (
+          !existing ||
+          shouldUpdateWarehouseInventory(existing, nextInventory)
+        ) {
+          inventoryInserts.push(nextInventory);
+        }
+      }
+
+      if (!inventoryInserts.length) {
+        this.logger.log('No inventory changes detected');
+        return;
+      }
+
+      // ------------------------------
+      // 7️⃣ Upsert Inventory
+      // ------------------------------
+      await this.inventoryRepo.updateInventoryBatch(inventoryInserts);
+
+      this.logger.log(
+        `Sync complete: ${productInserts.length} products, ${inventoryInserts.length} inventory updates`,
       );
     }
   }

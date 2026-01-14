@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "warehance-api",
+      "source": "@warehance-api/v1.9#2snw9ykb2mcczuvjn",
+      "integrity": "sha512-vBbxlNY135qrMG+NzEMU/7x8gN3L8nWbfgvtqSNrjPAY50OgtXVxs0DTF7+a5JopY+kWh6VxqRBWygXVPYtoFg==",
+      "installerVersion": "6.1.3"
+    }
+  ]
+}

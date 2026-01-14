@@ -22,9 +22,9 @@
   --card-foreground: oklch(0.2046 0 0);
   --popover: oklch(0.9911 0 0);
   --popover-foreground: oklch(0.4386 0 0);
-  --primary: oklch(0.8348 0.1302 160.9080);
+  --primary: oklch(0.8348 0.1302 160.908);
   --primary-foreground: oklch(0.2626 0.0147 166.4589);
-  --secondary: oklch(0.9940 0 0);
+  --secondary: oklch(0.994 0 0);
   --secondary-foreground: oklch(0.2046 0 0);
   --muted: oklch(0.9461 0 0);
   --muted-foreground: oklch(0.2435 0 0);
@@ -34,39 +34,79 @@
   --destructive-foreground: oklch(0.9934 0.0032 17.2118);
   --border: oklch(0.9037 0 0);
   --input: oklch(0.9731 0 0);
-  --ring: oklch(0.8348 0.1302 160.9080);
-  --chart-1: oklch(0.8348 0.1302 160.9080);
-  --chart-2: oklch(0.6231 0.1880 259.8145);
+  --ring: oklch(0.8348 0.1302 160.908);
+  --chart-1: oklch(0.8348 0.1302 160.908);
+  --chart-2: oklch(0.6231 0.188 259.8145);
   --chart-3: oklch(0.6056 0.2189 292.7172);
   --chart-4: oklch(0.7686 0.1647 70.0804);
   --chart-5: oklch(0.6959 0.1491 162.4796);
   --sidebar: oklch(0.9911 0 0);
   --sidebar-foreground: oklch(0.5452 0 0);
-  --sidebar-primary: oklch(0.8348 0.1302 160.9080);
+  --sidebar-primary: oklch(0.8348 0.1302 160.908);
   --sidebar-primary-foreground: oklch(0.2626 0.0147 166.4589);
   --sidebar-accent: oklch(0.9461 0 0);
   --sidebar-accent-foreground: oklch(0.2435 0 0);
   --sidebar-border: oklch(0.9037 0 0);
-  --sidebar-ring: oklch(0.8348 0.1302 160.9080);
-  --font-sans: Outfit, sans-serif;
+  --sidebar-ring: oklch(0.8348 0.1302 160.908);
+
+  /* Channel Colors as HSL */
+  --amazon-hue: 33;
+  --amazon-saturation: 100%;
+  --amazon-lightness: 50%;
+
+  --tiktok-hue: 174;
+  --tiktok-saturation: 100%;
+  --tiktok-lightness: 42%;
+
+  --walmart-hue: 210;
+  --walmart-saturation: 100%;
+  --walmart-lightness: 45%;
+
+  --target-hue: 0;
+  --target-saturation: 75%;
+  --target-lightness: 55%;
+
+  --faire-hue: 45;
+  --faire-saturation: 93%;
+  --faire-lightness: 47%;
+
+  --shopify-hue: 120;
+  --shopify-saturation: 45%;
+  --shopify-lightness: 45%;
+
+  /* Status Colors */
+  --status-healthy: 142 71% 45%;
+  --status-warning: 38 92% 50%;
+  --status-critical: 0 84% 60%;
+
+  /* Fonts */
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: monospace;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Border Radius */
   --radius: 0.5rem;
-  --shadow-x: 0px;
-  --shadow-y: 1px;
-  --shadow-blur: 3px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.17;
-  --shadow-color: #000000;
-  --shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.09);
-  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.09);
-  --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px hsl(0 0% 0% / 0.17);
-  --shadow: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px hsl(0 0% 0% / 0.17);
-  --shadow-md: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 2px 4px -1px hsl(0 0% 0% / 0.17);
-  --shadow-lg: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 4px 6px -1px hsl(0 0% 0% / 0.17);
-  --shadow-xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 8px 10px -1px hsl(0 0% 0% / 0.17);
-  --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.43);
-  --tracking-normal: 0.025em;
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 0.25rem);
+  --radius-xl: calc(var(--radius) + 0.5rem);
+
+  /* Shadows */
+  --shadow-2xs: 0px 1px 2px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0px 1px 2px hsl(0 0% 0% / 0.1);
+  --shadow-sm: 0px 1px 3px hsl(0 0% 0% / 0.1),
+    0px 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow: 0px 2px 4px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md: 0px 4px 6px hsl(0 0% 0% / 0.1),
+    0px 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg: 0px 10px 15px hsl(0 0% 0% / 0.1),
+    0px 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl: 0px 20px 25px hsl(0 0% 0% / 0.1),
+    0px 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-2xl: 0px 25px 50px hsl(0 0% 0% / 0.25);
+
+  /* Spacing */
   --spacing: 0.25rem;
 }
 
@@ -89,12 +129,12 @@
   --destructive-foreground: oklch(0.9368 0.0045 34.3092);
   --border: oklch(0.2809 0 0);
   --input: oklch(0.2603 0 0);
-  --ring: oklch(0.8003 0.1821 151.7110);
-  --chart-1: oklch(0.8003 0.1821 151.7110);
-  --chart-2: oklch(0.7137 0.1434 254.6240);
-  --chart-3: oklch(0.7090 0.1592 293.5412);
+  --ring: oklch(0.8003 0.1821 151.711);
+  --chart-1: oklch(0.8003 0.1821 151.711);
+  --chart-2: oklch(0.7137 0.1434 254.624);
+  --chart-3: oklch(0.709 0.1592 293.5412);
   --chart-4: oklch(0.8369 0.1644 84.4286);
-  --chart-5: oklch(0.7845 0.1325 181.9120);
+  --chart-5: oklch(0.7845 0.1325 181.912);
   --sidebar: oklch(0.1822 0 0);
   --sidebar-foreground: oklch(0.6301 0 0);
   --sidebar-primary: oklch(0.4365 0.1044 156.7556);
@@ -102,28 +142,36 @@
   --sidebar-accent: oklch(0.3132 0 0);
   --sidebar-accent-foreground: oklch(0.9851 0 0);
   --sidebar-border: oklch(0.2809 0 0);
-  --sidebar-ring: oklch(0.8003 0.1821 151.7110);
-  --font-sans: Outfit, sans-serif;
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: monospace;
-  --radius: 0.5rem;
-  --shadow-x: 0px;
-  --shadow-y: 1px;
-  --shadow-blur: 3px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.17;
-  --shadow-color: #000000;
-  --shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.09);
-  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.09);
-  --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px hsl(0 0% 0% / 0.17);
-  --shadow: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px hsl(0 0% 0% / 0.17);
-  --shadow-md: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 2px 4px -1px hsl(0 0% 0% / 0.17);
-  --shadow-lg: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 4px 6px -1px hsl(0 0% 0% / 0.17);
-  --shadow-xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 8px 10px -1px hsl(0 0% 0% / 0.17);
-  --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.43);
+  --sidebar-ring: oklch(0.8003 0.1821 151.711);
+
+  /* Channel Colors - Dark Mode */
+  --amazon-hue: 33;
+  --amazon-saturation: 100%;
+  --amazon-lightness: 60%;
+
+  --tiktok-hue: 174;
+  --tiktok-saturation: 100%;
+  --tiktok-lightness: 60%;
+
+  --walmart-hue: 210;
+  --walmart-saturation: 100%;
+  --walmart-lightness: 60%;
+
+  --target-hue: 0;
+  --target-saturation: 85%;
+  --target-lightness: 65%;
+
+  --faire-hue: 45;
+  --faire-saturation: 93%;
+  --faire-lightness: 60%;
+
+  --shopify-hue: 120;
+  --shopify-saturation: 55%;
+  --shopify-lightness: 55%;
 }
 
-@theme inline {
+@theme {
+  /* Color System */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -157,28 +205,43 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --font-serif: var(--font-serif);
-
-    /* Channel Colors */
-  --amazon: 33 100% 50%;
-  --tiktok: 174 100% 42%;
-  --walmart: 210 100% 45%;
-  --target: 0 75% 55%;
-  --faire: 45 93% 47%;
-  --shopify: 120 45% 45%;
+  /* Channel Colors */
+  --color-amazon: hsl(
+    var(--amazon-hue) var(--amazon-saturation) var(--amazon-lightness)
+  );
+  --color-tiktok: hsl(
+    var(--tiktok-hue) var(--tiktok-saturation) var(--tiktok-lightness)
+  );
+  --color-walmart: hsl(
+    var(--walmart-hue) var(--walmart-saturation) var(--walmart-lightness)
+  );
+  --color-target: hsl(
+    var(--target-hue) var(--target-saturation) var(--target-lightness)
+  );
+  --color-faire: hsl(
+    var(--faire-hue) var(--faire-saturation) var(--faire-lightness)
+  );
+  --color-shopify: hsl(
+    var(--shopify-hue) var(--shopify-saturation) var(--shopify-lightness)
+  );
 
   /* Status Colors */
-  --status-healthy: 142 71% 45%;
-  --status-warning: 38 92% 50%;
-  --status-critical: 0 84% 60%;
+  --color-status-healthy: hsl(var(--status-healthy));
+  --color-status-warning: hsl(var(--status-warning));
+  --color-status-critical: hsl(var(--status-critical));
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Font Families */
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
 
+  /* Border Radius */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  /* Shadows */
   --shadow-2xs: var(--shadow-2xs);
   --shadow-xs: var(--shadow-xs);
   --shadow-sm: var(--shadow-sm);
@@ -188,12 +251,8 @@
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
 
-  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
-  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
-  --tracking-normal: var(--tracking-normal);
-  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
-  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
-  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+  /* Spacing */
+  --spacing: var(--spacing);
 }
 
 /* --------------------------------------------------
@@ -204,12 +263,23 @@
   ::before,
   ::after {
     border-color: var(--color-border);
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
+    margin: 0;
+    min-height: 100vh;
+    overflow-x: hidden;
   }
 
   button:not(:disabled),
@@ -219,79 +289,134 @@
 
   dialog {
     margin: auto;
+    padding: 0;
+  }
+
+  /* Better focus styles */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Selection */
+  ::selection {
+    background-color: color-mix(
+      in oklch,
+      var(--color-primary) 20%,
+      transparent
+    );
+    color: var(--color-primary-foreground);
   }
 }
 
 /* --------------------------------------------------
-   CUSTOM UTILITIES (Tailwind v4 @utility)
+   COMPONENT LAYER
 -------------------------------------------------- */
-@utility bg-grid {
-  background-size: 32px 32px;
-  background-image: linear-gradient(
+@layer components {
+  /* Card Styles */
+  .card-base {
+    background-color: oklch(1 0 0 / 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--border) / 0.5);
+    border-radius: 0.75rem;
+    transition: all 300ms;
+  }
+
+  .card-hover {
+    &:hover {
+      border-color: hsl(var(--primary) / 0.3);
+      box-shadow: 0 10px 15px -3px hsl(var(--primary) / 0.05);
+    }
+  }
+
+  /* Glass Effect */
+  .glass-effect {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background-color: hsl(255 100% 100% / 0.05);
+    border: 1px solid hsl(255 100% 100% / 0.1);
+  }
+
+  .dark .glass-effect {
+    background-color: oklch(0 0 0 / 0.05);
+    border: 1px solid hsl(255 100% 100% / 0.1);
+  }
+
+  /* Gradient Text */
+    .gradient-text {
+    background-image: linear-gradient(
       to right,
-      color-mix(in oklch, currentColor 6%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      color-mix(in oklch, currentColor 6%, transparent) 1px,
-      transparent 1px
+      oklch(var(--foreground)),
+      oklch(var(--foreground) / 0.7)
     );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: -webkit-text-fill-color;
+  }
+
+
+  /* Status Indicators */
+  .status-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 9999px;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .status-dot-healthy {
+    background-color: hsl(var(--status-healthy));
+    box-shadow: 0 0 12px hsl(var(--status-healthy) / 0.6);
+  }
+
+  .status-dot-warning {
+    background-color: hsl(var(--status-warning));
+    box-shadow: 0 0 12px hsl(var(--status-warning) / 0.6);
+  }
+
+  .status-dot-critical {
+    background-color: hsl(var(--status-critical));
+    box-shadow: 0 0 12px hsl(var(--status-critical) / 0.6);
+  }
+
+  /* Channel Accent Borders */
+  .channel-border-amazon {
+    border-left-color: var(--color-amazon);
+  }
+
+  .channel-border-tiktok {
+    border-left-color: var(--color-tiktok);
+  }
+
+  .channel-border-walmart {
+    border-left-color: var(--color-walmart);
+  }
+
+  .channel-border-target {
+    border-left-color: var(--color-target);
+  }
+
+  .channel-border-faire {
+    border-left-color: var(--color-faire);
+  }
+
+  .channel-border-shopify {
+    border-left-color: var(--color-shopify);
+  }
+
+  .channel-accent {
+    border-left-width: 4px;
+  }
 }
 
-@utility bg-grid-pattern {
-  background-image: radial-gradient(
-    circle at 1px 1px,
-    color-mix(in oklch, currentColor 8%, transparent) 1px,
-    transparent 0
-  );
-}
-
-.channel-accent {
-  border-left: 3px solid hsl(var(--channel-color));
-}
-
-.glow-effect {
-  position: relative;
-}
-
-.glow-effect::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  background: var(--gradient-primary);
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: -1;
-  filter: blur(12px);
-}
-
-.glow-effect:hover::before {
-  opacity: 0.4;
-}
-
-.channel-amazon {
-  --channel-color: var(--amazon);
-}
-.channel-tiktok {
-  --channel-color: var(--tiktok);
-}
-.channel-walmart {
-  --channel-color: var(--walmart);
-}
-.channel-target {
-  --channel-color: var(--target);
-}
-.channel-faire {
-  --channel-color: var(--faire);
-}
-.channel-shopify {
-  --channel-color: var(--shopify);
-}
-.scrollbar-thin {
+/* --------------------------------------------------
+   UTILITY LAYER
+-------------------------------------------------- */
+@layer utilities {
+  /* Scrollbar Utilities */
+  .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted)) transparent;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -301,9 +426,102 @@
 
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
+    border-radius: 3px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted));
+    background: hsl(var(--muted-foreground) / 0.3);
     border-radius: 3px;
   }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* Text Utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Animation Utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Grid Background Patterns */
+  .bg-grid-pattern {
+    background-image: linear-gradient(
+        to right,
+        hsl(var(--border) / 0.1) 1px,
+        transparent 1px
+      ),
+      linear-gradient(to bottom, hsl(var(--border) / 0.1) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .bg-dot-pattern {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      hsl(var(--border) / 0.15) 1px,
+      transparent 0
+    );
+    background-size: 24px 24px;
+  }
+
+  /* Glass Morphism */
+  .glass {
+    background: hsl(var(--background) / 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid hsl(var(--border) / 0.2);
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------
+   SAFE AREAS (for mobile devices)
+-------------------------------------------------- */
+@supports (padding: max(0px)) {
+  .safe-padding {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
