@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@api/warehance-api": "file:.api/apis/warehance-api",
     "@mediocre/walmart-marketplace": "^1.5.2",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bullmq": "^11.0.4",
@@ -28,6 +29,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/schedule": "^6.1.0",
+    "@shopify/shopify-api": "^12.2.0",
     "@sp-api-sdk/fba-inventory-api-v1": "^3.0.15",
     "@sp-api-sdk/listings-items-api-2021-08-01": "^5.2.8",
     "@sp-api-sdk/notifications-api-v1": "^3.0.15",

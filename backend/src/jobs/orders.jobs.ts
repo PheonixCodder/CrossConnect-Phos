@@ -29,6 +29,12 @@ import {
   mapAmazonOrderToDB,
   mapAmazonShipmentToDB,
 } from 'src/connectors/amazon/amazon.mapper';
+import { WarehanceService } from 'src/connectors/warehouse/warehance.service';
+import {
+  mapWarehanceOrderItemsToDB,
+  mapWarehanceOrdersToDB,
+  mapWarehanceShipmentsToDB,
+} from 'src/connectors/warehouse/warehance.mapper';
 
 @Processor('orders', { concurrency: 5 })
 export class OrdersProcessor extends WorkerHost {
@@ -44,6 +50,7 @@ export class OrdersProcessor extends WorkerHost {
     private readonly productsRepo: ProductsRepository,
     private readonly walmartService: WalmartService,
     private readonly amazonService: AmazonService,
+    private readonly warehanceService: WarehanceService,
   ) {
     super();
   }
@@ -429,6 +436,99 @@ export class OrdersProcessor extends WorkerHost {
 
       this.logger.log(
         `Amazon sync complete: ${orders.length} orders, ${orderItemsInserts.length} items, ${shipmentsInserts.length} shipments`,
+      );
+    }
+    if (platform === 'warehouse') {
+      // ------------------------------
+      // 1️⃣ Fetch Store
+      // ------------------------------
+      const storeId = await this.storeRepo.getStoreId(platform);
+      if (!storeId) throw new Error(`Store not found for ${platform}`);
+
+      // ------------------------------
+      // 2️⃣ Fetch Products → external_product_id → product.id
+      // ------------------------------
+      const products = await this.productsRepo.getAllProductsByStore(storeId);
+      const productIdByExternalId = new Map(
+        products.map((p) => [p.external_product_id, p.id]),
+      );
+      const productIdBySku = new Map(products.map((p) => [p.sku, p.id]));
+
+      // ------------------------------
+      // 3️⃣ Fetch Orders from Warehance
+      // ------------------------------
+      const ordersResponse = await this.warehanceService.getOrders();
+      const orders = ordersResponse?.orders ?? [];
+      if (!orders.length) return;
+
+      // ------------------------------
+      // 4️⃣ Map Orders
+      // ------------------------------
+      const orderInserts = mapWarehanceOrdersToDB(
+        ordersResponse,
+        storeId,
+        platform,
+      );
+
+      // ------------------------------
+      // 5️⃣ Insert Orders & capture internal IDs
+      // ------------------------------
+      const { data: insertedOrders } =
+        await this.ordersRepo.insertOrdersAndReturn(orderInserts);
+
+      if (!insertedOrders || !insertedOrders.length) {
+        throw new Error(
+          'Failed to insert Warehance orders or no rows returned',
+        );
+      }
+
+      const orderIdByExternalId = new Map(
+        insertedOrders.map((o) => [o.external_order_id, o.id]),
+      );
+
+      // ------------------------------
+      // 6️⃣ Map Order Items
+      // ------------------------------
+      const orderItemInserts: Database['public']['Tables']['order_items']['Insert'][] =
+        [];
+
+      for (const order of orders) {
+        const orderId = orderIdByExternalId.get(String(order.id));
+        if (!orderId) continue;
+
+        orderItemInserts.push(
+          ...mapWarehanceOrderItemsToDB(order, orderId, productIdBySku),
+        );
+      }
+
+      // ------------------------------
+      // 7️⃣ Insert Order Items
+      // ------------------------------
+      await this.orderItemsRepo.insertOrderItems(orderItemInserts);
+
+      // ------------------------------
+      // 8️⃣ Fetch Shipments from Warehance
+      // ------------------------------
+      const shipmentsResponse = await this.warehanceService.getShipments();
+
+      // ------------------------------
+      // 9️⃣ Map Shipments
+      // ------------------------------
+      const fulfillmentInserts = mapWarehanceShipmentsToDB(
+        shipmentsResponse,
+        storeId,
+        platform,
+        orderIdByExternalId,
+        productIdByExternalId,
+      );
+
+      // ------------------------------
+      // 🔟 Insert Fulfillments
+      // ------------------------------
+      await this.shipmentRepo.insertShipments(fulfillmentInserts);
+
+      this.logger.log(
+        `Orders sync complete: ${orderInserts.length} orders, ${orderItemInserts.length} items, ${fulfillmentInserts.length} fulfillments`,
       );
     }
   }

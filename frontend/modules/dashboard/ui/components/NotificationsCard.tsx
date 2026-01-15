@@ -1,0 +1,80 @@
+"use client";
+import { cn } from "@/lib/utils";
+import { LucideIcon } from "lucide-react";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Check, X } from "lucide-react";
+
+interface NotificationItemProps {
+  notification: Notification;
+  onDismiss?: (id?: string) => void;
+}
+
+export type NotificationState = "healthy" | "warning" | "critical";
+
+export interface Notification {
+  id?: string;
+  icon: LucideIcon;
+  state: NotificationState;
+  channel: string;
+  description: string;
+  timeAgo: string;
+  read?: boolean;
+}
+
+export function NotificationItem({ notification, onDismiss }: NotificationItemProps) {
+  const { icon: Icon, state, channel, description, timeAgo, read = false } = notification;
+
+  return (
+    <div
+      className={cn(
+        "flex gap-3 p-3 rounded-lg transition-colors hover:bg-muted/50 group",
+        !read && "bg-primary/5"
+      )}
+    >
+      <div className="relative mt-0.5">
+        <div className={cn(
+          "p-2 rounded-lg",
+          state === "critical" ? "bg-red-500/10" :
+          state === "warning" ? "bg-yellow-500/10" :
+          "bg-green-500/10"
+        )}>
+          <Icon className={cn(
+            "h-4 w-4",
+            state === "critical" ? "text-red-500" :
+            state === "warning" ? "text-yellow-500" :
+            "text-green-500"
+          )} />
+        </div>
+        {!read && (
+          <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary animate-pulse" />
+        )}
+      </div>
+
+      <div className="flex-1 space-y-1.5 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium line-clamp-2">{description}</p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <StatusBadge status={state} size="sm" showLabel={false} />
+              <span>{channel}</span>
+              <span>•</span>
+              <span>{timeAgo}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6"
+              onClick={() => onDismiss?.(notification.id)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
