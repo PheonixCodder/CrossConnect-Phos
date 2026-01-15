@@ -31,10 +31,9 @@ export const SocialsButtons = ({
     if (error) {
       setError(error.message);
       setIsLoading(false);
-    } else {
-      router.push("/api/auth/callback");
-      setIsLoading(false);
     }
+    // On success, browser is redirected to GitHub by Supabase.
+    // Loading state remains true until page unloads.
   };
 
   return (
