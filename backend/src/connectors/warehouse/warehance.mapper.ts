@@ -14,7 +14,7 @@ export function mapWarehanceProductsToDB(
   return (
     data?.products?.map((product) => ({
       external_product_id: String(product.id),
-      sku: product.sku!,
+      sku: product.sku ?? `UNKNOWN-${product.id}`,
       title: product.name,
       description: null,
       platform,
@@ -22,9 +22,9 @@ export function mapWarehanceProductsToDB(
       currency: null,
       price: null,
       status:
-        product.available! > 0
+        (product.available ?? 0) > 0
           ? 'active'
-          : product.backordered! > 0
+          : (product.backordered ?? 0) > 0
             ? 'backorder'
             : 'out_of_stock',
     })) ?? []
