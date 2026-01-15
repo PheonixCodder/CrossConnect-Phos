@@ -145,7 +145,7 @@ export function mapWarehanceShipmentsToDB(
 ): Database['public']['Tables']['fulfillments']['Insert'][] {
   const inserts: Database['public']['Tables']['fulfillments']['Insert'][] = [];
 
-  for (const shipment of shipments!) {
+  for (const shipment of shipments ?? []) {
     const orderExternalId = String(shipment.order?.id);
     const orderId = orderIdByExternalId.get(orderExternalId);
     if (!orderId) continue;
