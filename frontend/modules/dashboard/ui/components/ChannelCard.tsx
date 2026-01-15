@@ -62,7 +62,7 @@ export function ChannelCard({
       className={cn(
         "card-base card-hover p-5 cursor-pointer group",
         "channel-accent relative overflow-hidden",
-        `channel-border-amazon`,
+        `channel-border-${channel.name.toLowerCase()}`,
       )}
       onClick={onClick}
       role="button"

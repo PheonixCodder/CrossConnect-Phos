@@ -12,7 +12,7 @@ export function truncate(text: string, max = 90) {
 }
 
 export const stateStyles: Record<
-  "healthy" | "warning" | "error",
+  "healthy" | "warning" | "critical",
   { dot: string; bg: string }
 > = {
   healthy: {
@@ -23,7 +23,7 @@ export const stateStyles: Record<
     dot: "bg-yellow-500",
     bg: "hover:bg-yellow-500/5",
   },
-  error: {
+  critical: {
     dot: "bg-red-500",
     bg: "hover:bg-red-500/5",
   },

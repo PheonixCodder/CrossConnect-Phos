@@ -114,12 +114,12 @@ export function mapWarehanceOrdersToDB(
 export function mapWarehanceOrderItemsToDB(
   order: Order,
   orderId: string,
-  productIdByExternalId: Map<string, string>,
+  productIdBySku: Map<string, string>,
 ): Database['public']['Tables']['order_items']['Insert'][] {
   return (order.order_items ?? []).map((item) => {
     // 1. Handle the SKU fallback
     const itemSku = item.sku ?? 'UNKNOWN';
-    const productId = productIdByExternalId.get(itemSku) ?? null;
+    const productId = productIdBySku.get(itemSku) ?? null;
 
     return {
       order_id: orderId,

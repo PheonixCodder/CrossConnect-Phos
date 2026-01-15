@@ -52,16 +52,15 @@ export class WarehanceService implements OnModuleInit {
       return orders.data.data;
     } catch (error) {
       this.handleError('getOrders', error);
-      throw error;
     }
   }
 
   // -------------------------
-  // Product Returns
+  // getShipments
   // -------------------------
   async getShipments(): Promise<ListShipmentsResponse200['shipments']> {
     try {
-      // Uses official getAllOrders method per package docs
+      // Uses official listShipments method per package docs
       const shipments = await this.warehance.listShipments();
       return shipments.data.shipments;
     } catch (error) {
@@ -72,11 +71,11 @@ export class WarehanceService implements OnModuleInit {
 
   private handleError(method: string, error: any) {
     this.logger.error(
-      `Walmart API error in ${method}`,
+      `Warehance API error in ${method}`,
       error?.response?.data || error.message,
     );
     throw new InternalServerErrorException(
-      `Failed to communicate with Walmart API: ${method}`,
+      `Failed to communicate with Warehance API: ${method}`,
     );
   }
 }
