@@ -476,6 +476,10 @@ export class OrdersProcessor extends WorkerHost {
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(orderInserts);
 
+      if (!insertedOrders || !insertedOrders.length) {
+        throw new Error('Failed to insert Warehance orders or no rows returned');
+      }
+
       const orderIdByExternalId = new Map(
         insertedOrders.map((o) => [o.external_order_id, o.id]),
       );

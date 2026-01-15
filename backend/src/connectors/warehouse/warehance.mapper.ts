@@ -14,7 +14,7 @@ export function mapWarehanceProductsToDB(
   return (
     data?.products?.map((product) => ({
       external_product_id: String(product.id),
-      sku: product.sku!,
+      sku: product.sku ?? `UNKNOWN-${product.id}`,
       title: product.name,
       description: null,
       platform,
@@ -22,9 +22,9 @@ export function mapWarehanceProductsToDB(
       currency: null,
       price: null,
       status:
-        product.available! > 0
+        (product.available ?? 0) > 0
           ? 'active'
-          : product.backordered! > 0
+          : (product.backordered ?? 0) > 0
             ? 'backorder'
             : 'out_of_stock',
     })) ?? []
@@ -94,7 +94,7 @@ export function mapWarehanceOrdersToDB(
   platform: string,
 ): Database['public']['Tables']['orders']['Insert'][] {
   return (
-    data?.orders!.map((order) => ({
+    (data?.orders ?? []).map((order) => ({
       external_order_id: String(order.id),
       store_id: storeId,
       platform,
@@ -145,7 +145,7 @@ export function mapWarehanceShipmentsToDB(
 ): Database['public']['Tables']['fulfillments']['Insert'][] {
   const inserts: Database['public']['Tables']['fulfillments']['Insert'][] = [];
 
-  for (const shipment of shipments!) {
+  for (const shipment of shipments ?? []) {
     const orderExternalId = String(shipment.order?.id);
     const orderId = orderIdByExternalId.get(orderExternalId);
     if (!orderId) continue;
