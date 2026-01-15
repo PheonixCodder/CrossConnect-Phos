@@ -29,7 +29,7 @@ export const useSignUp = () => {
       email: form.email,
       password: form.password,
       options: {
-        emailRedirectTo: process.env.BASE_URL,
+        emailRedirectTo: process.env.NEXT_PUBLIC_BASE_URL,
       },
     });
 
