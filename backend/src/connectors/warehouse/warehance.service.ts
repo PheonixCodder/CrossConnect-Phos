@@ -39,12 +39,6 @@ export class WarehanceService implements OnModuleInit {
       return response.data.data;
     } catch (error) {
       this.handleError('getProducts', error);
-      this.logger.error(
-        'Warehance API error in getProducts',
-        error?.response?.data || error.message,
-      );
-
-      throw error;
     }
   }
 

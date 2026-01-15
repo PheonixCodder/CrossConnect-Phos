@@ -14,7 +14,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
         }
       >
         <AppSidebar variant="inset" />
-        <SidebarInset className="bg-[#0e0c0c] max-h-[cal(100vh - 5vh)]">
+        <SidebarInset className="bg-[#0e0c0c] max-h-[calc(100vh - 5vh)]">
           {children}
         </SidebarInset>
       </SidebarProvider>
