@@ -94,7 +94,7 @@ export function mapWarehanceOrdersToDB(
   platform: string,
 ): Database['public']['Tables']['orders']['Insert'][] {
   return (
-    data?.orders!.map((order) => ({
+    (data?.orders ?? []).map((order) => ({
       external_order_id: String(order.id),
       store_id: storeId,
       platform,
