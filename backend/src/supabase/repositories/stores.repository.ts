@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { InjectSupabaseClient } from 'nestjs-supabase-js';
@@ -56,5 +57,37 @@ export class StoresRepository {
       this.logger.error('Failed to upsert credentials', error);
       throw error;
     }
+  }
+
+  async getCredentials(
+    userId: string,
+    orgId: string,
+  ): Promise<Database['public']['Tables']['store_credentials']['Row']> {
+    const { data: orgData, error: orgError } = await this.supabaseClient
+      .from('organization_members')
+      .select()
+      .eq('user_id', userId)
+      .eq('org_id', orgId);
+    if (orgError) {
+      throw new Error(orgError.message);
+    }
+    const { data: storeData, error: storeError } = await this.supabaseClient
+      .from('stores')
+      .select()
+      .eq('org_id', orgId);
+    if (storeError) {
+      throw new Error(storeError.message);
+    }
+
+    const { data, error } = await this.supabaseClient
+      .from('store_credentials')
+      .select()
+      .eq('store_id', storeData[0].id);
+
+    if (error) {
+      this.logger.error('Failed to upsert credentials', error);
+      throw error;
+    }
+    return data[0];
   }
 }

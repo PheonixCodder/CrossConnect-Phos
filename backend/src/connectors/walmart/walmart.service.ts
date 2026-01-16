@@ -19,7 +19,7 @@ import { Database } from 'src/supabase/supabase.types';
 @Injectable()
 export class WalmartService implements OnModuleInit {
   private readonly logger = new Logger(WalmartService.name);
-  private walmart: WalmartMarketplace;
+  private walmart: typeof WalmartMarketplace;
 
   constructor(private readonly config: ConfigService) {}
 
