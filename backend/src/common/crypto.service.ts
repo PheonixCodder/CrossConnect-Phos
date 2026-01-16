@@ -4,10 +4,18 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class CryptoService {
   private readonly algorithm = 'aes-256-gcm';
-  private readonly key = Buffer.from(
-    process.env.CREDENTIALS_ENCRYPTION_KEY!,
-    'hex',
-  );
+  private readonly key: Buffer;
+
+  constructor() {
+    const keyHex = process.env.CREDENTIALS_ENCRYPTION_KEY;
+    if (!keyHex) {
+      throw new Error('CREDENTIALS_ENCRYPTION_KEY environment variable is required');
+    }
+    this.key = Buffer.from(keyHex, 'hex');
+    if (this.key.length !== 32) {
+      throw new Error('CREDENTIALS_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
+    }
+  }
 
   encrypt(payload: unknown) {
     const iv = crypto.randomBytes(12);
