@@ -301,7 +301,8 @@ export class ReturnsProcessor extends WorkerHost {
       }
 
       if (returnInserts.length > 0) {
-        await this.returnsRepo.insertReturns(returnInserts);
+        const { error } = await this.returnsRepo.insertReturns(returnInserts);
+        if (error) throw error;
         this.logger.log(`Synced ${returnInserts.length} logistical returns.`);
       }
     }

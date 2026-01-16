@@ -39,12 +39,15 @@ export class ShopifyService implements OnModuleInit {
       throw new Error('Critical Configuration Missing');
     }
 
-    this.client = new GraphQLClient(`https://${shop}://`, {
-      headers: {
-        'X-Shopify-Access-Token': token,
-        'Content-Type': 'application/json',
+    this.client = new GraphQLClient(
+      `https://${shop}.myshopify.com/admin/api/2026-01/graphql.json`,
+      {
+        headers: {
+          'X-Shopify-Access-Token': token,
+          'Content-Type': 'application/json',
+        },
       },
-    });
+    );
   }
 
   private async execute<T>(

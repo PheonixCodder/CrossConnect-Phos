@@ -1,35 +1,41 @@
 export const FETCH_FULFILLMENTS = `#graphql
-  query FetchFulfillments {
-    orders(first: 250, query: "fulfillment_status:any") {
-      nodes {
+  query FetchFulfillments($after: String) {
+  orders(first: 250, after: $after, query: "fulfillment_status:any") {
+    nodes {
+      id
+      fulfillments {
         id
-        displayFulfillmentStatus
-        lineItems(first: 250) {
+        status
+        trackingInfo {
+          company
+          number
+          url
+        }
+        # ADD THIS BLOCK
+        fulfillmentLineItems(first: 100) {
           nodes {
             id
-            product {
+            quantity
+            lineItem {
               id
             }
           }
         }
-        fulfillments {
-          id
-          status
-          trackingInfo {
-            company
-            number
-            url
-          }
-        }
       }
     }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
   }
+}
+
 `;
 
 export const FETCH_INVENTORY_LEVELS = `#graphql
-  query FetchInventoryLevels {
+  query FetchInventoryLevels($after: String) {
     # Fix: Use inventoryItems to fetch a list of items and their levels
-    inventoryItems(first: 250) {
+    inventoryItems(first: 250, after: $after) {
       nodes {
         id
         sku
@@ -47,54 +53,67 @@ export const FETCH_INVENTORY_LEVELS = `#graphql
           }
         }
       }
+        pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `;
 
 export const FETCH_ORDERS = `#graphql
-  query FetchOrders {
-    orders(first: 250, query: "status:any") {
+  query FetchOrders($after: String) {
+    orders(first: 250, after: $after, query: "status:any") {
       nodes {
         id
         createdAt
         currencyCode
         canMarkAsPaid
         cancelReason
-        subtotalPriceSet { 
-          shopMoney { 
-            amount 
-            currencyCode 
-          } 
+        subtotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
         }
-        totalTaxSet { 
-          shopMoney { 
-            amount 
-            currencyCode 
-          } 
+        totalTaxSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
         }
-        totalPriceSet { 
-          shopMoney { 
-            amount 
-            currencyCode 
-          } 
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
         }
         lineItems(first: 250) {
           nodes {
-            id
             sku
             quantity
+            originalUnitPrice
+            discountedUnitPrice
+            originalUnitPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            discountedTotalSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
             product {
               id
+              priceRange {
+                maxVariantPrice {
+                  amount
+                }
+              }
             }
-          }
-        }
-        fulfillments {
-          id
-          status
-          trackingInfo {
-            company
-            number
-            url
           }
         }
       }
@@ -103,8 +122,8 @@ export const FETCH_ORDERS = `#graphql
 `;
 
 export const FETCH_PRODUCTS = `#graphql
-  query FetchProducts {
-    products(first: 250) {
+  query FetchProducts($after: String) {
+    products(first: 250, after: $after) {
       nodes {
         id
         title
@@ -121,13 +140,17 @@ export const FETCH_PRODUCTS = `#graphql
           }
         }
       }
+        pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `;
 
 export const FETCH_RETURNS = `#graphql
-  query FetchReturns {
-    orders(first: 250, query: "return_status:*") {
+  query FetchReturns($after: String) {
+    orders(first: 250, after: $after, query: "return_status:*") {
       edges {
         node {
           id
@@ -149,6 +172,10 @@ export const FETCH_RETURNS = `#graphql
             }
           }
         }
+      }
+        pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }

@@ -103,7 +103,7 @@ export function mapShopifyOrderItemsToDB(
   productIdBySku: Map<string, string>,
 ): Database['public']['Tables']['order_items']['Insert'][] {
   return items.map((item) => {
-    const unitPrice = 0; // Default if price data is missing
+    const unitPrice = item.originalUnitPriceSet?.shopMoney?.amount || '0'; // Default if price data is missing
     const quantity = item.quantity || 0;
 
     return {
@@ -130,27 +130,35 @@ export function mapShopifyFulfillmentsToDB(
     if (!internalOrderId) continue;
 
     for (const fulfillment of orderNode.fulfillments || []) {
-      // Map tracking info (Shopify 2026-01 provides an array of trackingInfo)
-      const primaryTracking = fulfillment.trackingInfo?.[0];
+      const tracking = fulfillment.trackingInfo?.[0];
 
-      // Fulfillments in Shopify link to the items within that specific fulfillment
-      // For this DB schema, we associate the fulfillment status to the products
-      for (const item of orderNode.lineItems.nodes) {
+      // FIX: Iterate fulfillment-specific items to avoid cartesian product
+      const fulfillmentLines = fulfillment.fulfillmentLineItems?.nodes || [];
+
+      for (const fLine of fulfillmentLines) {
+        // Extract the associated original line item ID
+        const lineItemExternalId = fLine.lineItem?.id;
+        if (!lineItemExternalId) continue;
+
+        const internalProductId = productIdByExternalId.get(lineItemExternalId);
+
+        // Skip entry if no internal product ID is resolved (FK safety)
+        if (!internalProductId) continue;
+
         rows.push({
           store_id: storeId,
           platform: 'shopify',
           external_fulfillment_id: fulfillment.id,
           order_id: internalOrderId,
-          product_id: item.product?.id
-            ? productIdByExternalId.get(item.product.id)
-            : null,
+          product_id: internalProductId,
           status: fulfillment.status.toLowerCase(),
-          carrier: primaryTracking?.company || null,
-          tracking_number: primaryTracking?.number || null,
+          carrier: tracking?.company || null,
+          tracking_number: tracking?.number || null,
         });
       }
     }
   }
+
   return rows;
 }
 
@@ -169,12 +177,14 @@ export function mapShopifyReturnToDB(
 ): Database['public']['Tables']['returns']['Insert'] {
   // Summing the total refunded amount from the order's refund connection
   const totalRefunded =
-    order.refunds?.reduce((sum, refund) => {
-      return (
-        sum +
-        parseFloat(String(refund.totalRefundedSet.shopMoney.amount) || '0')
-      );
-    }, 0) || 0;
+    order.returns?.nodes?.length === 1
+      ? order.refunds?.reduce((sum, refund) => {
+          return (
+            sum +
+            parseFloat(String(refund.totalRefundedSet.shopMoney.amount) || '0')
+          );
+        }, 0) || 0
+      : 0;
 
   return {
     store_id: storeId,
