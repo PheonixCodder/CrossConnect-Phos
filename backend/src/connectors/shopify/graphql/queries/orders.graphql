@@ -1,0 +1,37 @@
+query FetchOrders {
+  orders(first: 250, query: "status:any") {
+    nodes {
+      id
+      createdAt
+      currencyCode
+      canMarkAsPaid
+      cancelReason
+      subtotalPrice
+      totalTax
+      totalShippingPrice
+      totalPrice
+      lineItems(first: 250) {
+        nodes {
+          sku
+          quantity
+          product {
+            id
+            priceRange {
+              maxVariantPrice {
+                amount
+              }
+            }
+          }
+        }
+      }
+      fulfillments {
+        id
+        status
+        trackingInfo {
+          company
+          number
+        }
+      }
+    }
+  }
+}

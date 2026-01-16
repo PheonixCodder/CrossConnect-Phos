@@ -43,4 +43,18 @@ export class StoresRepository {
 
     return data;
   }
+
+  async upsertCredentials(storeId: string, encryptedCredentials: any) {
+    const { error } = await this.supabaseClient
+      .from('store_credentials')
+      .upsert({
+        store_id: storeId,
+        credentials: encryptedCredentials,
+      });
+
+    if (error) {
+      this.logger.error('Failed to upsert credentials', error);
+      throw error;
+    }
+  }
 }

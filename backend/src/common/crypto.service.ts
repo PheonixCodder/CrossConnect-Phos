@@ -1,0 +1,53 @@
+import * as crypto from 'crypto';
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class CryptoService {
+  private readonly algorithm = 'aes-256-gcm';
+  private readonly key: Buffer;
+
+  constructor() {
+    const keyHex = process.env.CREDENTIALS_ENCRYPTION_KEY;
+    if (!keyHex) {
+      throw new Error('CREDENTIALS_ENCRYPTION_KEY environment variable is required');
+    }
+    this.key = Buffer.from(keyHex, 'hex');
+    if (this.key.length !== 32) {
+      throw new Error('CREDENTIALS_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
+    }
+  }
+
+  encrypt(payload: unknown) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
+
+    const encrypted = Buffer.concat([
+      cipher.update(JSON.stringify(payload), 'utf8'),
+      cipher.final(),
+    ]);
+
+    return {
+      ciphertext: encrypted.toString('base64'),
+      iv: iv.toString('base64'),
+      tag: cipher.getAuthTag().toString('base64'),
+      keyVersion: 1,
+    };
+  }
+
+  decrypt(encrypted: any) {
+    const decipher = crypto.createDecipheriv(
+      this.algorithm,
+      this.key,
+      Buffer.from(encrypted.iv, 'base64'),
+    );
+
+    decipher.setAuthTag(Buffer.from(encrypted.tag, 'base64'));
+
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encrypted.ciphertext, 'base64')),
+      decipher.final(),
+    ]);
+
+    return JSON.parse(decrypted.toString('utf8'));
+  }
+}

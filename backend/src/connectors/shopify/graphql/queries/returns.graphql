@@ -1,0 +1,19 @@
+query FetchReturns {
+  orders(first: 250, query: "return_status:returned") {
+    nodes {
+      id
+      currencyCode
+      returns(first: 10) {
+        nodes {
+          id
+          status
+          totalRefundedAmountSet {
+            shopMoney {
+              amount
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -14,6 +14,12 @@ import {
 import { FaireService } from 'src/connectors/faire/faire.service';
 import { GetInventory } from 'src/connectors/faire/faire.types';
 import {
+  mapShopifyInventoryToDB,
+  mapShopifyProductToDB,
+  shouldUpdateShopifyInventory,
+} from 'src/connectors/shopify/shopify.mapper';
+import { ShopifyService } from 'src/connectors/shopify/shopify.service';
+import {
   mapTargetInventoryToSupabaseInventory,
   mapTargetProductToSupabaseProduct,
 } from 'src/connectors/target/target.mapper';
@@ -49,6 +55,7 @@ export class ProductsProcessor extends WorkerHost {
     private readonly walmartService: WalmartService,
     private readonly amazonService: AmazonService,
     private readonly warehanceService: WarehanceService,
+    private readonly shopifyService: ShopifyService,
   ) {
     super();
   }
@@ -498,6 +505,71 @@ export class ProductsProcessor extends WorkerHost {
       this.logger.log(
         `Sync complete: ${productInserts.length} products, ${inventoryInserts.length} inventory updates`,
       );
+    }
+    if (platform === 'shopify') {
+      this.logger.log(`Starting product sync for platform: ${platform}`);
+
+      // 1. Resolve Store
+      const storeId = await this.storeRepo.getStoreId(platform);
+      if (!storeId) throw new Error(`Store ID not found for ${platform}`);
+
+      // 2. Fetch Data with Error Boundary
+      const products = await this.shopifyService.fetchProducts();
+      if (!products.length) {
+        this.logger.warn('No products found on Shopify. Skipping.');
+        return;
+      }
+
+      // 3. Map & Insert Products
+      const productRows = products.flatMap((p) =>
+        mapShopifyProductToDB(p, storeId),
+      );
+      if (productRows.length > 0) {
+        await this.productsRepo.insertProducts(productRows);
+      }
+
+      // 4. Inventory Sync Logic
+      const skus = productRows.map((p) => p.sku).filter(Boolean);
+      const productIdRows = await this.productsRepo.getIdsBySkus(
+        storeId,
+        skus,
+        platform,
+      );
+      const productIdBySku = new Map(productIdRows.map((r) => [r.sku, r.id]));
+
+      const existingInventory = await this.inventoryRepo.getBySkus(
+        skus,
+        storeId,
+      );
+      const inventoryItems = await this.shopifyService.fetchInventory();
+
+      const inventoryUpserts: Database['public']['Tables']['inventory']['Insert'][] =
+        [];
+
+      for (const item of inventoryItems) {
+        if (!item.sku) continue;
+        const productId = productIdBySku.get(item.sku);
+        if (!productId) continue;
+
+        for (const level of item.inventoryLevels.nodes) {
+          const next = mapShopifyInventoryToDB(item, level, storeId, productId);
+          const existing = existingInventory[item.sku];
+
+          if (!existing || shouldUpdateShopifyInventory(existing, next)) {
+            inventoryUpserts.push(next);
+          }
+        }
+      }
+
+      // 5. Batch Update
+      if (inventoryUpserts.length > 0) {
+        await this.inventoryRepo.updateInventoryBatch(inventoryUpserts);
+        this.logger.log(
+          `Successfully synced ${inventoryUpserts.length} inventory records.`,
+        );
+      } else {
+        this.logger.log('No inventory changes detected.');
+      }
     }
   }
 }
