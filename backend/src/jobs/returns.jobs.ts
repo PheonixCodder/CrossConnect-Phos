@@ -3,6 +3,8 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { mapAmazonReturnToDB } from 'src/connectors/amazon/amazon.mapper';
 import { AmazonService } from 'src/connectors/amazon/amazon.service';
+import { mapShopifyReturnToDB } from 'src/connectors/shopify/shopify.mapper';
+import { ShopifyService } from 'src/connectors/shopify/shopify.service';
 import { mapTargetReturnsToDB } from 'src/connectors/target/target.mapper';
 import { TargetService } from 'src/connectors/target/target.service';
 import { mapWalmartReturnsToDB } from 'src/connectors/walmart/walmart.mapper';
@@ -20,6 +22,7 @@ export class ReturnsProcessor extends WorkerHost {
     private readonly storeRepo: StoresRepository,
     private readonly targetService: TargetService,
     private readonly walmartService: WalmartService,
+    private readonly shopifyService: ShopifyService,
     private readonly amazonService: AmazonService,
     private readonly ordersRepo: OrdersRepository,
     private readonly returnsRepo: ReturnsRepository,
@@ -248,6 +251,59 @@ export class ReturnsProcessor extends WorkerHost {
       if (error) throw error;
 
       this.logger.log(`Successfully synced ${inserts.length} Amazon returns`);
+    }
+    if (platform === 'shopify') {
+      const storeId = await this.storeRepo.getStoreId(platform);
+      if (!storeId) throw new Error(`Store not found for ${platform}`);
+
+      // Fetch the logistical return data
+      const ordersWithReturns = await this.shopifyService.fetchReturns();
+      if (!ordersWithReturns.length) return;
+
+      // Resolve internal order_id (FK)
+      const externalOrderIds: string[] = ordersWithReturns
+        .map((o) => o.node.id)
+        .filter((id): id is string => typeof id === 'string');
+
+      const dbOrders = await this.ordersRepo.getByExternalOrderIds(
+        storeId,
+        externalOrderIds,
+      );
+      const orderIdMap = new Map(
+        dbOrders.map((o) => [o.external_order_id, o.id]),
+      );
+
+      const returnInserts: Database['public']['Tables']['returns']['Insert'][] =
+        [];
+
+      for (const orderNode of ordersWithReturns) {
+        const internalOrderId = orderIdMap.get(orderNode.node.id);
+
+        // Safety: Only map if the parent order exists in our DB
+        if (!internalOrderId) {
+          this.logger.warn(
+            `Skipping return for order ${orderNode.node.id}: Order not found in DB.`,
+          );
+          continue;
+        }
+
+        // Map each Return record found in the order
+        for (const returnNode of orderNode.node.returns?.nodes || []) {
+          returnInserts.push(
+            mapShopifyReturnToDB(
+              orderNode.node,
+              returnNode,
+              storeId,
+              internalOrderId,
+            ),
+          );
+        }
+      }
+
+      if (returnInserts.length > 0) {
+        await this.returnsRepo.insertReturns(returnInserts);
+        this.logger.log(`Synced ${returnInserts.length} logistical returns.`);
+      }
     }
   }
 }

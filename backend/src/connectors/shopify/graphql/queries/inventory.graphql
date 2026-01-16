@@ -1,0 +1,15 @@
+query FetchInventoryLevels {
+  inventoryLevels(first: 250) {
+    nodes {
+      id
+      item {
+        id
+        sku
+      }
+      quantities(names: ["available"]) {
+        name
+        quantity
+      }
+    }
+  }
+}

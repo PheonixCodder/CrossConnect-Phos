@@ -35,6 +35,12 @@ import {
   mapWarehanceOrdersToDB,
   mapWarehanceShipmentsToDB,
 } from 'src/connectors/warehouse/warehance.mapper';
+import { ShopifyService } from 'src/connectors/shopify/shopify.service';
+import {
+  mapShopifyFulfillmentsToDB,
+  mapShopifyOrderItemsToDB,
+  mapShopifyOrderToDB,
+} from 'src/connectors/shopify/shopify.mapper';
 
 @Processor('orders', { concurrency: 5 })
 export class OrdersProcessor extends WorkerHost {
@@ -51,6 +57,7 @@ export class OrdersProcessor extends WorkerHost {
     private readonly walmartService: WalmartService,
     private readonly amazonService: AmazonService,
     private readonly warehanceService: WarehanceService,
+    private readonly shopifyService: ShopifyService,
   ) {
     super();
   }
@@ -529,6 +536,73 @@ export class OrdersProcessor extends WorkerHost {
 
       this.logger.log(
         `Orders sync complete: ${orderInserts.length} orders, ${orderItemInserts.length} items, ${fulfillmentInserts.length} fulfillments`,
+      );
+    }
+    if (platform === 'shopify') {
+      // 1. Context Resolution
+      const storeId = await this.storeRepo.getStoreId(platform);
+      if (!storeId) throw new Error(`Store ID not found for ${platform}`);
+
+      // 2. Reference Data for Mapping
+      const products = await this.productsRepo.getAllProductsByStore(storeId);
+      const productIdByExternalId = new Map(
+        products.map((p) => [p.external_product_id, p.id]),
+      );
+      const productIdBySku = new Map(products.map((p) => [p.sku, p.id]));
+
+      // 3. Fetch & Insert Orders
+      const shopifyOrders = await this.shopifyService.fetchOrders();
+      if (!shopifyOrders.length) return;
+
+      const orderInserts = shopifyOrders.map((o) =>
+        mapShopifyOrderToDB(o, storeId),
+      );
+      const { data: insertedOrders } =
+        await this.ordersRepo.insertOrdersAndReturn(orderInserts);
+
+      if (!insertedOrders) throw new Error(`Failed to persist orders`);
+
+      const orderIdByExternalId = new Map(
+        insertedOrders.map((o) => [o.external_order_id, o.id]),
+      );
+
+      // 4. Map & Insert Order Items
+      const orderItemInserts: Database['public']['Tables']['order_items']['Insert'][] =
+        [];
+      for (const orderNode of shopifyOrders) {
+        const internalId = orderIdByExternalId.get(orderNode.id);
+        if (internalId) {
+          orderItemInserts.push(
+            ...mapShopifyOrderItemsToDB(
+              orderNode.lineItems.nodes,
+              internalId,
+              productIdBySku,
+            ),
+          );
+        }
+      }
+
+      if (orderItemInserts.length > 0) {
+        await this.orderItemsRepo.insertOrderItems(orderItemInserts);
+      }
+
+      // 5. Fulfillment Sync
+      const fulfillmentNodes = await this.shopifyService.fetchFulfillments();
+      if (fulfillmentNodes.length > 0) {
+        const fulfillmentInserts = mapShopifyFulfillmentsToDB(
+          fulfillmentNodes,
+          storeId,
+          orderIdByExternalId,
+          productIdByExternalId,
+        );
+
+        if (fulfillmentInserts.length > 0) {
+          await this.shipmentRepo.insertShipments(fulfillmentInserts);
+        }
+      }
+
+      this.logger.log(
+        `${platform} sync successful: ${insertedOrders.length} orders processed.`,
       );
     }
   }
