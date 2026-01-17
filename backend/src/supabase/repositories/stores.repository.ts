@@ -105,6 +105,9 @@ export class StoresRepository {
     if (!data || data.length === 0) {
       throw new Error(`No credentials found for store: ${storeData[0].id}`);
     }
-    return { ...data[0], shopDomain: storeData[0].shopDomain! };
+    if (!storeData[0].shopDomain) {
+      throw new Error(`No shopDomain found for store: ${storeData[0].id}`);
+    }
+    return { ...data[0], shopDomain: storeData[0].shopDomain };
   }
 }

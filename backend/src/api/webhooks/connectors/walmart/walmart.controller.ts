@@ -24,7 +24,7 @@ export class WalmartWebhookController {
     console.log(`Received notification for internal user: ${userId}`);
 
     // Now you can query your DB or perform actions specifically for this user
-    await this.walmartService.processEvent(userId, orgId, body);
+    await this.walmartService.processEvent(orgId, userId, body);
 
     return { status: 'ACKNOWLEDGED' };
   }
