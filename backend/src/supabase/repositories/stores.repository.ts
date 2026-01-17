@@ -57,4 +57,47 @@ export class StoresRepository {
       throw error;
     }
   }
+
+  async getCredentials(
+    userId: string,
+    orgId: string,
+  ): Promise<Database['public']['Tables']['store_credentials']['Row']> {
+    const { data: orgData, error: orgError } = await this.supabaseClient
+      .from('organization_members')
+      .select()
+      .eq('user_id', userId)
+      .eq('org_id', orgId);
+
+    if (orgError) {
+      throw new Error(orgError.message);
+    }
+    if (!orgData || orgData.length === 0) {
+      throw new Error('User is not a member of this organization');
+    }
+    const { data: storeData, error: storeError } = await this.supabaseClient
+      .from('stores')
+      .select()
+      .eq('org_id', orgId);
+    if (storeError) {
+      throw new Error(storeError.message);
+    }
+    if (!storeData || storeData.length === 0) {
+      throw new Error(`No store found for organization: ${orgId}`);
+    }
+
+    const { data, error } = await this.supabaseClient
+      .from('store_credentials')
+      .select()
+      .eq('store_id', storeData[0].id);
+
+    if (error) {
+      this.logger.error('Failed to fetch credentials', error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error(`No credentials found for store: ${storeData[0].id}`);
+    }
+    return data[0];
+  }
 }

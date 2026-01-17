@@ -1,10 +1,7 @@
 import { Controller, Post, Body } from '@nestjs/common';
-import { AmazonService } from '../../connectors/amazon/amazon.service';
 
 @Controller('webhooks')
 export class WebhooksController {
-  constructor(private readonly amazon: AmazonService) {}
-
   @Post('amazon')
   async handleAmazonWebhook(@Body() body: any) {}
 
