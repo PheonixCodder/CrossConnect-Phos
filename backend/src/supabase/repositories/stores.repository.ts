@@ -61,7 +61,12 @@ export class StoresRepository {
   async getCredentials(
     userId: string,
     orgId: string,
-  ): Promise<Database['public']['Tables']['store_credentials']['Row']> {
+    platform: string,
+  ): Promise<
+    Database['public']['Tables']['store_credentials']['Row'] & {
+      shopDomain: string;
+    }
+  > {
     const { data: orgData, error: orgError } = await this.supabaseClient
       .from('organization_members')
       .select()
@@ -77,7 +82,9 @@ export class StoresRepository {
     const { data: storeData, error: storeError } = await this.supabaseClient
       .from('stores')
       .select()
-      .eq('org_id', orgId);
+      .eq('org_id', orgId)
+      .eq('platform', platform);
+
     if (storeError) {
       throw new Error(storeError.message);
     }
@@ -87,7 +94,7 @@ export class StoresRepository {
 
     const { data, error } = await this.supabaseClient
       .from('store_credentials')
-      .select()
+      .select('*')
       .eq('store_id', storeData[0].id);
 
     if (error) {
@@ -98,6 +105,6 @@ export class StoresRepository {
     if (!data || data.length === 0) {
       throw new Error(`No credentials found for store: ${storeData[0].id}`);
     }
-    return data[0];
+    return { ...data[0], shopDomain: storeData[0].shopDomain! };
   }
 }
