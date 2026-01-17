@@ -16,7 +16,7 @@ export class WalmartWebhookGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const userId = request.params.userId;
+    const { userId, orgId } = request.params;
     const signature = request.headers['wm_sec.auth_signature']; // Walmart signature header
 
     if (!signature) {
@@ -29,7 +29,8 @@ export class WalmartWebhookGuard implements CanActivate {
     // 1. Fetch user-specific secret for verification
     const store = await this.storesRepo.getCredentials(
       userId,
-      request.query.orgId,
+      orgId,
+      'walmart',
     );
     const creds =
       typeof store.credentials === 'string'

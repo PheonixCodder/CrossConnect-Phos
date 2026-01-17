@@ -13,14 +13,18 @@ import { WalmartWebhookGuard } from '../../guards/walmart-webhook.guard';
 export class WalmartWebhookController {
   constructor(private walmartService: WalmartWebhooksService) {}
 
-  @Post(':userId')
+  @Post(':orgId/:userId')
   @UseGuards(WalmartWebhookGuard)
   @HttpCode(200)
-  async handleWebhook(@Param('userId') userId: string, @Body() body: any) {
+  async handleWebhook(
+    @Param('userId') userId: string,
+    @Param('orgId') orgId: string,
+    @Body() body: any,
+  ) {
     console.log(`Received notification for internal user: ${userId}`);
 
     // Now you can query your DB or perform actions specifically for this user
-    await this.walmartService.processEvent(userId, body);
+    await this.walmartService.processEvent(userId, orgId, body);
 
     return { status: 'ACKNOWLEDGED' };
   }
