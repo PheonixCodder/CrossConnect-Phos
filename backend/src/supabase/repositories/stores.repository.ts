@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { InjectSupabaseClient } from 'nestjs-supabase-js';
@@ -68,8 +67,12 @@ export class StoresRepository {
       .select()
       .eq('user_id', userId)
       .eq('org_id', orgId);
+
     if (orgError) {
       throw new Error(orgError.message);
+    }
+    if (!orgData || orgData.length === 0) {
+      throw new Error('User is not a member of this organization');
     }
     const { data: storeData, error: storeError } = await this.supabaseClient
       .from('stores')
@@ -78,6 +81,9 @@ export class StoresRepository {
     if (storeError) {
       throw new Error(storeError.message);
     }
+    if (!storeData || storeData.length === 0) {
+      throw new Error(`No store found for organization: ${orgId}`);
+    }
 
     const { data, error } = await this.supabaseClient
       .from('store_credentials')
@@ -85,8 +91,12 @@ export class StoresRepository {
       .eq('store_id', storeData[0].id);
 
     if (error) {
-      this.logger.error('Failed to upsert credentials', error);
+      this.logger.error('Failed to fetch credentials', error);
       throw error;
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error(`No credentials found for store: ${storeData[0].id}`);
     }
     return data[0];
   }

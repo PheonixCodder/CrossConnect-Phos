@@ -34,19 +34,26 @@ export class WalmartWebhooksService {
   ) {
     const store = await this.credentialsRepo.getCredentials(userId, orgId);
     if (!store?.credentials) throw new Error('Walmart credentials not found');
-
-    const creds =
-      typeof store.credentials === 'string'
-        ? JSON.parse(store.credentials)
-        : store.credentials;
+    let creds: { clientId: string; clientSecret: string };
+    try {
+      creds =
+        typeof store.credentials === 'string'
+          ? JSON.parse(store.credentials)
+          : store.credentials;
+    } catch (err) {
+      this.logger.error('Invalid Walmart credentials payload', err);
+      throw new InternalServerErrorException('Invalid Walmart credentials');
+    }
 
     const token = await this.getAccessToken(
       creds as { clientId: string; clientSecret: string },
     );
 
-    // FIX: Correct template literal
-    const eventUrl = `${this.config.get('APP_URL')}/api/webhooks/walmart/${userId}`;
-
+    const appUrl = this.config.get<string>('APP_URL');
+    if (!appUrl) {
+      throw new InternalServerErrorException('APP_URL is not configured');
+    }
+    const eventUrl = `${appUrl}/api/webhooks/walmart/${userId}`;
     const payload = {
       eventType: config.eventType,
       eventVersion: config.eventVersion,
@@ -66,18 +73,17 @@ export class WalmartWebhooksService {
       await firstValueFrom(
         this.httpService.post(`${this.baseUrl}/v3/webhooks/test`, payload, {
           headers,
+          timeout: 10_000,
         }),
       );
-
       // Step 2: Create
       const response = await firstValueFrom(
         this.httpService.post(
           `${this.baseUrl}/v3/webhooks/subscriptions`,
           payload,
-          { headers },
+          { headers, timeout: 10_000 },
         ),
       );
-
       return response.data;
     } catch (error) {
       this.handleError('setupWebhook', error);
@@ -108,7 +114,13 @@ export class WalmartWebhooksService {
       const response = await firstValueFrom(
         this.httpService.post(url, data, { headers }),
       );
-      return response.data.access_token;
+      const accessToken = response.data?.access_token;
+      if (!accessToken) {
+        throw new InternalServerErrorException(
+          'Walmart token response missing access_token',
+        );
+      }
+      return accessToken;
     } catch (error) {
       this.logger.error(
         'Walmart Auth Failed',
