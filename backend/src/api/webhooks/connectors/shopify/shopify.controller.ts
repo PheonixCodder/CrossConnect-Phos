@@ -24,7 +24,7 @@ export class ShopifyWebhookController {
     @Headers('x-shopify-topic') topic: string,
     @Body() body: any,
   ) {
-    // Acknowledge immediately, process business logic after
+    // Process event synchronously before acknowledging
     await this.shopifyService.processEvent(userId, orgId, topic, body);
     return { status: 'ACKNOWLEDGED' };
   }

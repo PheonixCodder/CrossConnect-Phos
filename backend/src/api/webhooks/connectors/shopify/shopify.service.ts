@@ -66,6 +66,7 @@ export class ShopifyWebhooksService {
       } else {
         this.logger.error(`Shopify Setup Error for Org: ${orgId}`, error);
       }
+      throw error;
     }
   }
 
