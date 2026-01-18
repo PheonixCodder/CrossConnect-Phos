@@ -13,6 +13,7 @@ import {
 export const useOnboardingView = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState("");
 
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
@@ -32,6 +33,7 @@ export const useOnboardingView = () => {
 
       if (!user) {
         setIsLoading(false);
+        router.push("/signin");
         return;
       }
 
@@ -45,6 +47,7 @@ export const useOnboardingView = () => {
       if (orgError) {
         console.error("Error creating organization:", orgError.message);
         setIsLoading(false);
+        setIsError(orgError.message);
         return;
       }
 
@@ -62,5 +65,7 @@ export const useOnboardingView = () => {
     form,
     isLoading,
     handleSubmit,
+    setIsError,
+    isError,
   };
 };

@@ -15,7 +15,7 @@ import { Loader2 } from "lucide-react";
 import { useOnboardingView } from "../../hooks/use-onboarding-view";
 
 export const OnboardingView = () => {
-  const { form, isLoading, handleSubmit } = useOnboardingView();
+  const { form, isLoading, handleSubmit, isError } = useOnboardingView();
 
   return (
     <div className="w-full max-w-md animate-fade-in">
@@ -58,7 +58,8 @@ export const OnboardingView = () => {
                   </FormItem>
                 )}
               />
-
+              {/* If isError display isError message */}
+              {isError && <p className="text-destructive text-sm">{isError}</p>}
               <Button
                 type="submit"
                 className="w-full h-11"
