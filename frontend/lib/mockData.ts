@@ -59,12 +59,12 @@ export const channels: Channel[] = [
     },
   },
   {
-    id: 'tiktok',
-    name: 'TikTok Shop',
-    logo: '/images/tiktok.svg',
+    id: 'warehance',
+    name: 'Warehance',
+    logo: '/images/warehance.svg',
     status: 'warning',
     lastSync: new Date(Date.now() - 300000),
-    colorClass: 'channel-tiktok',
+    colorClass: 'channel-warehance',
     metrics: {
       grossSales: 98200,
       netSales: 88380,
@@ -171,8 +171,8 @@ export const alerts: Alert[] = [
     type: 'sales',
     severity: 'warning',
     title: 'Unusual Sales Spike',
-    description: 'TikTok Shop sales increased 340% in the last 2 hours. Verify inventory allocation.',
-    channel: 'TikTok Shop',
+    description: 'warehance Shop sales increased 340% in the last 2 hours. Verify inventory allocation.',
+    channel: 'warehance Shop',
     timestamp: new Date(Date.now() - 3600000),
     actionable: true,
   },
@@ -190,10 +190,10 @@ export const alerts: Alert[] = [
 
 export const inventoryItems: InventoryItem[] = [
   { sku: 'SKU-1001', name: 'Premium Widget', available: 1247, daysOnHand: 45, status: 'healthy', channels: ['amazon', 'walmart', 'shopify'] },
-  { sku: 'SKU-2847', name: 'Premium Widget Pro', available: 12, daysOnHand: 2, status: 'critical', channels: ['amazon', 'tiktok', 'target'] },
+  { sku: 'SKU-2847', name: 'Premium Widget Pro', available: 12, daysOnHand: 2, status: 'critical', channels: ['amazon', 'warehance', 'target'] },
   { sku: 'SKU-3921', name: 'Basic Widget', available: 89, daysOnHand: 8, status: 'warning', channels: ['amazon', 'walmart', 'faire'] },
   { sku: 'SKU-4102', name: 'Widget Deluxe', available: 567, daysOnHand: 28, status: 'healthy', channels: ['amazon', 'shopify'] },
-  { sku: 'SKU-5543', name: 'Widget Mini', available: 2341, daysOnHand: 67, status: 'healthy', channels: ['tiktok', 'target', 'faire'] },
+  { sku: 'SKU-5543', name: 'Widget Mini', available: 2341, daysOnHand: 67, status: 'healthy', channels: ['warehance', 'target', 'faire'] },
 ];
 
 export const timeRanges = [

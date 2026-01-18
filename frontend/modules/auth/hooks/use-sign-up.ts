@@ -13,6 +13,7 @@ export const useSignUp = () => {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      full_name: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -30,16 +31,21 @@ export const useSignUp = () => {
       password: form.password,
       options: {
         emailRedirectTo: process.env.NEXT_PUBLIC_BASE_URL,
+        data: {
+          full_name: form.full_name,
+        },
       },
     });
 
-    if (error) {
-      setError(error.message);
+    if (error || !data.user) {
+      setError(error?.message ?? "Signup failed");
       setIsLoading(false);
-    } else {
-      router.push("/");
-      setIsLoading(false);
+      return;
     }
+
+    // Redirect to org onboarding
+    router.push("/onboarding/organization");
+    setIsLoading(false);
   };
 
   return {

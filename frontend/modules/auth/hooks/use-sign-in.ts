@@ -45,7 +45,7 @@ export const useSignIn = () => {
           });
 
           // Redirect to dashboard or intended page
-          router.push("/dashboard");
+          router.push("/");
           router.refresh();
         }
       } catch (err) {

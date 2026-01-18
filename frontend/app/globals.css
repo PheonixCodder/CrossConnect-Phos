@@ -54,9 +54,9 @@
   --amazon-saturation: 100%;
   --amazon-lightness: 50%;
 
-  --tiktok-hue: 174;
-  --tiktok-saturation: 100%;
-  --tiktok-lightness: 42%;
+  --warehance-hue: 174;
+  --warehance-saturation: 100%;
+  --warehance-lightness: 42%;
 
   --walmart-hue: 210;
   --walmart-saturation: 100%;
@@ -149,9 +149,9 @@
   --amazon-saturation: 100%;
   --amazon-lightness: 60%;
 
-  --tiktok-hue: 174;
-  --tiktok-saturation: 100%;
-  --tiktok-lightness: 60%;
+  --warehance-hue: 174;
+  --warehance-saturation: 100%;
+  --warehance-lightness: 60%;
 
   --walmart-hue: 210;
   --walmart-saturation: 100%;
@@ -209,8 +209,8 @@
   --color-amazon: hsl(
     var(--amazon-hue) var(--amazon-saturation) var(--amazon-lightness)
   );
-  --color-tiktok: hsl(
-    var(--tiktok-hue) var(--tiktok-saturation) var(--tiktok-lightness)
+  --color-warehance: hsl(
+    var(--warehance-hue) var(--warehance-saturation) var(--warehance-lightness)
   );
   --color-walmart: hsl(
     var(--walmart-hue) var(--walmart-saturation) var(--walmart-lightness)
@@ -386,8 +386,8 @@
     border-left-color: var(--color-amazon);
   }
 
-  .channel-border-tiktok {
-    border-left-color: var(--color-tiktok);
+  .channel-border-warehance {
+    border-left-color: var(--color-warehance);
   }
 
   .channel-border-walmart {
