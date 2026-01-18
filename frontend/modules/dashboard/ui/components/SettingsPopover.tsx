@@ -1,0 +1,49 @@
+"use client";
+
+import { Settings } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+export function SettingsPopover() {
+  return (
+    <Popover>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              size="icon"
+              variant="outline"
+              className={cn(
+                "relative h-9 w-9 rounded-lg bg-card hover:bg-muted transition-colors"
+              )}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Settings</TooltipContent>
+      </Tooltip>
+
+      <PopoverContent
+        align="end"
+        className="w-[100px] p-0 shadow-xl border-0 bg-transparent"
+      >
+        <div className="flex flex-col items-center justify-center gap-2">
+          <Button variant={'secondary'} className="w-full">Settings</Button>
+          <Button variant={'secondary'} className="w-full">Profile</Button>
+          <Button variant={'secondary'} className="w-full">Logout</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}

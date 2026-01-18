@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/tooltip";
 import { InlineSpinner } from "@/components/feedback/LoadingSpinner";
 import { formatTimeAgo } from "@/lib/mockData";
+import { SettingsPopover } from "./SettingsPopover";
 
 export function DashboardHeader() {
   const [timeRange, setTimeRange] = useState("7d");
@@ -112,18 +113,7 @@ export function DashboardHeader() {
 
           <NotificationsPopover notifications={notifications} />
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-lg bg-card hover:bg-muted transition-colors"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
-          </Tooltip>
+          <SettingsPopover />
         </div>
       </div>
     </header>

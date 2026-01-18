@@ -8,11 +8,11 @@ export const CHANNEL_CONFIG = {
     borderClass: "channel-border-amazon",
     icon: "/images/amazon.svg",
   },
-  tiktok: {
-    name: "TikTok Shop",
-    color: "var(--color-tiktok)",
-    borderClass: "channel-border-tiktok",
-    icon: "/images/tiktok.svg",
+  warehance: {
+    name: "Warehance",
+    color: "var(--color-warehance)",
+    borderClass: "channel-border-warehance",
+    icon: "/images/warehance.svg",
   },
   walmart: {
     name: "Walmart",
