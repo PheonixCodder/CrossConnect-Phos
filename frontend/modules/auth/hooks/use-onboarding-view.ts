@@ -9,6 +9,7 @@ import {
   onboardingSchema,
   OnboardingFormValues,
 } from "../schema/onboarding.schema";
+import { getCurrentUserId } from "@/lib/helpers/getUser";
 
 export const useOnboardingView = () => {
   const router = useRouter();
@@ -27,9 +28,7 @@ export const useOnboardingView = () => {
     const supabase = createClient();
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getCurrentUserId()
 
       if (!user) {
         setIsLoading(false);

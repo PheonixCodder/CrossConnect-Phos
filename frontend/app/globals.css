@@ -527,3 +527,16 @@
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }
+
+.custom-icon-bg {
+  width: 18px;
+  height: 18px;
+  background-image: var(--icon-url);
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+/* Swap the background variable on hover */
+.nav-icon-wrapper:hover .custom-icon-bg {
+  background-image: var(--hover-url);
+}

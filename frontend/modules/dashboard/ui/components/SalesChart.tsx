@@ -150,7 +150,7 @@ export function SalesChart() {
     setSelectedChannels((prev) =>
       prev.includes(channel)
         ? prev.filter((c) => c !== channel)
-        : [...prev, channel]
+        : [...prev, channel],
     );
   };
 
@@ -170,7 +170,7 @@ export function SalesChart() {
         sum +
         selectedChannels.reduce(
           (daySum, channel) => daySum + (day[channel] || 0),
-          0
+          0,
         )
       );
     }, 0);
@@ -203,7 +203,7 @@ export function SalesChart() {
                     "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors",
                     isSelected
                       ? "bg-primary/10 text-primary"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
+                      : "bg-muted text-muted-foreground hover:text-foreground",
                   )}
                 >
                   <div
@@ -280,13 +280,13 @@ export function SalesChart() {
             />
             <XAxis
               dataKey="date"
-              stroke="hsl(var(--muted-foreground))"
+              stroke="white"
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              stroke="hsl(var(--muted-foreground))"
+              stroke="white"
               fontSize={12}
               tickLine={false}
               axisLine={false}
