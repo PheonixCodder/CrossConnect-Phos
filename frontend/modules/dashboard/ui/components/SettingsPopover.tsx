@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export function SettingsPopover() {
   return (
@@ -39,8 +40,7 @@ export function SettingsPopover() {
         className="w-[100px] p-0 shadow-xl border-0 bg-transparent"
       >
         <div className="flex flex-col items-center justify-center gap-2">
-          <Button variant={'secondary'} className="w-full">Settings</Button>
-          <Button variant={'secondary'} className="w-full">Profile</Button>
+          <Link href={'/settings'}><Button variant={'secondary'} className="w-full">Settings</Button></Link>
           <Button variant={'secondary'} className="w-full">Logout</Button>
         </div>
       </PopoverContent>

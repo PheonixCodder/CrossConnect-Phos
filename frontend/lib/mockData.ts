@@ -1,4 +1,4 @@
-export type ChannelStatus = 'healthy' | 'warning' | 'critical';
+export type ChannelStatus = 'success' | 'warning' | 'error';
 
 export interface ChannelMetrics {
   grossSales: number;
@@ -17,7 +17,6 @@ export interface Channel {
   status: ChannelStatus;
   lastSync: Date;
   metrics: ChannelMetrics;
-  colorClass: string;
 }
 
 export interface Alert {
@@ -45,9 +44,8 @@ export const channels: Channel[] = [
     id: 'amazon',
     name: 'Amazon',
     logo: '/images/amazon.svg',
-    status: 'healthy',
+    status: 'success',
     lastSync: new Date(Date.now() - 120000),
-    colorClass: 'channel-amazon',
     metrics: {
       grossSales: 284500,
       netSales: 256050,
@@ -64,7 +62,6 @@ export const channels: Channel[] = [
     logo: '/images/warehance.svg',
     status: 'warning',
     lastSync: new Date(Date.now() - 300000),
-    colorClass: 'channel-warehance',
     metrics: {
       grossSales: 98200,
       netSales: 88380,
@@ -79,9 +76,8 @@ export const channels: Channel[] = [
     id: 'walmart',
     name: 'Walmart',
     logo: '/images/walmart.svg',
-    status: 'healthy',
+    status: 'success',
     lastSync: new Date(Date.now() - 60000),
-    colorClass: 'channel-walmart',
     metrics: {
       grossSales: 156800,
       netSales: 141120,
@@ -96,9 +92,8 @@ export const channels: Channel[] = [
     id: 'target',
     name: 'Target',
     logo: '/images/target.png',
-    status: 'critical',
+    status: 'error',
     lastSync: new Date(Date.now() - 900000),
-    colorClass: 'channel-target',
     metrics: {
       grossSales: 67400,
       netSales: 60660,
@@ -113,9 +108,8 @@ export const channels: Channel[] = [
     id: 'faire',
     name: 'Faire',
     logo: '/images/faire.svg',
-    status: 'healthy',
+    status: 'success',
     lastSync: new Date(Date.now() - 180000),
-    colorClass: 'channel-faire',
     metrics: {
       grossSales: 43200,
       netSales: 38880,
@@ -130,9 +124,8 @@ export const channels: Channel[] = [
     id: 'shopify',
     name: 'Shopify',
     logo: '/images/shopify.svg',
-    status: 'healthy',
+    status: 'success',
     lastSync: new Date(Date.now() - 45000),
-    colorClass: 'channel-shopify',
     metrics: {
       grossSales: 22800,
       netSales: 20520,
@@ -149,7 +142,7 @@ export const alerts: Alert[] = [
   {
     id: '1',
     type: 'sync',
-    severity: 'critical',
+    severity: 'error',
     title: 'API Sync Failed',
     description: 'Target API connection timed out. Last successful sync was 15 minutes ago.',
     channel: 'Target',
@@ -189,11 +182,11 @@ export const alerts: Alert[] = [
 ];
 
 export const inventoryItems: InventoryItem[] = [
-  { sku: 'SKU-1001', name: 'Premium Widget', available: 1247, daysOnHand: 45, status: 'healthy', channels: ['amazon', 'walmart', 'shopify'] },
-  { sku: 'SKU-2847', name: 'Premium Widget Pro', available: 12, daysOnHand: 2, status: 'critical', channels: ['amazon', 'warehance', 'target'] },
+  { sku: 'SKU-1001', name: 'Premium Widget', available: 1247, daysOnHand: 45, status: 'success', channels: ['amazon', 'walmart', 'shopify'] },
+  { sku: 'SKU-2847', name: 'Premium Widget Pro', available: 12, daysOnHand: 2, status: 'error', channels: ['amazon', 'warehance', 'target'] },
   { sku: 'SKU-3921', name: 'Basic Widget', available: 89, daysOnHand: 8, status: 'warning', channels: ['amazon', 'walmart', 'faire'] },
-  { sku: 'SKU-4102', name: 'Widget Deluxe', available: 567, daysOnHand: 28, status: 'healthy', channels: ['amazon', 'shopify'] },
-  { sku: 'SKU-5543', name: 'Widget Mini', available: 2341, daysOnHand: 67, status: 'healthy', channels: ['warehance', 'target', 'faire'] },
+  { sku: 'SKU-4102', name: 'Widget Deluxe', available: 567, daysOnHand: 28, status: 'success', channels: ['amazon', 'shopify'] },
+  { sku: 'SKU-5543', name: 'Widget Mini', available: 2341, daysOnHand: 67, status: 'success', channels: ['warehance', 'target', 'faire'] },
 ];
 
 export const timeRanges = [

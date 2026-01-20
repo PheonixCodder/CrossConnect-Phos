@@ -13,7 +13,7 @@ interface StatusBadgeProps {
 const sizeClasses = {
   sm: "px-2 py-0.5 text-xs gap-1",
   md: "px-3 py-1 text-sm gap-1.5",
-  lg: "px-4 py-2 text-base gap-2"
+  lg: "px-4 py-2 text-base gap-2",
 };
 
 export function StatusBadge({
@@ -24,7 +24,7 @@ export function StatusBadge({
   className,
 }: StatusBadgeProps) {
   const config = STATUS_CONFIG[status];
-  
+
   return (
     <div
       className={cn(

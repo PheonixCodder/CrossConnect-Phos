@@ -25,7 +25,7 @@ export function NotificationsPopover({
   notifications,
   className,
 }: NotificationsPopoverProps) {
-  const unreadCount = notifications.filter((n) => n.state !== "healthy").length;
+  const unreadCount = notifications.filter((n) => n.state !== "success").length;
 
   return (
     <Popover>
@@ -37,7 +37,7 @@ export function NotificationsPopover({
               variant="outline"
               className={cn(
                 "relative h-9 w-9 rounded-lg bg-card hover:bg-muted transition-colors",
-                className
+                className,
               )}
             >
               <Bell className="h-4 w-4" />

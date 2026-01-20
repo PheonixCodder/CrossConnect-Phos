@@ -1,6 +1,4 @@
 "use client";
-import { IconCirclePlusFilled, IconMail, type Icon } from "@tabler/icons-react";
-import { Button } from "@/components/ui/button";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -9,6 +7,9 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
+import { Icon } from "@tabler/icons-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export function NavMain({
@@ -21,21 +22,10 @@ export function NavMain({
     badge?: string;
   }[];
 }) {
+  const pathname = usePathname();
   return (
     <SidebarGroup>
       <SidebarGroupContent>
-        <SidebarMenu>
-          <SidebarMenuItem className="mb-2">
-            <SidebarMenuButton
-              tooltip="Quick Create"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground duration-200 ease-linear"
-            >
-              <IconCirclePlusFilled />
-              <span>Quick Create</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        
         <div className="px-1">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Navigation
@@ -45,18 +35,25 @@ export function NavMain({
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
                   tooltip={item.title}
-                  className="hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                  className={cn(
+                    "hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary",
+                    (pathname === item.url) &&
+                      "bg-primary/10 text-primary",
+                  )}
                   asChild
                 >
-                  <a href={item.url}>
+                  <Link href={item.url}>
                     {item.icon && <item.icon className="!size-4" />}
                     <span className="text-sm">{item.title}</span>
                     {item.badge && (
-                      <Badge variant="outline" className="ml-auto text-[10px] h-5 px-1.5">
+                      <Badge
+                        variant="outline"
+                        className="ml-auto text-[10px] h-5 px-1.5"
+                      >
                         {item.badge}
                       </Badge>
                     )}
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

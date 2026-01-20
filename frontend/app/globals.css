@@ -75,13 +75,14 @@
   --shopify-lightness: 45%;
 
   /* Status Colors */
-  --status-healthy: 142 71% 45%;
+  --status-success: 142 71% 45%;
   --status-warning: 38 92% 50%;
-  --status-critical: 0 84% 60%;
+  --status-error: 0 84% 60%;
 
   /* Fonts */
-  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans:
+    "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
@@ -95,15 +96,15 @@
   /* Shadows */
   --shadow-2xs: 0px 1px 2px hsl(0 0% 0% / 0.05);
   --shadow-xs: 0px 1px 2px hsl(0 0% 0% / 0.1);
-  --shadow-sm: 0px 1px 3px hsl(0 0% 0% / 0.1),
-    0px 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-sm:
+    0px 1px 3px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
   --shadow: 0px 2px 4px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0px 4px 6px hsl(0 0% 0% / 0.1),
-    0px 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0px 10px 15px hsl(0 0% 0% / 0.1),
-    0px 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0px 20px 25px hsl(0 0% 0% / 0.1),
-    0px 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0px 4px 6px hsl(0 0% 0% / 0.1), 0px 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0px 10px 15px hsl(0 0% 0% / 0.1), 0px 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0px 20px 25px hsl(0 0% 0% / 0.1), 0px 8px 10px -1px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0px 25px 50px hsl(0 0% 0% / 0.25);
 
   /* Spacing */
@@ -226,9 +227,9 @@
   );
 
   /* Status Colors */
-  --color-status-healthy: hsl(var(--status-healthy));
+  --color-status-success: hsl(var(--status-success));
   --color-status-warning: hsl(var(--status-warning));
-  --color-status-critical: hsl(var(--status-critical));
+  --color-status-error: hsl(var(--status-error));
 
   /* Font Families */
   --font-sans: var(--font-sans);
@@ -276,7 +277,9 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
     margin: 0;
     min-height: 100vh;
     overflow-x: hidden;
@@ -326,7 +329,8 @@
   .card-hover {
     &:hover {
       border-color: color-mix(in oklch, var(--primary) 30%, transparent);
-      box-shadow: 0 10px 15px -3px color-mix(in oklch, var(--primary) 5%, transparent);
+      box-shadow: 0 10px 15px -3px
+        color-mix(in oklch, var(--primary) 5%, transparent);
     }
   }
 
@@ -344,7 +348,7 @@
   }
 
   /* Gradient Text */
-    .gradient-text {
+  .gradient-text {
     background-image: linear-gradient(
       to right,
       var(--foreground),
@@ -356,8 +360,6 @@
     color: transparent;
   }
 
-
-
   /* Status Indicators */
   .status-dot {
     width: 0.625rem;
@@ -366,9 +368,9 @@
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
-  .status-dot-healthy {
-    background-color: hsl(var(--status-healthy));
-    box-shadow: 0 0 12px hsl(var(--status-healthy) / 0.6);
+  .status-dot-success {
+    background-color: hsl(var(--status-success));
+    box-shadow: 0 0 12px hsl(var(--status-success) / 0.6);
   }
 
   .status-dot-warning {
@@ -376,9 +378,9 @@
     box-shadow: 0 0 12px hsl(var(--status-warning) / 0.6);
   }
 
-  .status-dot-critical {
-    background-color: hsl(var(--status-critical));
-    box-shadow: 0 0 12px hsl(var(--status-critical) / 0.6);
+  .status-dot-error {
+    background-color: hsl(var(--status-error));
+    box-shadow: 0 0 12px hsl(var(--status-error) / 0.6);
   }
 
   /* Channel Accent Borders */
@@ -480,11 +482,8 @@
 
   /* Grid Background Patterns */
   .bg-grid-pattern {
-    background-image: linear-gradient(
-        to right,
-        hsl(var(--border) / 0.1) 1px,
-        transparent 1px
-      ),
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.1) 1px, transparent 1px),
       linear-gradient(to bottom, hsl(var(--border) / 0.1) 1px, transparent 1px);
     background-size: 32px 32px;
   }
@@ -526,4 +525,17 @@
     padding-right: max(1rem, env(safe-area-inset-right));
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+}
+
+.custom-icon-bg {
+  width: 18px;
+  height: 18px;
+  background-image: var(--icon-url);
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+/* Swap the background variable on hover */
+.nav-icon-wrapper:hover .custom-icon-bg {
+  background-image: var(--hover-url);
 }
