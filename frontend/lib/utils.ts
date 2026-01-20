@@ -12,10 +12,10 @@ export function truncate(text: string, max = 90) {
 }
 
 export const stateStyles: Record<
-  "healthy" | "warning" | "critical",
+  "success" | "warning" | "error",
   { dot: string; bg: string }
 > = {
-  healthy: {
+  success: {
     dot: "bg-green-500",
     bg: "hover:bg-green-500/5",
   },
@@ -23,27 +23,27 @@ export const stateStyles: Record<
     dot: "bg-yellow-500",
     bg: "hover:bg-yellow-500/5",
   },
-  critical: {
+  error: {
     dot: "bg-red-500",
     bg: "hover:bg-red-500/5",
   },
 };
 
 export const statusConfig = {
-  healthy: {
-    label: "Healthy",
+  success: {
+    label: "success",
     class:
-      "bg-[hsl(var(--status-healthy))] shadow-[0 0 12px hsl(var(--status-healthy) / 0.6)",
+      "bg-[hsl(var(--status-success))] shadow-[0 0 12px hsl(var(--status-success) / 0.6)",
   },
   warning: {
     label: "Warning",
     class:
       "bg-[hsl(var(--status-warning))] shadow-[0 0 12px hsl(var(--status-warning) / 0.6)",
   },
-  critical: {
+  error: {
     label: "Critical",
     class:
-      "bg-[hsl(var(--status-critical))] shadow-[0 0 12px hsl(var(--status-critical) / 0.6)",
+      "bg-[hsl(var(--status-error))] shadow-[0 0 12px hsl(var(--status-error) / 0.6)",
   },
 };
 

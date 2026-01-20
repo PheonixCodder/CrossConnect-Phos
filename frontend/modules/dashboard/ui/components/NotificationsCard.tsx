@@ -10,7 +10,7 @@ interface NotificationItemProps {
   onDismiss?: (id?: string) => void;
 }
 
-export type NotificationState = "healthy" | "warning" | "critical";
+export type NotificationState = "success" | "warning" | "error";
 
 export interface Notification {
   id?: string;
@@ -22,29 +22,47 @@ export interface Notification {
   read?: boolean;
 }
 
-export function NotificationItem({ notification, onDismiss }: NotificationItemProps) {
-  const { icon: Icon, state, channel, description, timeAgo, read = false } = notification;
+export function NotificationItem({
+  notification,
+  onDismiss,
+}: NotificationItemProps) {
+  const {
+    icon: Icon,
+    state,
+    channel,
+    description,
+    timeAgo,
+    read = false,
+  } = notification;
 
   return (
     <div
       className={cn(
         "flex gap-3 p-3 rounded-lg transition-colors hover:bg-muted/50 group",
-        !read && "bg-primary/5"
+        !read && "bg-primary/5",
       )}
     >
       <div className="relative mt-0.5">
-        <div className={cn(
-          "p-2 rounded-lg",
-          state === "critical" ? "bg-red-500/10" :
-          state === "warning" ? "bg-yellow-500/10" :
-          "bg-green-500/10"
-        )}>
-          <Icon className={cn(
-            "h-4 w-4",
-            state === "critical" ? "text-red-500" :
-            state === "warning" ? "text-yellow-500" :
-            "text-green-500"
-          )} />
+        <div
+          className={cn(
+            "p-2 rounded-lg",
+            state === "error"
+              ? "bg-red-500/10"
+              : state === "warning"
+                ? "bg-yellow-500/10"
+                : "bg-green-500/10",
+          )}
+        >
+          <Icon
+            className={cn(
+              "h-4 w-4",
+              state === "error"
+                ? "text-red-500"
+                : state === "warning"
+                  ? "text-yellow-500"
+                  : "text-green-500",
+            )}
+          />
         </div>
         {!read && (
           <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary animate-pulse" />
@@ -62,7 +80,7 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
               <span>{timeAgo}</span>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button
               size="icon"

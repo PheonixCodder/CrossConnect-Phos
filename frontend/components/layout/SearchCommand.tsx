@@ -73,7 +73,7 @@ export const SearchCommand = ({ open, setOpen }: SearchCommandProps) => {
   const storesByPlatform: [[PlatformType: Store]] = useMemo(() => {
     return storesToRender.reduce(
       (acc, store) => {
-        const platform = store.platform || "shopify";
+        const platform = store.platform;
         if (!acc[platform]) acc[platform] = [];
         acc[platform].push(store);
         return acc;

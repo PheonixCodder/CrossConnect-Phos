@@ -113,7 +113,7 @@ export function GlobalContextSwitcher() {
   const storesByPlatform = React.useMemo(() => {
     return stores.reduce(
       (acc, store) => {
-        const platform = store.platform || "shopify"; // Fallback if null
+        const platform = store.platform; // Fallback if null
         if (!acc[platform]) acc[platform] = [];
         acc[platform].push(store);
         return acc;

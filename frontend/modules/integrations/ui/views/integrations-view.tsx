@@ -8,33 +8,32 @@ import { usePlatformOverview } from "../../hooks/use-platform-overview";
 import { useIntegrationsData } from "../../hooks/use-integrations-data";
 import type { Database } from "@/types/supabase.types";
 
-type PlatformType = Database["public"]["Enums"]["platform_types"];
+type Platform = Database["public"]["Enums"]["platform_types"];
 
-const PLATFORMS: PlatformType[] = [
+const PLATFORMS: Platform[] = [
   "shopify",
   "faire",
   "amazon",
   "walmart",
+  "tiktok",
   "warehance",
   "target",
 ];
 
 export function IntegrationsView() {
-  const [platform, setPlatform] = useQueryState<PlatformType | null>(
-    "platform",
-    {
+  const [platform, setPlatform] =
+    useQueryState<Platform | null>("platform", {
       defaultValue: null,
-      parse: (value) =>
-        PLATFORMS.includes(value as PlatformType)
-          ? (value as PlatformType)
+      parse: (v) =>
+        PLATFORMS.includes(v as Platform)
+          ? (v as Platform)
           : null,
-    }
-  );
+    });
 
-  const { platforms, isLoading: isOverviewLoading } =
+  const { platforms, isLoading: overviewLoading } =
     usePlatformOverview();
 
-  const { data: stores, isLoading: isStoresLoading } =
+  const { data: stores, isLoading: storesLoading } =
     useIntegrationsData(platform);
 
   if (platform) {
@@ -43,7 +42,7 @@ export function IntegrationsView() {
         <StoreList
           platform={platform}
           stores={stores ?? []}
-          isLoading={isStoresLoading}
+          isLoading={storesLoading}
           onBack={() => setPlatform(null)}
         />
       </PageContainer>
@@ -52,38 +51,27 @@ export function IntegrationsView() {
 
   return (
     <PageContainer>
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">
-            Integrations
-          </h2>
-          <p className="text-muted-foreground">
-            Connect and manage your sales channels.
-          </p>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {PLATFORMS.map((p) => {
+          const data =
+            platforms.find((x) => x.platform === p) ?? {
+              platform: p,
+              totalStores: 0,
+              activeStores: 0,
+              lastSync: null,
+              trend: 0,
+              share: 0,
+            };
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {PLATFORMS.map((p) => {
-            const data =
-              platforms.find((x) => x.platform === p) ?? {
-                platform: p,
-                totalStores: 0,
-                activeStores: 0,
-                lastSync: null,
-                trend: 0,
-                share: 0,
-              };
-
-            return (
-              <PlatformCard
-                key={p}
-                data={data}
-                loading={isOverviewLoading}
-                onClick={() => setPlatform(p)}
-              />
-            );
-          })}
-        </div>
+          return (
+            <PlatformCard
+              key={p}
+              data={data}
+              loading={overviewLoading}
+              onClick={() => setPlatform(p)}
+            />
+          );
+        })}
       </div>
     </PageContainer>
   );

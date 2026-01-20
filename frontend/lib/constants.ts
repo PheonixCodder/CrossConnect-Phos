@@ -42,10 +42,10 @@ export const CHANNEL_CONFIG = {
 
 // Status configurations
 export const STATUS_CONFIG = {
-  healthy: {
-    label: "Healthy",
-    color: "var(--color-status-healthy)",
-    dotClass: "status-dot-healthy",
+  success: {
+    label: "success",
+    color: "var(--color-status-success)",
+    dotClass: "status-dot-success",
     bgClass: "bg-green-500/10",
   },
   warning: {
@@ -54,10 +54,10 @@ export const STATUS_CONFIG = {
     dotClass: "status-dot-warning",
     bgClass: "bg-yellow-500/10",
   },
-  critical: {
+  error: {
     label: "Critical",
-    color: "var(--color-status-critical)",
-    dotClass: "status-dot-critical",
+    color: "var(--color-status-error)",
+    dotClass: "status-dot-error",
     bgClass: "bg-red-500/10",
   },
 } as const;

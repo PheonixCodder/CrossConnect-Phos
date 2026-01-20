@@ -1,19 +1,18 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 import { TimeRangeSelector } from "./TimeRangeSelector";
-import { useState, useEffect } from "react";
-import { SidebarTrigger } from "../../../../components/ui/sidebar";
-import { Badge } from "../../../../components/ui/badge";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
-import { formatTimeAgo } from "@/lib/mockData";
+import type { TimeRange } from "../../hooks/use-dashboard-data";
+import { useDashboardStore } from "@/store/useStore";
 
-export function DashboardHeader() {
-  const [timeRange, setTimeRange] = useState("7d");
-  const [lastSyncTime, setLastSyncTime] = useState<string>("");
+interface DashboardHeaderProps {
+  timeRange: TimeRange;
+  setTimeRange: (range: TimeRange) => void;
+}
 
-  useEffect(() => {
-    setLastSyncTime(formatTimeAgo(new Date(Date.now() - 120000)));
-  }, []);
+export function DashboardHeader({ timeRange, setTimeRange }: DashboardHeaderProps) {
+  const activeStore = useDashboardStore((state) => state.activeStore);
 
   return (
     <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
@@ -21,7 +20,7 @@ export function DashboardHeader() {
         <SidebarTrigger className="h-9 w-9 -ml-1.5" />
 
         <div className="flex items-center gap-3">
-          <StatusBadge status="healthy" size="sm" />
+          <StatusBadge status="success" size="sm" />
           <span className="text-sm font-medium text-foreground">
             All Systems Operational
           </span>
@@ -29,13 +28,7 @@ export function DashboardHeader() {
 
         <div className="hidden md:flex items-center gap-3">
           <Badge variant="outline" className="px-3 py-1.5 text-xs font-medium">
-            Last sync: {lastSyncTime}
-          </Badge>
-          <Badge
-            variant="outline"
-            className="px-3 py-1.5 text-xs font-medium bg-primary/5"
-          >
-            Next sync: 58 seconds
+            {activeStore ? `Store: ${activeStore.name}` : "Viewing Org-wide metrics"}
           </Badge>
         </div>
       </div>

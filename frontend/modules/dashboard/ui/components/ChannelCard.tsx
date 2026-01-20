@@ -96,7 +96,7 @@ export function ChannelCard({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Clock className="h-3 w-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  {formatTimeAgo(channel.lastSync)}
+                  {formatTimeAgo(new Date(channel.lastSync))}
                 </span>
               </div>
             </div>
@@ -114,7 +114,7 @@ export function ChannelCard({
               className={cn(
                 "flex items-center gap-0.5 text-xs font-medium px-2 py-0.5 rounded-full",
                 trendBg,
-                trendColor
+                trendColor,
               )}
             >
               {isPositive ? (

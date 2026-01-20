@@ -1,4 +1,4 @@
-'use client'
+"use client";
 import React, { useState } from "react";
 import { Package, RefreshCw, TrendingUp, WifiOff } from "lucide-react";
 import { Notification } from "@/modules/dashboard/ui/components/NotificationsCard";
@@ -23,7 +23,7 @@ const SidebarButtons = () => {
   const notifications: Notification[] = [
     {
       icon: WifiOff,
-      state: "critical",
+      state: "error",
       channel: "Target",
       description: "API Sync Failed. Target API connection timed out.",
       timeAgo: "15m ago",
@@ -37,7 +37,7 @@ const SidebarButtons = () => {
     },
     {
       icon: TrendingUp,
-      state: "healthy",
+      state: "success",
       channel: "TikTok Shop",
       description: "Sales increased 340% in the last 2 hours.",
       timeAgo: "1h ago",

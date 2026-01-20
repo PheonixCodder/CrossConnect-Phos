@@ -1,5 +1,10 @@
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Clock, Store as StoreIcon } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Clock,
+  Store as StoreIcon,
+} from "lucide-react";
 import Image from "next/image";
 import type { PlatformOverview } from "../../hooks/use-platform-overview";
 import { PLATFORM_ICONS } from "../../schema/schema";
@@ -11,10 +16,11 @@ interface PlatformCardProps {
 }
 
 export function PlatformCard({ data, onClick, loading }: PlatformCardProps) {
-  const isHealthy = data.activeStores > 0;
-  const status = data.totalStores > 0 ? (isHealthy ? "active" : "warning") : "disconnected";
+  const issuccess = data.activeStores > 0;
+  const status =
+    data.totalStores > 0 ? (issuccess ? "active" : "warning") : "disconnected";
 
-  const trend = data.trend; 
+  const trend = data.trend;
   const isPositive = trend >= 0;
   const trendColor = isPositive ? "text-green-500" : "text-red-500";
   const trendBg = isPositive ? "bg-green-500/10" : "bg-red-500/10";
@@ -27,7 +33,7 @@ export function PlatformCard({ data, onClick, loading }: PlatformCardProps) {
     const date = new Date(dateStr);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     let interval = seconds / 31536000;
     if (interval > 1) return Math.floor(interval) + " years ago";
     interval = seconds / 2592000;
@@ -76,7 +82,7 @@ export function PlatformCard({ data, onClick, loading }: PlatformCardProps) {
     <div
       className={cn(
         "card-base card-hover p-5 cursor-pointer group",
-        "channel-accent relative overflow-hidden border-border/30 border"
+        "channel-accent relative overflow-hidden border-border/30 border",
       )}
       onClick={onClick}
       role="button"
@@ -105,7 +111,9 @@ export function PlatformCard({ data, onClick, loading }: PlatformCardProps) {
               />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground capitalize">{data.platform}</h3>
+              <h3 className="font-semibold text-foreground capitalize">
+                {data.platform}
+              </h3>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Clock className="h-3 w-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
@@ -114,21 +122,34 @@ export function PlatformCard({ data, onClick, loading }: PlatformCardProps) {
               </div>
             </div>
           </div>
-          <div className={cn(
-             "h-2 w-2 rounded-full",
-             isHealthy ? "bg-green-500" : data.totalStores > 0 ? "bg-orange-500" : "bg-gray-300"
-           )} />
+          <div
+            className={cn(
+              "h-2 w-2 rounded-full",
+              issuccess
+                ? "bg-green-500"
+                : data.totalStores > 0
+                  ? "bg-orange-500"
+                  : "bg-gray-300",
+            )}
+          />
         </div>
 
         {/* Metric: Store Count (Replacing Net Sales for Integration context reliability) */}
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium">Connected Stores</p>
+          <p className="text-xs text-muted-foreground font-medium">
+            Connected Stores
+          </p>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight gradient-text">
-              {formatNumber(data.activeStores)} / {formatNumber(data.totalStores)}
+              {formatNumber(data.activeStores)} /{" "}
+              {formatNumber(data.totalStores)}
             </span>
             {data.activeStores > 0 && (
-              <div className={cn("flex items-center gap-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-green-500/10 text-green-500")}>
+              <div
+                className={cn(
+                  "flex items-center gap-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-green-500/10 text-green-500",
+                )}
+              >
                 <TrendingUp className="h-3 w-3" />
                 Active
               </div>
@@ -152,8 +173,13 @@ export function PlatformCard({ data, onClick, loading }: PlatformCardProps) {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Status</p>
-            <p className={cn("text-sm font-semibold", isHealthy ? "text-green-600" : "text-orange-600")}>
-              {isHealthy ? "Healthy" : "Check"}
+            <p
+              className={cn(
+                "text-sm font-semibold",
+                issuccess ? "text-green-600" : "text-orange-600",
+              )}
+            >
+              {issuccess ? "success" : "Check"}
             </p>
           </div>
         </div>

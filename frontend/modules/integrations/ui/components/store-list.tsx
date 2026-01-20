@@ -1,4 +1,11 @@
-import { ChevronLeft, Loader2, Key, ShieldCheck, AlertCircle } from "lucide-react";
+import {
+  ChevronLeft,
+  Loader2,
+  Key,
+  ShieldCheck,
+  AlertCircle,
+  Plus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,6 +20,7 @@ import { CredentialDialog } from "./credential-dialog";
 import { useState } from "react";
 import type { Database } from "@/types/supabase.types";
 import { cn } from "@/lib/utils";
+import { AddStoreDialog } from "./add-store-dialog";
 
 interface StoreListProps {
   platform: Database["public"]["Enums"]["platform_types"];
@@ -30,6 +38,7 @@ export function StoreList({
   const [selectedStore, setSelectedStore] =
     useState<StoreWithCredentials | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const handleManageCredentials = (store: StoreWithCredentials) => {
     setSelectedStore(store);
@@ -46,19 +55,28 @@ export function StoreList({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={onBack}>
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h2 className="text-2xl font-bold capitalize">
-            {platform} Stores
-          </h2>
-          <p className="text-muted-foreground">
-            Manage credentials and status for your {platform} integrations.
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold capitalize">{platform} Stores</h2>
+            <p className="text-muted-foreground">
+              Manage credentials and status for your {platform} integrations.
+            </p>
+          </div>
         </div>
+        <Button onClick={() => setAddOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Store
+        </Button>
       </div>
+      <AddStoreDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        platform={platform}
+      />
 
       <div className="grid gap-4">
         {stores.length === 0 ? (
@@ -76,8 +94,8 @@ export function StoreList({
               store.auth_status === "active"
                 ? "text-green-600"
                 : store.auth_status === "expired"
-                ? "text-orange-600"
-                : "text-red-600";
+                  ? "text-orange-600"
+                  : "text-red-600";
 
             return (
               <Card key={store.id}>
@@ -85,9 +103,7 @@ export function StoreList({
                   <div className="flex justify-between">
                     <div>
                       <CardTitle>{store.name}</CardTitle>
-                      <CardDescription>
-                        ID: {store.id}
-                      </CardDescription>
+                      <CardDescription>ID: {store.id}</CardDescription>
                     </div>
 
                     {store.store_credentials ? (
@@ -105,17 +121,13 @@ export function StoreList({
                 </CardHeader>
 
                 <CardContent className="flex justify-between items-center">
-                  <span
-                    className={cn("capitalize font-semibold", statusColor)}
-                  >
+                  <span className={cn("capitalize font-semibold", statusColor)}>
                     {store.auth_status ?? "unknown"}
                   </span>
 
                   <Button
                     size="sm"
-                    variant={
-                      store.store_credentials ? "default" : "outline"
-                    }
+                    variant={store.store_credentials ? "default" : "outline"}
                     onClick={() => handleManageCredentials(store)}
                   >
                     {store.store_credentials
