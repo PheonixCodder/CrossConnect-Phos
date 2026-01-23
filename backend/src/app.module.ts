@@ -1,5 +1,3 @@
-// app.module.ts
-
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';

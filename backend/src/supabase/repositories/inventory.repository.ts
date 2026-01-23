@@ -32,7 +32,7 @@ export class InventoryRepository {
   ) {
     if (!inventoryBatch?.length) return { affected: 0 };
 
-    const BATCH_SIZE = 5000;
+    const BATCH_SIZE = 300;
     const MAX_CONCURRENT = 6;
 
     let totalAffected = 0;
@@ -102,17 +102,71 @@ export class InventoryRepository {
   ): Promise<Record<string, InventoryRow>> {
     if (!skus.length) return {};
 
-    const { data, error } = await this.supabaseClient
-      .from('inventory')
-      .select('*')
-      .eq('store_id', storeId)
-      .in('sku', skus);
+    const BATCH_SIZE = 150; // ← reduced even more (from 200) to test
+    const batches: string[][] = [];
+    for (let i = 0; i < skus.length; i += BATCH_SIZE) {
+      batches.push(skus.slice(i, i + BATCH_SIZE));
+    }
 
-    if (error) throw error;
+    const allInventory: InventoryRow[] = [];
 
-    return (data ?? []).reduce<Record<string, InventoryRow>>((acc, row) => {
-      acc[row.sku] = row;
-      return acc;
-    }, {});
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      this.logger.debug(
+        `Inventory batch ${batchIndex + 1}/${batches.length}: ${batch.length} SKUs`,
+      );
+
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        // increased retries
+        try {
+          const { data, error } = await this.supabaseClient
+            .from('inventory')
+            .select('*')
+            .eq('store_id', storeId)
+            .in('sku', batch);
+
+          if (error) {
+            throw error; // will be caught below
+          }
+
+          allInventory.push(...(data ?? []));
+          break; // success → next batch
+        } catch (err: any) {
+          const isLastAttempt = attempt === 4;
+
+          this.logger.error(
+            `Inventory fetch failed (batch ${batchIndex + 1}, attempt ${attempt})`,
+            {
+              message: err.message,
+              stack: err.stack,
+              cause: err.cause, // ← most important! (ECONNRESET, ENOTFOUND, certificate, etc.)
+              code: err.code,
+              syscall: err.cause?.syscall,
+              address: err.cause?.address,
+              port: err.cause?.port,
+              batchSkusSample: batch.slice(0, 3),
+              batchSize: batch.length,
+            },
+          );
+
+          if (isLastAttempt) {
+            throw new Error(
+              `Inventory fetch permanently failed after retries: ${err.message}`,
+            );
+          }
+
+          const delay = 1500 * Math.pow(1.5, attempt - 1);
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
+    }
+
+    return allInventory.reduce(
+      (acc, row) => {
+        acc[row.sku] = row;
+        return acc;
+      },
+      {} as Record<string, InventoryRow>,
+    );
   }
 }

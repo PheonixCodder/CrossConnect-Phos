@@ -123,6 +123,18 @@ export class StoresRepository {
     }
   }
 
+  async storesAsQueued(storeIds: string[]) {
+    const now = new Date().toISOString();
+
+    return await this.supabaseClient
+      .from('stores')
+      .update({
+        last_health_check: now,
+        auth_status: 'active',
+      })
+      .in('id', storeIds);
+  }
+
   async getCredentials(
     userId: string,
     orgId: string,

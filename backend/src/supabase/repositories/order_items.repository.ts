@@ -5,40 +5,59 @@ import { Database } from '../supabase.types';
 
 @Injectable()
 export class OrderItemsRepository {
-  logger = new Logger();
+  private readonly logger = new Logger(OrderItemsRepository.name);
+
   constructor(
     @InjectSupabaseClient()
-    private readonly supabaseClient: SupabaseClient<Database>,
+    private readonly supabase: SupabaseClient<Database>,
   ) {}
+
   async bulkUpsertOrderItems(
-    orderItems: Database['public']['Tables']['order_items']['Insert'][],
-  ) {
-    if (!orderItems?.length) {
-      this.logger.debug('No order items to bulk upsert');
+    items: Database['public']['Tables']['order_items']['Insert'][],
+  ): Promise<{ count: number }> {
+    if (!items?.length) {
+      this.logger.debug('No order items to upsert');
       return { count: 0 };
     }
 
-    this.logger.log(`Bulk upserting ${orderItems.length} order items via RPC`);
+    const BATCH_SIZE = 300; // 1000–3000 usually safe; start lower if timeouts persist
+    let processed = 0;
 
-    const { error } = await this.supabaseClient.rpc('bulk_upsert_order_items', {
-      items: orderItems, // ← send the full array directly
-    });
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const batch = items.slice(i, i + BATCH_SIZE);
 
-    if (error) {
-      this.logger.error('Bulk upsert RPC failed', {
-        code: error.code,
-        message: error.message,
-        hint: error.hint,
-        details: error.details,
-        itemCount: orderItems.length,
-      });
-      throw error;
+      this.logger.debug(
+        `Upserting order_items batch ${Math.floor(i / BATCH_SIZE) + 1} ` +
+          `(${batch.length} rows, total so far ${processed})`,
+      );
+
+      const { error, data } = await this.supabase
+        .from('order_items')
+        .upsert(batch, {
+          onConflict: 'store_id, sku', // ← comma-separated string (not array!)
+          // ignoreDuplicates: false,    // default = false → update on conflict
+        })
+        .select('id'); // optional: get count
+
+      const count = data?.length || 0;
+
+      if (error) {
+        this.logger.error('Batch upsert failed', {
+          batchSize: batch.length,
+          errorCode: error.code,
+          errorMsg: error.message,
+          hint: error.hint,
+          firstFewItems: batch.slice(0, 2), // for debugging
+        });
+        throw error;
+      }
+
+      processed += count ?? batch.length;
     }
 
     this.logger.log(
-      `Bulk upsert via RPC completed successfully (${orderItems.length} items)`,
+      `Bulk upserted ${processed} order items (store_id + sku conflict)`,
     );
-
-    return { count: orderItems.length };
+    return { count: processed };
   }
 }

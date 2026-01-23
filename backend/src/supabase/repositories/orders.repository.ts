@@ -15,7 +15,7 @@ export class OrdersRepository {
   async insertOrdersAndReturn(
     orders: Database['public']['Tables']['orders']['Insert'][],
   ) {
-    const BATCH_SIZE = 5000;
+    const BATCH_SIZE = 300;
 
     let allData: Database['public']['Tables']['orders']['Insert'][] = [];
     let totalAffected = 0;

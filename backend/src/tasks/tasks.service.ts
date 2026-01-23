@@ -6,8 +6,6 @@ import { StoresRepository } from '../supabase/repositories/stores.repository';
 import { StoreCredentialsService } from '../supabase/repositories/store_credentials.repository';
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 import { Database, Json } from '../supabase/supabase.types';
-import { InjectSupabaseClient } from 'nestjs-supabase-js';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class TasksService {
@@ -20,10 +18,9 @@ export class TasksService {
     private readonly storesRepository: StoresRepository,
     private readonly storeCredentialsService: StoreCredentialsService,
     private readonly alertsRepository: AlertsRepository,
-    @InjectSupabaseClient() private readonly supabaseClient: SupabaseClient,
   ) {}
 
-  @Interval(60000) // 60 seconds – adjust to 300000 (5 min) in production
+  @Interval(1200000) // 60 seconds – adjust to 300000 (5 min) in production
   async pollAllActiveStores() {
     this.logger.log('Starting scheduled poll of all active stores');
 
@@ -193,17 +190,8 @@ export class TasksService {
 
   private async markStoresAsQueued(storeIds: string[]) {
     try {
-      const now = new Date().toISOString();
-
+      const { error } = await this.storesRepository.storesAsQueued(storeIds);
       // Bulk update last_health_check + status
-      const { error } = await this.supabaseClient
-        .from('stores')
-        .update({
-          last_health_check: now,
-          auth_status: 'active',
-        })
-        .in('id', storeIds);
-
       if (error) throw error;
 
       this.logger.debug(`Marked ${storeIds.length} stores as queued`);

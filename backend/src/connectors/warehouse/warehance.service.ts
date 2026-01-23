@@ -17,8 +17,9 @@ export class WarehanceService {
 
   private apiKey: string;
 
-  constructor(private readonly alertsRepo: AlertsRepository) {}
-
+  constructor(
+    private readonly alertsRepo: AlertsRepository, // Inject here
+  ) {}
   initialize(credentials: any): void {
     this.apiKey = credentials.WAREHANCE_API_KEY;
 

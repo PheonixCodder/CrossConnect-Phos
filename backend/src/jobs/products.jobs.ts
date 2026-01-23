@@ -279,20 +279,17 @@ export class ProductsProcessor extends WorkerHost {
       // 3️⃣ Resolve product_id by SKU
       const skus = targetProducts.map((p) => p.external_id);
 
-      const productIdRows = await this.productsRepo.getIdsBySkus(
-        store.id,
-        skus,
-        'target',
-      );
-
-      const productIdBySku = new Map(
-        productIdRows.map((row) => [row.sku, row.id]),
-      );
+      const productIdRows =
+        await this.productsRepo.getProductIdsBySkusInBatches(
+          store.id,
+          skus,
+          'target',
+        );
 
       // 4️⃣ Build Inventory Rows (FK-safe)
       const inventoryInserts = targetProducts
         .map((p) => {
-          const productId = productIdBySku.get(p.external_id);
+          const productId = productIdRows.get(p.external_id);
           if (!productId) return null;
 
           return mapTargetInventoryToSupabaseInventory(p, store.id, productId);
@@ -355,14 +352,12 @@ export class ProductsProcessor extends WorkerHost {
 
       // 3️⃣ Resolve product_id by SKU
       const skus = productInserts.map((p) => p.sku);
-      const productIdRows = await this.productsRepo.getIdsBySkus(
-        store.id,
-        skus,
-        'walmart',
-      );
-      const productIdBySku = new Map(
-        productIdRows.map((row) => [row.sku, row.id]),
-      );
+      const productIdRows =
+        await this.productsRepo.getProductIdsBySkusInBatches(
+          store.id,
+          skus,
+          'walmart',
+        );
 
       // 4️⃣ Fetch existing inventory for delta comparison
       const existingInventory = await this.inventoryRepo.getBySkus(
@@ -379,7 +374,7 @@ export class ProductsProcessor extends WorkerHost {
         initialDelayMs: 500,
         maxRetries: 3,
         handler: async (product) => {
-          const productId = productIdBySku.get(product.sku);
+          const productId = productIdRows.get(product.sku);
           if (!productId) return;
 
           const inventory: GetInventoryResponse =
@@ -453,15 +448,12 @@ export class ProductsProcessor extends WorkerHost {
       // 3️⃣ Resolve product_id by SKU
       const skus = productInserts.map((p) => p.sku);
 
-      const productIdRows = await this.productsRepo.getIdsBySkus(
-        store.id,
-        skus,
-        'amazon',
-      );
-
-      const productIdBySku = new Map(
-        productIdRows.map((row) => [row.sku, row.id]),
-      );
+      const productIdRows =
+        await this.productsRepo.getProductIdsBySkusInBatches(
+          store.id,
+          skus,
+          'amazon',
+        );
 
       // 4️⃣ Fetch existing inventory for delta comparison
       const existingInventory = await this.inventoryRepo.getBySkus(
@@ -485,7 +477,7 @@ export class ProductsProcessor extends WorkerHost {
         const sku: string = summary.sellerSku!;
         if (!sku) continue;
 
-        const productId = productIdBySku.get(sku);
+        const productId = productIdRows.get(sku);
         if (!productId) continue;
 
         const mappedInventory = mapAmazonInventoryFromFbaSummary(
@@ -542,7 +534,7 @@ export class ProductsProcessor extends WorkerHost {
   private async processWarehanceProducts(
     service: any,
     store: Database['public']['Tables']['stores']['Row'],
-    since?: string, // ← received from job data
+    since?: string,
   ) {
     const syncStart = new Date();
 
@@ -573,36 +565,46 @@ export class ProductsProcessor extends WorkerHost {
 
       await this.productsRepo.insertProducts(productInserts);
 
-      // ── 3. Resolve product_id by SKU
+      // ── 3. Resolve product_id by SKU (batched to avoid URL limits)
       const skus = productInserts.map((p) => p.sku).filter(Boolean);
-
-      const productIdRows = await this.productsRepo.getIdsBySkus(
-        store.id,
-        skus,
-        store.platform,
+      this.logger.debug(
+        `Resolving product IDs for ${skus.length} SKUs in batches`,
       );
 
-      const productIdBySku = new Map(
-        productIdRows.map((row) => [row.sku, row.id]),
-      );
+      const productIdBySku =
+        await this.productsRepo.getProductIdsBySkusInBatches(
+          store.id,
+          skus,
+          store.platform,
+        );
 
-      // ── 4. Fetch existing inventory (for delta check)
+      // ── 4. Fetch existing inventory (for delta check) - also batched
+      this.logger.debug(`Fetching existing inventory for ${skus.length} SKUs`);
       const existingInventory = await this.inventoryRepo.getBySkus(
         skus,
         store.id,
       );
 
       // ── 5. Inventory Delta Mapping + Deduplication
-      const inventoryInserts = mapPlatformInventoryToDB(
-        products, // full array → deduplicated inside mapper
-        store.id,
-        productIdBySku,
-      );
+      this.logger.debug('Mapping inventory data to DB format');
+      let inventoryInserts;
+      try {
+        inventoryInserts = mapPlatformInventoryToDB(
+          products,
+          store.id,
+          productIdBySku,
+        );
+      } catch (error) {
+        this.logger.error('Failed to map inventory data', error);
+        throw new Error(`Inventory mapping failed: ${error.message}`);
+      }
 
       if (!inventoryInserts.length) {
         this.logger.log('No inventory changes detected after deduplication');
         return;
       }
+
+      this.logger.debug(`Mapped ${inventoryInserts.length} inventory records`);
 
       // Optional final delta check (recommended)
       const finalInserts: typeof inventoryInserts = [];
@@ -619,8 +621,17 @@ export class ProductsProcessor extends WorkerHost {
         return;
       }
 
+      this.logger.debug(
+        `Found ${finalInserts.length} inventory records to update`,
+      );
+
       // ── 6. Bulk Upsert Inventory (batched + parallel)
-      await this.inventoryRepo.updateInventoryBatch(finalInserts);
+      try {
+        await this.inventoryRepo.updateInventoryBatch(finalInserts);
+      } catch (error) {
+        this.logger.error('Failed to update inventory batch', error);
+        throw new Error(`Inventory update failed: ${error.message}`);
+      }
 
       const duration = (Date.now() - syncStart.getTime()) / 1000;
 
@@ -678,12 +689,12 @@ export class ProductsProcessor extends WorkerHost {
 
       // 3. Inventory Sync Logic
       const skus = productRows.map((p) => p.sku).filter(Boolean);
-      const productIdRows = await this.productsRepo.getIdsBySkus(
-        store.id,
-        skus,
-        store.platform,
-      );
-      const productIdBySku = new Map(productIdRows.map((r) => [r.sku, r.id]));
+      const productIdRows =
+        await this.productsRepo.getProductIdsBySkusInBatches(
+          store.id,
+          skus,
+          store.platform,
+        );
 
       const existingInventory = await this.inventoryRepo.getBySkus(
         skus,
@@ -697,7 +708,7 @@ export class ProductsProcessor extends WorkerHost {
 
       for (const item of inventoryItems) {
         if (!item.sku) continue;
-        const productId = productIdBySku.get(item.sku);
+        const productId = productIdRows.get(item.sku);
         if (!productId) continue;
 
         for (const level of item.inventoryLevels.nodes) {

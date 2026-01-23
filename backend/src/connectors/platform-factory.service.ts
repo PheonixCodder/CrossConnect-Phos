@@ -8,6 +8,7 @@ import { AmazonService } from './amazon/amazon.service';
 import { ShopifyService } from './shopify/shopify.service';
 import { WarehanceService } from './warehouse/warehance.service';
 import { Database } from '../supabase/supabase.types';
+import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
 
 @Injectable()
 export class PlatformServiceFactory {
@@ -16,6 +17,7 @@ export class PlatformServiceFactory {
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
+    private readonly alertsRepo: AlertsRepository,
   ) {}
 
   createService(
@@ -48,7 +50,7 @@ export class PlatformServiceFactory {
   }
 
   private createWarehanceService(credentials: any): WarehanceService {
-    const service = new WarehanceService();
+    const service = new WarehanceService(this.alertsRepo);
     service.initialize(credentials);
     return service;
   }

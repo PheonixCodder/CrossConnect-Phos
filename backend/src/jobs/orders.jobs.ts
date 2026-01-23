@@ -50,6 +50,7 @@ import {
 } from '.api/apis/warehance-api';
 import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { InjectSupabaseClient } from 'nestjs-supabase-js';
 
 @Processor('orders', { concurrency: 5 })
 export class OrdersProcessor extends WorkerHost {
@@ -64,6 +65,7 @@ export class OrdersProcessor extends WorkerHost {
     private readonly productsRepo: ProductsRepository,
     private readonly storeCredentialsService: StoreCredentialsService,
     private readonly alertsRepo: AlertsRepository,
+    @InjectSupabaseClient()
     private readonly supabaseClient: SupabaseClient,
   ) {
     super();
@@ -228,9 +230,7 @@ export class OrdersProcessor extends WorkerHost {
       await this.orderItemsRepo.bulkUpsertOrderItems(orderItemsDB);
 
       // 8️⃣ Insert shipments
-      const { error: shipmentsError } =
-        await this.shipmentRepo.insertShipments(shipmentsDB);
-      if (shipmentsError) throw shipmentsError;
+      await this.shipmentRepo.insertShipments(shipmentsDB);
 
       this.logger.log(
         `Successfully synced ${rawOrders.length} orders, ${orderItemsDB.length} items, ${shipmentsDB.length} shipments`,
