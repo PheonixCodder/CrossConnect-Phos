@@ -1,12 +1,12 @@
 import * as crypto from 'crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 
 @Injectable()
-export class CryptoService {
+export class CryptoService implements OnModuleInit {
   private readonly algorithm = 'aes-256-gcm';
-  private readonly key: Buffer;
+  private key: Buffer;
 
-  constructor() {
+  onModuleInit() {
     const keyHex = process.env.CREDENTIALS_ENCRYPTION_KEY;
     if (!keyHex) {
       throw new Error(
@@ -21,7 +21,7 @@ export class CryptoService {
     }
   }
 
-  encrypt(payload: unknown) {
+  encrypt(payload: any) {
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
 
@@ -30,15 +30,21 @@ export class CryptoService {
       cipher.final(),
     ]);
 
+    const tag = cipher.getAuthTag();
+
     return {
       ciphertext: encrypted.toString('base64'),
       iv: iv.toString('base64'),
-      tag: cipher.getAuthTag().toString('base64'),
+      tag: tag.toString('base64'),
       keyVersion: 1,
     };
   }
 
   decrypt(encrypted: any) {
+    if (!encrypted.ciphertext || !encrypted.iv || !encrypted.tag) {
+      throw new Error('Invalid encrypted payload structure');
+    }
+
     const decipher = crypto.createDecipheriv(
       this.algorithm,
       this.key,

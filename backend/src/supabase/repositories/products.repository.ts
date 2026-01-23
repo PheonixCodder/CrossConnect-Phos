@@ -14,18 +14,72 @@ export class ProductsRepository {
   async insertProducts(
     products: Database['public']['Tables']['products']['Insert'][],
   ): Promise<Database['public']['Tables']['products']['Row'][]> {
-    const { data, error } = await this.supabaseClient
-      .from('products')
-      .upsert(products, {
-        onConflict: 'external_product_id',
-      })
-      .select('*'); // return all columns including internal 'id'
+    if (!products?.length) return [];
 
-    if (error) {
-      throw new Error(`Failed to insert products: ${error.message}`);
+    const BATCH_SIZE = 3000;
+    const MAX_CONCURRENT = 6;
+
+    let allInserted: Database['public']['Tables']['products']['Row'][] = [];
+
+    this.logger.log(
+      `Inserting ${products.length} products in batches of ${BATCH_SIZE}`,
+    );
+
+    // Split into batches
+    const batches: Database['public']['Tables']['products']['Insert'][][] = [];
+    for (let i = 0; i < products.length; i += BATCH_SIZE) {
+      batches.push(products.slice(i, i + BATCH_SIZE));
     }
 
-    return data ?? [];
+    // Process batches in parallel (max 6 at once)
+    const results = await Promise.allSettled(
+      batches.map(async (batch, index) => {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const { data, error } = await this.supabaseClient
+              .from('products')
+              .upsert(batch, {
+                onConflict: 'store_id,external_product_id',
+              })
+              .select('*');
+
+            if (error) throw error;
+
+            this.logger.debug(
+              `Products batch ${index + 1} succeeded (${batch.length} rows)`,
+            );
+            return data ?? [];
+          } catch (err) {
+            if (attempt === 3) {
+              this.logger.error(
+                `Products batch ${index + 1} failed after 3 attempts`,
+                err,
+              );
+              throw err;
+            }
+            const delay = 1000 * Math.pow(2, attempt - 1);
+            this.logger.warn(
+              `Retry attempt ${attempt}/3 after ${delay}ms for batch ${index + 1}`,
+            );
+            await new Promise((r) => setTimeout(r, delay));
+          }
+        }
+      }),
+    );
+
+    // Collect successful results
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        allInserted = allInserted.concat(result.value!);
+      } else {
+        this.logger.error(
+          `Batch ${index + 1} failed permanently`,
+          result.reason,
+        );
+      }
+    });
+
+    return allInserted;
   }
   async syncProductsAndInventory(
     products: Database['public']['Tables']['products']['Insert'][],

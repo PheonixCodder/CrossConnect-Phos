@@ -4,7 +4,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import {
   TargetFulfillment,
@@ -17,21 +16,30 @@ import { TargetProductReturnsResponse } from './target.types';
 @Injectable()
 export class TargetService {
   private readonly logger = new Logger(TargetService.name);
-  private readonly baseUrl: string;
-  private readonly apiKey: string;
-  private readonly sellerId: string;
-  private readonly sellerToken: string;
-  private readonly timeout: number;
 
-  constructor(
-    private readonly http: HttpService,
-    private readonly config: ConfigService,
-  ) {
-    this.baseUrl = this.config.get<string>('target.baseUrl')!;
-    this.apiKey = this.config.get<string>('target.apiKey')!;
-    this.sellerId = this.config.get<string>('target.sellerId')!;
-    this.sellerToken = this.config.get<string>('target.sellerToken')!;
-    this.timeout = this.config.get<number>('target.timeout')!;
+  // Configuration properties to be set by PlatformServiceFactory
+  private baseUrl: string;
+  private apiKey: string;
+  private sellerId: string;
+  private sellerToken: string;
+  private timeout: number;
+
+  constructor(private readonly http: HttpService) {}
+
+  /**
+   * Initialize service with credentials from PlatformServiceFactory
+   */
+  initialize(credentials: any): void {
+    this.baseUrl = credentials.baseUrl || 'https://api.target.com';
+    this.apiKey = credentials.apiKey;
+    this.sellerId = credentials.sellerId;
+    this.sellerToken = credentials.sellerToken;
+    this.timeout = credentials.timeout || 30000;
+
+    if (!this.apiKey || !this.sellerId || !this.sellerToken) {
+      this.logger.error('Target credentials are missing');
+      throw new Error('Target API key, sellerId, and sellerToken are required');
+    }
   }
 
   private get headers() {
@@ -48,6 +56,12 @@ export class TargetService {
     path: string,
     params?: Record<string, unknown>,
   ): Promise<T> {
+    if (!this.baseUrl) {
+      throw new Error(
+        'Target service not initialized. Call initialize() first.',
+      );
+    }
+
     try {
       const response$ = this.http.request<T>({
         method,
@@ -73,8 +87,7 @@ export class TargetService {
   // --------------------------------
   // PRODUCT CATALOG
   // --------------------------------
-
-  getProducts(options?: {
+  async getProducts(options?: {
     afterId?: string;
     lastModified?: string;
     listingStatus?:
@@ -87,7 +100,7 @@ export class TargetService {
     externalId?: string;
     expand?: 'fields' | 'product_statuses';
     perPage?: number;
-  }) {
+  }): Promise<TargetProduct[]> {
     return this.request<TargetProduct[]>(
       'GET',
       `/sellers/${this.sellerId}/products_catalog`,
@@ -102,6 +115,7 @@ export class TargetService {
       },
     );
   }
+
   async getAllProducts(): Promise<TargetProduct[]> {
     const allProducts: TargetProduct[] = [];
     let afterId: string | undefined;
@@ -123,7 +137,7 @@ export class TargetService {
   }
 
   // --------------------------------
-  // Get Orders
+  // GET ORDERS
   // --------------------------------
   async getAllOrders(options?: {
     q?: string;
@@ -166,7 +180,7 @@ export class TargetService {
   }
 
   // --------------------------------
-  // Get Order Fulfillments
+  // GET ORDER FULFILLMENTS
   // --------------------------------
   async getOrderFulfillments(orderId: string): Promise<TargetFulfillment[]> {
     if (!orderId) throw new Error('orderId is required');

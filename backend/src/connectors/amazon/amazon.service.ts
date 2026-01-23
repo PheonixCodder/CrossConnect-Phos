@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/require-await */
 import { parseStringPromise } from 'xml2js';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from '@nestjs/common';
 import { SellingPartnerApiAuth } from '@sp-api-sdk/auth';
 import { ReportsApiClient } from '@sp-api-sdk/reports-api-2021-06-30';
 import { Order, OrderItem, OrdersApiClient } from '@sp-api-sdk/orders-api-v0';
@@ -16,19 +14,37 @@ import {
   AmazonReturnReportItem,
 } from './amazon.types';
 import { Database } from 'src/supabase/supabase.types';
+import { SellingPartnerRegion } from '@sp-api-sdk/common';
 
 @Injectable()
-export class AmazonService implements OnModuleInit {
+export class AmazonService {
   private readonly logger = new Logger(AmazonService.name);
   private auth: SellingPartnerApiAuth;
 
-  constructor(private readonly config: ConfigService) {}
+  // Configuration properties to be set by PlatformServiceFactory
+  private clientId: string;
+  private clientSecret: string;
+  private refreshToken: string;
+  private region = 'eu';
 
-  async onModuleInit() {
+  constructor() {}
+
+  /**
+   * Initialize service with credentials from PlatformServiceFactory
+   */
+  initialize(credentials: any): void {
+    this.clientId = credentials.lwa_client_id;
+    this.clientSecret = credentials.lwa_client_secret;
+    this.refreshToken = credentials.refresh_token;
+
+    if (!this.clientId || !this.clientSecret || !this.refreshToken) {
+      throw new Error('Amazon OAuth credentials missing');
+    }
+
     this.auth = new SellingPartnerApiAuth({
-      clientId: this.config.get<string>('LWA_CLIENT_ID')!,
-      clientSecret: this.config.get('LWA_CLIENT_SECRET')!,
-      refreshToken: this.config.get('LWA_REFRESH_TOKEN')!,
+      clientId: this.clientId,
+      clientSecret: this.clientSecret,
+      refreshToken: this.refreshToken,
     });
   }
 
@@ -38,9 +54,15 @@ export class AmazonService implements OnModuleInit {
   async getAllProducts(
     store: Database['public']['Tables']['stores']['Row'],
   ): Promise<AmazonMerchantListingRow[]> {
+    if (!this.auth) {
+      throw new Error(
+        'Amazon service not initialized. Call initialize() first.',
+      );
+    }
+
     const client = new ReportsApiClient({
       auth: this.auth,
-      region: 'eu',
+      region: this.region as SellingPartnerRegion,
     });
 
     const { data } = await client.createReport({
@@ -90,9 +112,15 @@ export class AmazonService implements OnModuleInit {
   async getInventorySummaries(
     store: Database['public']['Tables']['stores']['Row'],
   ): Promise<InventorySummary[]> {
+    if (!this.auth) {
+      throw new Error(
+        'Amazon service not initialized. Call initialize() first.',
+      );
+    }
+
     const client = new FbaInventoryApiClient({
       auth: this.auth,
-      region: 'eu',
+      region: this.region as SellingPartnerRegion,
     });
 
     const results: InventorySummary[] = [];
@@ -120,9 +148,15 @@ export class AmazonService implements OnModuleInit {
     store: Database['public']['Tables']['stores']['Row'],
     createdAfter?: string,
   ): Promise<Order[]> {
+    if (!this.auth) {
+      throw new Error(
+        'Amazon service not initialized. Call initialize() first.',
+      );
+    }
+
     const client = new OrdersApiClient({
       auth: this.auth,
-      region: 'eu',
+      region: this.region as SellingPartnerRegion,
     });
 
     const orders: Order[] = [];
@@ -143,9 +177,15 @@ export class AmazonService implements OnModuleInit {
   }
 
   async getOrderItems(orderId: string): Promise<OrderItem[]> {
+    if (!this.auth) {
+      throw new Error(
+        'Amazon service not initialized. Call initialize() first.',
+      );
+    }
+
     const client = new OrdersApiClient({
       auth: this.auth,
-      region: 'eu',
+      region: this.region as SellingPartnerRegion,
     });
 
     const items: OrderItem[] = [];
@@ -170,9 +210,15 @@ export class AmazonService implements OnModuleInit {
   async getReturns(
     store: Database['public']['Tables']['stores']['Row'],
   ): Promise<AmazonReturnReportItem[]> {
+    if (!this.auth) {
+      throw new Error(
+        'Amazon service not initialized. Call initialize() first.',
+      );
+    }
+
     const client = new ReportsApiClient({
       auth: this.auth,
-      region: 'eu',
+      region: this.region as SellingPartnerRegion,
     });
 
     const { data } = await client.createReport({

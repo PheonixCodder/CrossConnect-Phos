@@ -11,28 +11,93 @@ export class StoresRepository {
   ) {}
   private logger = new Logger();
 
-  async getStoreId(platform: string): Promise<string> {
+  async getAllActiveStores(): Promise<
+    Database['public']['Tables']['stores']['Row'][]
+  > {
     const { data, error } = await this.supabaseClient
       .from('stores')
-      .select('id')
-      .eq('platform', platform)
+      .select('*')
+      .eq('auth_status', 'active');
+
+    if (error) {
+      this.logger.error('Failed to fetch active stores', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async getStoreById(
+    storeId: string,
+  ): Promise<Database['public']['Tables']['stores']['Row']> {
+    const { data, error } = await this.supabaseClient
+      .from('stores')
+      .select('*')
+      .eq('id', storeId)
       .single();
 
     if (error) {
-      this.logger.error(`Store not found for platform: ${platform}`, error);
-
-      throw new Error(`Store not found for platform: ${platform}`);
+      this.logger.error(`Failed to fetch store ${storeId}`, error);
+      throw error;
     }
 
-    return data.id;
+    return data;
   }
+
+  async updateStoreHealth(
+    storeId: string,
+    status: 'healthy' | 'unhealthy',
+    message?: string,
+  ): Promise<void> {
+    const { error } = await this.supabaseClient
+      .from('stores')
+      .update({
+        last_health_check: new Date().toISOString(),
+        auth_status: status === 'healthy' ? 'active' : 'inactive',
+      })
+      .eq('id', storeId);
+
+    if (error) {
+      this.logger.error(`Failed to update store health for ${storeId}`, error);
+    }
+
+    // Log alert if unhealthy
+    if (status === 'unhealthy') {
+      await this.createAlert(
+        storeId,
+        'store_health_check',
+        message || 'Store connection failed',
+        'high',
+      );
+    }
+  }
+
+  private async createAlert(
+    storeId: string,
+    alertType: string,
+    message: string,
+    severity: Database['public']['Enums']['alert_severity'],
+  ): Promise<void> {
+    const { error } = await this.supabaseClient.from('alerts').insert({
+      store_id: storeId,
+      alert_type: alertType,
+      message,
+      severity,
+      platform: (await this.getStoreById(storeId)).platform,
+    });
+
+    if (error) {
+      this.logger.error('Failed to create alert', error);
+    }
+  }
+
   async getStore(
     platform: string,
   ): Promise<Database['public']['Tables']['stores']['Row']> {
     const { data, error } = await this.supabaseClient
       .from('stores')
       .select('*')
-      .eq('platform', platform)
+      .eq('platform', platform as Database['public']['Enums']['platform_types'])
       .single();
 
     if (error) {
@@ -83,7 +148,10 @@ export class StoresRepository {
       .from('stores')
       .select()
       .eq('org_id', orgId)
-      .eq('platform', platform);
+      .eq(
+        'platform',
+        platform as Database['public']['Enums']['platform_types'],
+      );
 
     if (storeError) {
       throw new Error(storeError.message);

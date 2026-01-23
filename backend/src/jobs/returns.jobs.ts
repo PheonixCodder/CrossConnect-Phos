@@ -1,64 +1,144 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { mapAmazonReturnToDB } from 'src/connectors/amazon/amazon.mapper';
-import { AmazonService } from 'src/connectors/amazon/amazon.service';
-import { mapShopifyReturnToDB } from 'src/connectors/shopify/shopify.mapper';
-import { ShopifyService } from 'src/connectors/shopify/shopify.service';
-import { mapTargetReturnsToDB } from 'src/connectors/target/target.mapper';
-import { TargetService } from 'src/connectors/target/target.service';
-import { mapWalmartReturnsToDB } from 'src/connectors/walmart/walmart.mapper';
-import { WalmartService } from 'src/connectors/walmart/walmart.service';
+import { PlatformServiceFactory } from 'src/connectors/platform-factory.service';
 import { OrdersRepository } from 'src/supabase/repositories/orders.repository';
 import { ReturnsRepository } from 'src/supabase/repositories/returns.repository';
 import { StoresRepository } from 'src/supabase/repositories/stores.repository';
 import { Database } from 'src/supabase/supabase.types';
+
+// Import all mappers
+import { mapAmazonReturnToDB } from 'src/connectors/amazon/amazon.mapper';
+import { mapShopifyReturnToDB } from 'src/connectors/shopify/shopify.mapper';
+import {
+  mapTargetReturnsToDB,
+  TargetProductReturn,
+} from 'src/connectors/target/target.mapper';
+import { mapWalmartReturnsToDB } from 'src/connectors/walmart/walmart.mapper';
+import { StoreCredentialsService } from 'src/supabase/repositories/store_credentials.repository';
+import { ReturnOrder } from 'src/connectors/walmart/walmart.types';
+import { AmazonReturnReportItem } from 'src/connectors/amazon/amazon.types';
+import { FetchReturnsQuery } from 'src/connectors/shopify/graphql/generated/admin.generated';
+import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
 
 @Processor('returns', { concurrency: 5 })
 export class ReturnsProcessor extends WorkerHost {
   private readonly logger = new Logger(ReturnsProcessor.name);
 
   constructor(
+    private readonly platformFactory: PlatformServiceFactory,
     private readonly storeRepo: StoresRepository,
-    private readonly targetService: TargetService,
-    private readonly walmartService: WalmartService,
-    private readonly shopifyService: ShopifyService,
-    private readonly amazonService: AmazonService,
     private readonly ordersRepo: OrdersRepository,
     private readonly returnsRepo: ReturnsRepository,
+    private readonly storeCredentialsService: StoreCredentialsService,
+    private readonly alertsRepo: AlertsRepository,
   ) {
     super();
   }
 
   async process(job: Job): Promise<void> {
-    const platform = job.data?.platform as string;
+    const {
+      storeId,
+      platform,
+    }: {
+      storeId: string;
+      platform: Database['public']['Enums']['platform_types'];
+      orgId: string;
+    } = job.data;
+
+    if (!storeId) {
+      throw new Error('storeId is required');
+    }
+
     if (!platform) {
       this.logger.warn(`Skipping job ${job.id}: missing/invalid platform`);
       return;
     }
 
-    if (platform === 'target') {
-      // ------------------------------
-      // 1️⃣ Resolve Store
-      // ------------------------------
-      const storeId = await this.storeRepo.getStoreId(platform);
-      if (!storeId) {
-        throw new Error(`Store not found for platform: ${platform}`);
+    try {
+      // Get store and credentials
+      const store = await this.storeRepo.getStoreById(storeId);
+      const credentials =
+        await this.storeCredentialsService.getCredentialsByStoreId(storeId);
+
+      // Create platform-specific service with credentials
+      let service;
+      try {
+        service = this.platformFactory.createService(
+          platform,
+          credentials,
+          store,
+        );
+      } catch (serviceError) {
+        this.logger.error(
+          `Failed to create service for ${platform}`,
+          serviceError,
+        );
+        await this.storeRepo.updateStoreHealth(
+          storeId,
+          'unhealthy',
+          `Failed to initialize platform service: ${serviceError.message}`,
+        );
+        throw serviceError;
       }
 
-      // ------------------------------
-      // 2️⃣ Fetch ALL Target Returns
-      // ------------------------------
-      const targetReturns = await this.targetService.getAllProductReturns();
+      // Process based on platform
+      switch (platform) {
+        case 'target':
+          await this.processTargetReturns(service, store);
+          break;
+        case 'walmart':
+          await this.processWalmartReturns(service, store);
+          break;
+        case 'amazon':
+          await this.processAmazonReturns(service, store);
+          break;
+        case 'shopify':
+          await this.processShopifyReturns(service, store);
+          break;
+        default:
+          this.logger.warn(
+            `Returns sync not supported for platform: ${platform}`,
+          );
+          return;
+      }
+
+      // Update store health on success
+      await this.storeRepo.updateStoreHealth(storeId, 'healthy');
+    } catch (error) {
+      this.logger.error(
+        `Failed to process returns for store ${storeId}: ${error.message}`,
+        error.stack,
+      );
+
+      // Update store health on failure
+      if (storeId) {
+        await this.storeRepo.updateStoreHealth(
+          storeId,
+          'unhealthy',
+          `Returns sync failed: ${error.message}`,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  private async processTargetReturns(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Fetch ALL Target Returns
+      const targetReturns: TargetProductReturn[] =
+        await service.getAllProductReturns();
       if (!targetReturns.length) {
         this.logger.warn('No returns returned from Target');
         return;
       }
 
-      // ------------------------------
-      // 3️⃣ Collect UNIQUE external order IDs from returns
-      // ------------------------------
-      const externalOrderIds = [
+      // 2️⃣ Collect UNIQUE external order IDs from returns
+      const externalOrderIds: string[] = [
         ...new Set(targetReturns.map((r) => r.order_id)),
       ];
 
@@ -67,11 +147,9 @@ export class ReturnsProcessor extends WorkerHost {
         return;
       }
 
-      // ------------------------------
-      // 4️⃣ Fetch ONLY relevant orders from DB
-      // ------------------------------
+      // 3️⃣ Fetch ONLY relevant orders from DB
       const orders = await this.ordersRepo.getByExternalOrderIds(
-        storeId,
+        store.id,
         externalOrderIds,
       );
 
@@ -82,22 +160,16 @@ export class ReturnsProcessor extends WorkerHost {
         return;
       }
 
-      // ------------------------------
-      // 5️⃣ Build external_order_id → internal order.id map
-      // ------------------------------
+      // 4️⃣ Build external_order_id → internal order.id map
       const orderIdMap = new Map<string, string>();
       orders.forEach((order) =>
         orderIdMap.set(order.external_order_id, order.id),
       );
 
-      // ------------------------------
-      // 6️⃣ Map Target returns → DB returns (EXTERNAL order_id for now)
-      // ------------------------------
-      const rawReturns = mapTargetReturnsToDB(targetReturns, storeId);
+      // 5️⃣ Map Target returns → DB returns (EXTERNAL order_id for now)
+      const rawReturns = mapTargetReturnsToDB(targetReturns, store.id);
 
-      // ------------------------------
-      // 7️⃣ Resolve FK: external order_id → internal order.id
-      // ------------------------------
+      // 6️⃣ Resolve FK: external order_id → internal order.id
       const returnsDB: Database['public']['Tables']['returns']['Insert'][] =
         rawReturns
           .filter((ret) => orderIdMap.has(ret.order_id))
@@ -111,35 +183,49 @@ export class ReturnsProcessor extends WorkerHost {
         return;
       }
 
-      // ------------------------------
-      // 8️⃣ Insert returns
-      // ------------------------------
+      // 7️⃣ Insert returns
       const { error } = await this.returnsRepo.insertReturns(returnsDB);
       if (error) throw error;
 
       this.logger.log(`Successfully synced ${returnsDB.length} Target returns`);
-    }
-    if (platform === 'walmart') {
-      // ------------------------------
-      // 1️⃣ Resolve Store
-      // ------------------------------
-      const storeId = await this.storeRepo.getStoreId(platform);
-      if (!storeId) {
-        throw new Error(`Store not found for platform: ${platform}`);
-      }
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} product returns failed for store ${store.id}`,
+        error.stack,
+      );
 
-      // ------------------------------
-      // 2️⃣ Fetch ALL Walmart Returns
-      // ------------------------------
-      const walmartReturns =
-        await this.walmartService.getWalmartProductReturns();
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Returns sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'returns_sync_failure',
+        message: `${store.platform.toUpperCase()} products returns sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+
+  private async processWalmartReturns(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Fetch ALL Walmart Returns
+      const walmartReturns: ReturnOrder[] =
+        await service.getWalmartProductReturns();
       if (!walmartReturns?.length) {
         this.logger.warn('No returns returned from Walmart');
         return;
       }
-      // ------------------------------
-      // 3️⃣ Collect UNIQUE external order IDs from returns
-      // ------------------------------
+
+      // 2️⃣ Collect UNIQUE external order IDs from returns
       const externalOrderIds = [
         ...new Set(
           walmartReturns
@@ -155,11 +241,10 @@ export class ReturnsProcessor extends WorkerHost {
         this.logger.warn('No order IDs found in Walmart returns');
         return;
       }
-      // ------------------------------
-      // 4️⃣ Fetch ONLY relevant orders from DB
-      // ------------------------------
+
+      // 3️⃣ Fetch ONLY relevant orders from DB
       const orders = await this.ordersRepo.getByExternalOrderIds(
-        storeId,
+        store.id,
         externalOrderIds,
       );
 
@@ -169,21 +254,17 @@ export class ReturnsProcessor extends WorkerHost {
         );
         return;
       }
-      // ------------------------------
-      // 5️⃣ Build external_order_id → internal order.id map
-      // ------------------------------
+
+      // 4️⃣ Build external_order_id → internal order.id map
       const orderIdMap = new Map<string, string>();
       orders.forEach((order) =>
         orderIdMap.set(order.external_order_id, order.id),
       );
-      // ------------------------------
-      // 6️⃣ Map Walmart returns → DB returns (EXTERNAL order_id for now)
-      // ------------------------------
-      const rawReturns = mapWalmartReturnsToDB(walmartReturns, storeId);
 
-      // ------------------------------
-      // 7️⃣ Resolve FK: external order_id → internal order.id
-      // ------------------------------
+      // 5️⃣ Map Walmart returns → DB returns (EXTERNAL order_id for now)
+      const rawReturns = mapWalmartReturnsToDB(walmartReturns, store.id);
+
+      // 6️⃣ Resolve FK: external order_id → internal order.id
       const returnsDB: Database['public']['Tables']['returns']['Insert'][] =
         rawReturns
           .filter((ret) => orderIdMap.has(ret.order_id))
@@ -197,29 +278,45 @@ export class ReturnsProcessor extends WorkerHost {
         return;
       }
 
-      // ------------------------------
-      // 8️⃣ Insert returns
-      // ------------------------------
+      // 7️⃣ Insert returns
       const { error } = await this.returnsRepo.insertReturns(returnsDB);
       if (error) throw error;
 
       this.logger.log(
         `Successfully synced ${returnsDB.length} Walmart returns`,
       );
-    }
-    if (platform === 'amazon') {
-      // ------------------------------
-      // 1️⃣ Resolve Store
-      // ------------------------------
-      const store = await this.storeRepo.getStore(platform);
-      if (!store) {
-        throw new Error(`Store not found for platform: ${platform}`);
-      }
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} product returns failed for store ${store.id}`,
+        error.stack,
+      );
 
-      // ------------------------------
-      // 2️⃣ Fetch ALL Amazon Returns
-      // ------------------------------
-      const reportReturns = await this.amazonService.getReturns(store);
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Returns sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'returns_sync_failure',
+        message: `${store.platform.toUpperCase()} product returns sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+
+  private async processAmazonReturns(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Fetch ALL Amazon Returns
+      const reportReturns: AmazonReturnReportItem[] =
+        await service.getReturns(store);
       if (!reportReturns.length) return;
 
       // 2️⃣ Resolve orders
@@ -251,22 +348,47 @@ export class ReturnsProcessor extends WorkerHost {
       if (error) throw error;
 
       this.logger.log(`Successfully synced ${inserts.length} Amazon returns`);
-    }
-    if (platform === 'shopify') {
-      const storeId = await this.storeRepo.getStoreId(platform);
-      if (!storeId) throw new Error(`Store not found for ${platform}`);
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} product returns failed for store ${store.id}`,
+        error.stack,
+      );
 
-      // Fetch the logistical return data
-      const ordersWithReturns = await this.shopifyService.fetchReturns();
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Returns sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'returns_sync_failure',
+        message: `${store.platform.toUpperCase()} product returns sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+
+  private async processShopifyReturns(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Fetch the logistical return data
+      const ordersWithReturns: FetchReturnsQuery['orders']['edges'] =
+        await service.fetchReturns();
       if (!ordersWithReturns.length) return;
 
-      // Resolve internal order_id (FK)
+      // 2️⃣ Resolve internal order_id (FK)
       const externalOrderIds: string[] = ordersWithReturns
         .map((o) => o.node.id)
         .filter((id): id is string => typeof id === 'string');
 
       const dbOrders = await this.ordersRepo.getByExternalOrderIds(
-        storeId,
+        store.id,
         externalOrderIds,
       );
       const orderIdMap = new Map(
@@ -293,7 +415,7 @@ export class ReturnsProcessor extends WorkerHost {
             mapShopifyReturnToDB(
               orderNode.node,
               returnNode,
-              storeId,
+              store.id,
               internalOrderId,
             ),
           );
@@ -305,6 +427,27 @@ export class ReturnsProcessor extends WorkerHost {
         if (error) throw error;
         this.logger.log(`Synced ${returnInserts.length} logistical returns.`);
       }
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} product returns failed for store ${store.id}`,
+        error.stack,
+      );
+
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Returns sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'returns_sync_failure',
+        message: `${store.platform.toUpperCase()} product returns sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
     }
   }
 }

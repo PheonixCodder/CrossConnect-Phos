@@ -2,9 +2,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
-  OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import WalmartMarketplace from '@mediocre/walmart-marketplace';
 import {
   GetAllItemsResponse,
@@ -17,29 +15,57 @@ import {
 import { Database } from 'src/supabase/supabase.types';
 
 @Injectable()
-export class WalmartService implements OnModuleInit {
+export class WalmartService {
   private readonly logger = new Logger(WalmartService.name);
-  private walmart: typeof WalmartMarketplace;
+  private walmart: any;
 
-  constructor(private readonly config: ConfigService) {}
+  // Configuration properties to be set by PlatformServiceFactory
+  private clientId: string;
+  private clientSecret: string;
+  private url: string;
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async onModuleInit() {
+  constructor() {}
+
+  /**
+   * Initialize service with credentials from PlatformServiceFactory
+   */
+  initialize(credentials: any): void {
+    this.clientId = credentials.WALMART_CLIENT_ID;
+    this.clientSecret = credentials.WALMART_CLIENT_SECRET;
+    this.url = credentials.url || 'https://marketplace.walmartapis.com';
+
+    if (!this.clientId || !this.clientSecret) {
+      this.logger.error('Walmart credentials are missing');
+      throw new Error('Walmart clientId and clientSecret are required');
+    }
+
+    console.log(credentials);
+
     try {
       this.walmart = new WalmartMarketplace({
-        clientId: this.config.get<string>('WALMART_CLIENT_ID')!,
-        clientSecret: this.config.get<string>('WALMART_CLIENT_SECRET')!,
-        url: this.config.get<string>('WALMART_API_URL')!,
+        clientId: this.clientId,
+        clientSecret: this.clientSecret,
+        url: this.url,
       });
+      console.log('Walmart client created successfully');
+      // Optional quick test
+      // await this.walmart.orders.getAllOrders({ limit: 1 }); // or any cheap call
     } catch (error) {
       this.logger.error('Failed to init Walmart client', error);
       throw error;
     }
   }
+
   // -------------------------
   // PRODUCTS
   // -------------------------
   async getProducts(): Promise<WalmartItem[]> {
+    if (!this.walmart) {
+      throw new Error(
+        'Walmart service not initialized. Call initialize() first.',
+      );
+    }
+
     try {
       const response = (await this.walmart.items.getAllItems({
         autoPagination: true,
@@ -49,11 +75,6 @@ export class WalmartService implements OnModuleInit {
       return Array.isArray(response.ItemResponse) ? response.ItemResponse : [];
     } catch (error) {
       this.handleError('getProducts', error);
-      this.logger.error(
-        'Walmart API error in getProducts',
-        error?.response?.data || error.message,
-      );
-
       throw error;
     }
   }
@@ -62,8 +83,13 @@ export class WalmartService implements OnModuleInit {
   // ORDERS
   // -------------------------
   async getOrders(): Promise<Order[]> {
+    if (!this.walmart) {
+      throw new Error(
+        'Walmart service not initialized. Call initialize() first.',
+      );
+    }
+
     try {
-      // Uses official getAllOrders method per package docs
       const orders = await this.walmart.orders.getAllOrders({
         createdStartDate: new Date(
           Date.now() - 7 * 24 * 60 * 60 * 1000,
@@ -82,9 +108,15 @@ export class WalmartService implements OnModuleInit {
   async getInventory(
     product: Database['public']['Tables']['products']['Insert'],
   ): Promise<GetInventoryResponse | null> {
+    if (!this.walmart) {
+      throw new Error(
+        'Walmart service not initialized. Call initialize() first.',
+      );
+    }
+
     try {
       if (!product.sku) {
-        throw new Error('SKU is required to fetch inventory');
+        throw new Error('SKU is required to fetch Walmart inventory');
       }
 
       const inventory = (await this.walmart.inventory.getInventory(
@@ -99,9 +131,15 @@ export class WalmartService implements OnModuleInit {
   }
 
   // -------------------------
-  // Product Returns
+  // PRODUCT RETURNS
   // -------------------------
   async getWalmartProductReturns(): Promise<ReturnOrder[]> {
+    if (!this.walmart) {
+      throw new Error(
+        'Walmart service not initialized. Call initialize() first.',
+      );
+    }
+
     try {
       const allReturns: ReturnOrder[] = [];
       let nextCursor: string | undefined;

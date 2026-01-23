@@ -1,15 +1,19 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { FaireService } from 'src/connectors/faire/faire.service';
+import { PlatformServiceFactory } from 'src/connectors/platform-factory.service';
 import { OrdersRepository } from 'src/supabase/repositories/orders.repository';
 import { OrderItemsRepository } from 'src/supabase/repositories/order_items.repository';
 import { FulfillmentsRepository } from 'src/supabase/repositories/fulfillments.repository';
 import { StoresRepository } from 'src/supabase/repositories/stores.repository';
 import { ProductsRepository } from 'src/supabase/repositories/products.repository';
-import { mapOrdersToDB } from 'src/connectors/faire/faire.mapper';
+import { StoreCredentialsService } from 'src/supabase/repositories/store_credentials.repository';
 import { Database } from 'src/supabase/supabase.types';
-import { TargetService } from 'src/connectors/target/target.service';
+import {
+  Order as AmazonOrder,
+  OrderItem as AmazonOrderItem,
+} from '@sp-api-sdk/orders-api-v0';
+import { FaireOrder, mapOrdersToDB } from 'src/connectors/faire/faire.mapper';
 import {
   mapFulfillmentToDB,
   mapOrderLinesToDB,
@@ -17,81 +21,175 @@ import {
   TargetFulfillment,
   TargetOrder,
 } from 'src/connectors/target/target.mapper';
-import { WalmartService } from 'src/connectors/walmart/walmart.service';
 import {
   mapWalmartFulfillmentsToDB,
   mapWalmartOrderItemsToDB,
   mapWalmartOrderToDB,
 } from 'src/connectors/walmart/walmart.mapper';
-import { AmazonService } from 'src/connectors/amazon/amazon.service';
 import {
   mapAmazonOrderItemToDB,
   mapAmazonOrderToDB,
   mapAmazonShipmentToDB,
 } from 'src/connectors/amazon/amazon.mapper';
-import { WarehanceService } from 'src/connectors/warehouse/warehance.service';
 import {
   mapWarehanceOrderItemsToDB,
   mapWarehanceOrdersToDB,
   mapWarehanceShipmentsToDB,
 } from 'src/connectors/warehouse/warehance.mapper';
-import { ShopifyService } from 'src/connectors/shopify/shopify.service';
 import {
   mapShopifyFulfillmentsToDB,
   mapShopifyOrderItemsToDB,
   mapShopifyOrderToDB,
+  ShopifyFulfillmentOrderNode,
+  ShopifyOrderNode,
 } from 'src/connectors/shopify/shopify.mapper';
+import { Order } from 'src/connectors/walmart/walmart.types';
+import {
+  ListOrdersResponse200,
+  ListShipmentsResponse200,
+} from '.api/apis/warehance-api';
+import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 @Processor('orders', { concurrency: 5 })
 export class OrdersProcessor extends WorkerHost {
   private readonly logger = new Logger(OrdersProcessor.name);
 
   constructor(
-    private readonly faireService: FaireService,
-    private readonly targetService: TargetService,
+    private readonly platformFactory: PlatformServiceFactory,
     private readonly ordersRepo: OrdersRepository,
     private readonly orderItemsRepo: OrderItemsRepository,
     private readonly shipmentRepo: FulfillmentsRepository,
     private readonly storeRepo: StoresRepository,
     private readonly productsRepo: ProductsRepository,
-    private readonly walmartService: WalmartService,
-    private readonly amazonService: AmazonService,
-    private readonly warehanceService: WarehanceService,
-    private readonly shopifyService: ShopifyService,
+    private readonly storeCredentialsService: StoreCredentialsService,
+    private readonly alertsRepo: AlertsRepository,
+    private readonly supabaseClient: SupabaseClient,
   ) {
     super();
   }
 
   async process(job: Job): Promise<void> {
-    const platform = job.data.platform as string;
-    if (platform === 'faire') {
-      // 1️⃣ Fetch store
-      const storeId = await this.storeRepo.getStoreId(platform);
-      if (!storeId)
-        throw new Error(`Store not found for platform: ${platform}`);
+    const {
+      storeId,
+      platform,
+      since,
+    }: {
+      storeId: string;
+      platform: Database['public']['Enums']['platform_types'];
+      since?: string;
+    } = job.data;
 
-      // 2️⃣ Fetch all products for this store
-      const products = await this.productsRepo.getAllProductsByStore(storeId);
+    if (!storeId) {
+      throw new Error('storeId is required');
+    }
+
+    try {
+      const store = await this.storeRepo.getStoreById(storeId);
+      const credentials =
+        await this.storeCredentialsService.getCredentialsByStoreId(storeId);
+
+      let service;
+      try {
+        service = this.platformFactory.createService(
+          platform,
+          credentials,
+          store,
+        );
+      } catch (serviceError) {
+        this.logger.error(
+          `Failed to create service for ${platform}`,
+          serviceError,
+        );
+        await this.storeRepo.updateStoreHealth(
+          storeId,
+          'unhealthy',
+          `Service init failed: ${serviceError.message}`,
+        );
+        await this.alertsRepo.createAlert({
+          store_id: storeId,
+          alert_type: 'service_init_failure',
+          message: `Failed to initialize ${platform} service: ${serviceError.message}`,
+          severity: 'critical',
+          platform,
+        });
+        throw serviceError;
+      }
+
+      switch (platform) {
+        case 'faire':
+          await this.processFaireOrders(service, store);
+          break;
+        case 'target':
+          await this.processTargetOrders(service, store);
+          break;
+        case 'walmart':
+          await this.processWalmartOrders(service, store);
+          break;
+        case 'amazon':
+          await this.processAmazonOrders(service, store);
+          break;
+        case 'shopify':
+          await this.processShopifyOrders(service, store);
+          break;
+        case 'warehance':
+          await this.processWarehanceOrders(service, store, since);
+          break;
+        default:
+          throw new Error(`Unsupported platform: ${platform}`);
+      }
+
+      // Update store health on success
+      await this.storeRepo.updateStoreHealth(storeId, 'healthy');
+      await this.supabaseClient
+        .from('stores')
+        .update({ last_synced_at: new Date().toISOString() })
+        .eq('id', store.id);
+    } catch (error) {
+      this.logger.error(`Orders job failed for store ${storeId}`, error.stack);
+      await this.storeRepo.updateStoreHealth(
+        storeId,
+        'unhealthy',
+        `Orders sync failed: ${error.message}`,
+      );
+      await this.alertsRepo.createAlert({
+        store_id: storeId,
+        alert_type: 'order_sync_failure',
+        message: `${platform} orders sync failed: ${error.message}`,
+        severity: 'high',
+        platform,
+      });
+      throw error;
+    }
+  }
+
+  private async processFaireOrders(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Fetch all products for this store
+      const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productMap = new Map<string, string>(); // external_id -> internal id
       products.forEach((p) => productMap.set(p.external_product_id, p.id));
 
-      // 3️⃣ Fetch orders from Faire
-      const { orders } = await this.faireService.getOrders();
+      // 2️⃣ Fetch orders from Faire
+      const { orders }: { orders: FaireOrder[] } = await service.getOrders();
       if (!orders || orders.length === 0) {
         this.logger.warn('No orders fetched from Faire');
         return;
       }
 
-      // 4️⃣ Map orders (with external IDs) for DB insertion
+      // 3️⃣ Map orders (with external IDs) for DB insertion
       const {
         orders: rawOrders,
         orderItems: rawItems,
         shipments: rawShipments,
-      } = mapOrdersToDB(orders, storeId);
+      } = mapOrdersToDB(orders, store.id);
 
       if (rawOrders.length === 0) return;
 
-      // 5️⃣ Insert orders and capture internal IDs
+      // 4️⃣ Insert orders and capture internal IDs
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(rawOrders);
 
@@ -102,7 +200,7 @@ export class OrdersProcessor extends WorkerHost {
           orderIdMap.set(order.external_order_id, order.id),
       );
 
-      // 6️⃣ Map order_items to internal order_id + internal product_id
+      // 5️⃣ Map order_items to internal order_id + internal product_id
       const orderItemsDB: Database['public']['Tables']['order_items']['Insert'][] =
         rawItems
           .filter((item) => orderIdMap.has(item.order_id))
@@ -114,7 +212,7 @@ export class OrdersProcessor extends WorkerHost {
               : null,
           }));
 
-      // 7️⃣ Map shipments to internal order_id + internal product_id
+      // 6️⃣ Map shipments to internal order_id + internal product_id
       const shipmentsDB: Database['public']['Tables']['fulfillments']['Insert'][] =
         rawShipments
           .filter((shipment) => orderIdMap.has(shipment.order_id))
@@ -126,12 +224,10 @@ export class OrdersProcessor extends WorkerHost {
               : null,
           }));
 
-      // 8️⃣ Insert order items
-      const { error: itemsError } =
-        await this.orderItemsRepo.insertOrderItems(orderItemsDB);
-      if (itemsError) throw itemsError;
+      // 7️⃣ Insert order items
+      await this.orderItemsRepo.bulkUpsertOrderItems(orderItemsDB);
 
-      // 9️⃣ Insert shipments
+      // 8️⃣ Insert shipments
       const { error: shipmentsError } =
         await this.shipmentRepo.insertShipments(shipmentsDB);
       if (shipmentsError) throw shipmentsError;
@@ -139,31 +235,53 @@ export class OrdersProcessor extends WorkerHost {
       this.logger.log(
         `Successfully synced ${rawOrders.length} orders, ${orderItemsDB.length} items, ${shipmentsDB.length} shipments`,
       );
-    }
-    if (platform === 'target') {
-      // 1️⃣ Fetch store
-      const storeId = await this.storeRepo.getStoreId(platform);
-      if (!storeId)
-        throw new Error(`Store not found for platform: ${platform}`);
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} orders failed for store ${store.id}`,
+        error.stack,
+      );
 
-      // 2️⃣ Fetch all products for this store -> build productMap: external_product_id -> product.id
-      const products = await this.productsRepo.getAllProductsByStore(storeId);
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Orders sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'order_sync_failure',
+        message: `${store.platform.toUpperCase()} orders sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+
+  private async processTargetOrders(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Fetch all products for this store -> build productMap: external_product_id -> product.id
+      const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productMap: Record<string, string> = {};
       products.forEach((p) => {
         if (p.external_product_id) productMap[p.external_product_id] = p.id;
       });
 
-      // 3️⃣ Fetch orders from Target
-      const orders: TargetOrder[] = await this.targetService.getAllOrders();
+      // 2️⃣ Fetch orders from Target
+      const orders: TargetOrder[] = await service.getAllOrders();
       if (!orders?.length) {
         this.logger.warn('No orders fetched from Target');
         return;
       }
 
-      // 4️⃣ Map orders -> DB insert objects (orders only)
-      const dbOrders = orders.map((o) => mapOrderToDB(o, storeId));
+      // 3️⃣ Map orders -> DB insert objects (orders only)
+      const dbOrders = orders.map((o) => mapOrderToDB(o, store.id));
 
-      // 5️⃣ Insert orders and capture internal IDs
+      // 4️⃣ Insert orders and capture internal IDs
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(dbOrders);
       if (!insertedOrders || !insertedOrders.length) {
@@ -181,7 +299,7 @@ export class OrdersProcessor extends WorkerHost {
         },
       );
 
-      // 6️⃣ Map order_items to internal order_id + internal product_id
+      // 5️⃣ Map order_items to internal order_id + internal product_id
       const dbOrderItems: Database['public']['Tables']['order_items']['Insert'][] =
         [];
       for (const order of orders) {
@@ -202,7 +320,7 @@ export class OrdersProcessor extends WorkerHost {
         dbOrderItems.push(...items);
       }
 
-      // 7️⃣ Map shipments (fulfillments) to internal order_id + external_fulfillment_id
+      // 6️⃣ Map shipments (fulfillments) to internal order_id + external_fulfillment_id
       const dbFulfillments: Database['public']['Tables']['fulfillments']['Insert'][] =
         [];
       for (const order of orders) {
@@ -214,10 +332,10 @@ export class OrdersProcessor extends WorkerHost {
           continue;
         }
 
-        // Fetch fulfillments for this external order id (Target API uses order.id)
+        // Fetch fulfillments for this external order id
         let fulfills: TargetFulfillment[] = [];
         try {
-          fulfills = await this.targetService.getOrderFulfillments(order.id);
+          fulfills = await service.getOrderFulfillments(order.id);
         } catch (err) {
           this.logger.error(
             `Failed to fetch fulfillments for order ${order.id}`,
@@ -252,50 +370,71 @@ export class OrdersProcessor extends WorkerHost {
             } as TargetFulfillment,
             internalOrderId,
             productId,
-            storeId,
+            store.id,
           );
           dbFulfillments.push(dbRow);
         }
       }
 
-      // 8️⃣ Insert order items
+      // 7️⃣ Insert order items
       if (dbOrderItems.length) {
-        await this.orderItemsRepo.insertOrderItems(dbOrderItems);
+        await this.orderItemsRepo.bulkUpsertOrderItems(dbOrderItems);
       } else {
         this.logger.log('No order items to insert for this run');
       }
 
-      // 9️⃣ Insert shipments
+      // 8️⃣ Insert shipments
       if (dbFulfillments.length) {
-        const { error: shipmentsError } =
-          await this.shipmentRepo.insertShipments(dbFulfillments);
-        if (shipmentsError) throw shipmentsError;
+        await this.shipmentRepo.insertShipments(dbFulfillments);
       } else {
         this.logger.log('No fulfillments to insert for this run');
       }
 
       this.logger.log(
-        `target orders sync complete: ${insertedOrders.length} orders, ${dbOrderItems.length} items, ${dbFulfillments.length} fulfillments`,
+        `Target orders sync complete: ${insertedOrders.length} orders, ${dbOrderItems.length} items, ${dbFulfillments.length} fulfillments`,
       );
-    }
-    if (platform === 'walmart') {
-      // 1️⃣ Store
-      const storeId = await this.storeRepo.getStoreId(platform);
-      if (!storeId) throw new Error(`Store not found for ${platform}`);
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} orders failed for store ${store.id}`,
+        error.stack,
+      );
 
-      // 2️⃣ Products → productId map
-      const products = await this.productsRepo.getAllProductsByStore(storeId);
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Orders sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'order_sync_failure',
+        message: `${store.platform.toUpperCase()} orders sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+
+  private async processWalmartOrders(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Products → productId map
+      const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productMap = new Map(
         products.map((p) => [p.external_product_id, p.id]),
       );
 
-      // 3️⃣ Orders
-      const response = await this.walmartService.getOrders();
-      const orders = response ?? [];
+      // 2️⃣ Orders
+      const response = await service.getOrders();
+      const orders: Order[] = response ?? [];
       if (!orders.length) return;
 
-      // 4️⃣ Orders → DB
-      const dbOrders = orders.map((o) => mapWalmartOrderToDB(o, storeId));
+      // 3️⃣ Orders → DB
+      const dbOrders = orders.map((o) => mapWalmartOrderToDB(o, store.id));
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(dbOrders);
 
@@ -312,7 +451,7 @@ export class OrdersProcessor extends WorkerHost {
       const fulfillments: Database['public']['Tables']['fulfillments']['Insert'][] =
         [];
 
-      // 5️⃣ Items + Fulfillments
+      // 4️⃣ Items + Fulfillments
       for (const order of orders) {
         const orderId = orderIdByExternal.get(order.purchaseOrderId);
         if (!orderId) continue;
@@ -325,16 +464,16 @@ export class OrdersProcessor extends WorkerHost {
           const fulfillment = mapWalmartFulfillmentsToDB(
             line,
             orderId,
-            storeId,
+            store.id,
             productId,
           );
           if (fulfillment) fulfillments.push(fulfillment);
         }
       }
 
-      // 6️⃣ Persist children
+      // 5️⃣ Persist children
       if (orderItems.length)
-        await this.orderItemsRepo.insertOrderItems(orderItems);
+        await this.orderItemsRepo.bulkUpsertOrderItems(orderItems);
 
       if (fulfillments.length)
         await this.shipmentRepo.insertShipments(fulfillments);
@@ -342,43 +481,55 @@ export class OrdersProcessor extends WorkerHost {
       this.logger.log(
         `Walmart orders synced: ${insertedOrders.length} orders, ${orderItems.length} items, ${fulfillments.length} fulfillments`,
       );
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} orders failed for store ${store.id}`,
+        error.stack,
+      );
+
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Orders sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'order_sync_failure',
+        message: `${store.platform.toUpperCase()} orders sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
     }
+  }
 
-    if (platform === 'amazon') {
-      // ------------------------------
-      // 1️⃣ Fetch store
-      // ------------------------------
-      const store = await this.storeRepo.getStore(platform);
-      if (!store) throw new Error(`Store not found for platform: ${platform}`);
-
-      // ------------------------------
-      // 2️⃣ Fetch all products for this store -> external_product_id -> product.id
-      // ------------------------------
+  private async processAmazonOrders(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Fetch all products for this store -> external_product_id -> product.id
       const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productMap: Record<string, string> = {};
       products.forEach((p) => {
         if (p.external_product_id) productMap[p.external_product_id] = p.id!;
       });
 
-      // ------------------------------
-      // 3️⃣ Fetch orders from Amazon
-      // ------------------------------
-      const orders = await this.amazonService.getOrders(store);
+      // 2️⃣ Fetch orders from Amazon
+      const orders: AmazonOrder[] = await service.getOrders(store);
       if (!orders?.length) {
         this.logger.warn('No orders fetched from Amazon');
         return;
       }
 
-      // ------------------------------
-      // 4️⃣ Map orders -> DB insert objects
-      // ------------------------------
+      // 3️⃣ Map orders -> DB insert objects
       const orderInserts = orders.map((o) =>
-        mapAmazonOrderToDB(o, store.id, platform),
+        mapAmazonOrderToDB(o, store.id, store.platform),
       );
 
-      // ------------------------------
-      // 5️⃣ Insert orders & capture internal IDs
-      // ------------------------------
+      // 4️⃣ Insert orders & capture internal IDs
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(orderInserts);
 
@@ -390,9 +541,7 @@ export class OrdersProcessor extends WorkerHost {
         insertedOrders.map((o) => [o.external_order_id, o.id]),
       );
 
-      // ------------------------------
-      // 6️⃣ Fetch order items per order & map to DB
-      // ------------------------------
+      // 5️⃣ Fetch order items per order & map to DB
       const orderItemsInserts: Database['public']['Tables']['order_items']['Insert'][] =
         [];
       const shipmentsInserts: Database['public']['Tables']['fulfillments']['Insert'][] =
@@ -403,7 +552,7 @@ export class OrdersProcessor extends WorkerHost {
         if (!orderId) continue;
 
         // Fetch items from Amazon service
-        const items = await this.amazonService.getOrderItems(
+        const items: AmazonOrderItem[] = await service.getOrderItems(
           order.AmazonOrderId,
         );
 
@@ -427,16 +576,12 @@ export class OrdersProcessor extends WorkerHost {
         }
       }
 
-      // ------------------------------
-      // 7️⃣ Insert order items
-      // ------------------------------
+      // 6️⃣ Insert order items
       if (orderItemsInserts.length) {
-        await this.orderItemsRepo.insertOrderItems(orderItemsInserts);
+        await this.orderItemsRepo.bulkUpsertOrderItems(orderItemsInserts);
       }
 
-      // ------------------------------
-      // 8️⃣ Insert shipments
-      // ------------------------------
+      // 7️⃣ Insert shipments
       if (shipmentsInserts.length) {
         await this.shipmentRepo.insertShipments(shipmentsInserts);
       }
@@ -444,118 +589,176 @@ export class OrdersProcessor extends WorkerHost {
       this.logger.log(
         `Amazon sync complete: ${orders.length} orders, ${orderItemsInserts.length} items, ${shipmentsInserts.length} shipments`,
       );
-    }
-    if (platform === 'warehouse') {
-      // ------------------------------
-      // 1️⃣ Fetch Store
-      // ------------------------------
-      const storeId = await this.storeRepo.getStoreId(platform);
-      if (!storeId) throw new Error(`Store not found for ${platform}`);
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} orders failed for store ${store.id}`,
+        error.stack,
+      );
 
-      // ------------------------------
-      // 2️⃣ Fetch Products → external_product_id → product.id
-      // ------------------------------
-      const products = await this.productsRepo.getAllProductsByStore(storeId);
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Orders sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'order_sync_failure',
+        message: `${store.platform.toUpperCase()} orders sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+
+  private async processWarehanceOrders(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+    since?: string,
+  ) {
+    const syncStart = new Date();
+    try {
+      this.logger.log(
+        `Starting Warehance orders sync for store ${store.id} (incremental: ${!!since})`,
+      );
+
+      // Fetch products for mapping (not incremental – assume products job handles it)
+      const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productIdByExternalId = new Map(
         products.map((p) => [p.external_product_id, p.id]),
       );
       const productIdBySku = new Map(products.map((p) => [p.sku, p.id]));
 
-      // ------------------------------
-      // 3️⃣ Fetch Orders from Warehance
-      // ------------------------------
-      const ordersResponse = await this.warehanceService.getOrders();
+      // Fetch Orders (incremental)
+      const ordersResponse: ListOrdersResponse200['data'] =
+        await service.getOrders(since);
       const orders = ordersResponse?.orders ?? [];
-      if (!orders.length) return;
 
-      // ------------------------------
-      // 4️⃣ Map Orders
-      // ------------------------------
+      if (!orders.length) {
+        this.logger.log('No orders found');
+        return;
+      }
+
+      // Map Orders
       const orderInserts = mapWarehanceOrdersToDB(
         ordersResponse,
-        storeId,
-        platform,
+        store.id,
+        store.platform,
       );
 
-      // ------------------------------
-      // 5️⃣ Insert Orders & capture internal IDs
-      // ------------------------------
+      // Insert Orders & capture IDs
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(orderInserts);
 
-      if (!insertedOrders || !insertedOrders.length) {
+      if (!insertedOrders?.length) {
         throw new Error(
           'Failed to insert Warehance orders or no rows returned',
         );
       }
 
       const orderIdByExternalId = new Map(
-        insertedOrders.map((o) => [o.external_order_id, o.id]),
+        insertedOrders.map((o) => [o.external_order_id, o.id!]),
       );
 
-      // ------------------------------
-      // 6️⃣ Map Order Items
-      // ------------------------------
+      // Map Order Items + deduplication
       const orderItemInserts: Database['public']['Tables']['order_items']['Insert'][] =
         [];
+      const seen = new Set<string>();
 
       for (const order of orders) {
-        const orderId = orderIdByExternalId.get(String(order.id));
-        if (!orderId) continue;
+        const internalOrderId = orderIdByExternalId.get(String(order.id));
+        if (!internalOrderId) continue;
 
-        orderItemInserts.push(
-          ...mapWarehanceOrderItemsToDB(order, orderId, productIdBySku),
+        const newItems = mapWarehanceOrderItemsToDB(
+          order,
+          internalOrderId,
+          productIdBySku,
         );
+
+        for (const item of newItems) {
+          const key = `${item.order_id}|${item.sku}`;
+          if (seen.has(key)) {
+            this.logger.debug(`Duplicate item skipped: ${key}`);
+            continue;
+          }
+          seen.add(key);
+          orderItemInserts.push(item);
+        }
       }
 
-      // ------------------------------
-      // 7️⃣ Insert Order Items
-      // ------------------------------
-      await this.orderItemsRepo.insertOrderItems(orderItemInserts);
+      this.logger.log(
+        `After deduplication: ${orderItemInserts.length} unique items`,
+      );
 
-      // ------------------------------
-      // 8️⃣ Fetch Shipments from Warehance
-      // ------------------------------
-      const shipmentsResponse = await this.warehanceService.getShipments();
+      // Bulk Upsert Order Items
+      await this.orderItemsRepo.bulkUpsertOrderItems(orderItemInserts);
 
-      // ------------------------------
-      // 9️⃣ Map Shipments
-      // ------------------------------
+      // Fetch Shipments (incremental)
+      const shipmentsResponse: ListShipmentsResponse200['data'] =
+        await service.getShipments(since);
+
+      // Map Shipments
       const fulfillmentInserts = mapWarehanceShipmentsToDB(
         shipmentsResponse,
-        storeId,
-        platform,
+        store.id,
+        store.platform,
         orderIdByExternalId,
         productIdByExternalId,
       );
 
-      // ------------------------------
-      // 🔟 Insert Fulfillments
-      // ------------------------------
+      // Insert Fulfillments
       await this.shipmentRepo.insertShipments(fulfillmentInserts);
 
+      const duration = (Date.now() - syncStart.getTime()) / 1000;
       this.logger.log(
-        `Orders sync complete: ${orderInserts.length} orders, ${orderItemInserts.length} items, ${fulfillmentInserts.length} fulfillments`,
+        `Warehance orders sync complete: ${orderInserts.length} orders, ${orderItemInserts.length} items, ${fulfillmentInserts.length} fulfillments in ${duration}s`,
       );
-    }
-    if (platform === 'shopify') {
-      // 1. Context Resolution
-      const storeId = await this.storeRepo.getStoreId(platform);
-      if (!storeId) throw new Error(`Store ID not found for ${platform}`);
+    } catch (error) {
+      const duration = (Date.now() - syncStart.getTime()) / 1000;
 
-      // 2. Reference Data for Mapping
-      const products = await this.productsRepo.getAllProductsByStore(storeId);
+      this.logger.error(
+        `Warehance orders sync failed for store ${store.id} after ${duration}s`,
+        error.stack,
+      );
+
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Orders sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'order_sync_failure',
+        message: `Warehance orders sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+
+  private async processShopifyOrders(
+    service: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1. Reference Data for Mapping
+      const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productIdByExternalId = new Map(
         products.map((p) => [p.external_product_id, p.id]),
       );
       const productIdBySku = new Map(products.map((p) => [p.sku, p.id]));
 
-      // 3. Fetch & Insert Orders
-      const shopifyOrders = await this.shopifyService.fetchOrders();
+      // 2. Fetch & Insert Orders
+      const shopifyOrders: ShopifyOrderNode[] = await service.fetchOrders();
       if (!shopifyOrders.length) return;
 
       const orderInserts = shopifyOrders.map((o) =>
-        mapShopifyOrderToDB(o, storeId),
+        mapShopifyOrderToDB(o, store.id),
       );
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(orderInserts);
@@ -563,10 +766,10 @@ export class OrdersProcessor extends WorkerHost {
       if (!insertedOrders) throw new Error(`Failed to persist orders`);
 
       const orderIdByExternalId = new Map(
-        insertedOrders.map((o) => [o.external_order_id, o.id]),
+        insertedOrders.map((o) => [o.external_order_id, o.id!]),
       );
 
-      // 4. Map & Insert Order Items
+      // 3. Map & Insert Order Items
       const orderItemInserts: Database['public']['Tables']['order_items']['Insert'][] =
         [];
       for (const orderNode of shopifyOrders) {
@@ -583,15 +786,16 @@ export class OrdersProcessor extends WorkerHost {
       }
 
       if (orderItemInserts.length > 0) {
-        await this.orderItemsRepo.insertOrderItems(orderItemInserts);
+        await this.orderItemsRepo.bulkUpsertOrderItems(orderItemInserts);
       }
 
-      // 5. Fulfillment Sync
-      const fulfillmentNodes = await this.shopifyService.fetchFulfillments();
+      // 4. Fulfillment Sync
+      const fulfillmentNodes: ShopifyFulfillmentOrderNode[] =
+        await service.fetchFulfillments();
       if (fulfillmentNodes.length > 0) {
         const fulfillmentInserts = mapShopifyFulfillmentsToDB(
           fulfillmentNodes,
-          storeId,
+          store.id,
           orderIdByExternalId,
           productIdByExternalId,
         );
@@ -602,8 +806,29 @@ export class OrdersProcessor extends WorkerHost {
       }
 
       this.logger.log(
-        `${platform} sync successful: ${insertedOrders.length} orders processed.`,
+        `${store.platform} sync successful: ${insertedOrders.length} orders processed.`,
       );
+    } catch (error) {
+      this.logger.error(
+        `${store.platform.toUpperCase()} orders failed for store ${store.id}`,
+        error.stack,
+      );
+
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Orders sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'order_sync_failure',
+        message: `${store.platform.toUpperCase()} orders sync failed: ${error.message}`,
+        severity: 'high',
+        platform: store.platform,
+      });
+
+      throw error;
     }
   }
 }
