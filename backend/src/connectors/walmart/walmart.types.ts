@@ -1,16 +1,69 @@
-// Get All Orders
-export interface GetAllOrdersResponse {
+// Base response interfaces
+export interface BaseResponse {
+  meta?: {
+    totalCount: number;
+    limit: number;
+    nextCursor?: string;
+  };
+}
+
+// Get All Items Response
+export interface GetAllItemsResponse {
+  ItemResponse: WalmartItem[];
+  totalItems: number;
+  nextCursor?: string;
+}
+
+// The SDK returns arrays directly when autoPagination=true
+export type WalmartItemsResponse = WalmartItem[] | GetAllItemsResponse;
+
+export interface WalmartItem {
+  mart: string;
+  sku: string;
+  wpid: string;
+  gtin: string;
+  productName: string;
+  shelf: string[];
+  productType: string;
+  price: {
+    currency: string;
+    amount: number;
+  };
+  publishedStatus: string;
+  lifecycleStatus: string;
+  variantGroupId: string;
+  variantGroupInfo: {
+    isPrimary: boolean;
+    groupingAttributes: {
+      name: string;
+      value: string;
+    }[];
+  };
+  // Additional fields from console output
+  condition?: string;
+  availability?: string;
+  upc?: string;
+  unpublishedReasons?: {
+    reason: any[];
+  };
+  isDuplicate?: boolean;
+}
+
+// Get All Orders Response
+export interface GetAllOrdersResponse extends BaseResponse {
   list: {
     meta: {
       totalCount: number;
       limit: number;
-      nextCursor: string;
+      nextCursor?: string;
     };
     elements: {
       order: Order[];
     };
   };
 }
+
+export type WalmartOrdersResponse = Order[] | GetAllOrdersResponse;
 
 export interface Order {
   purchaseOrderId: string;
@@ -104,37 +157,7 @@ export interface OrderLine {
   statusDate: number;
 }
 
-// get All Items
-export interface GetAllItemsResponse {
-  ItemResponse: WalmartItem[];
-  totalItems: number;
-  nextCursor: string;
-}
-
-export interface WalmartItem {
-  mart: string;
-  sku: string;
-  wpid: string;
-  gtin: string;
-  productName: string;
-  shelf: string[];
-  productType: string;
-  price: {
-    currency: string;
-    amount: number;
-  };
-  publishedStatus: string;
-  lifecycleStatus: string;
-  variantGroupId: string;
-  variantGroupInfo: {
-    isPrimary: boolean;
-    groupingAttributes: {
-      name: string;
-      value: string;
-    }[];
-  };
-}
-//getInventory
+// Inventory
 export interface GetInventoryResponse {
   sku: string;
   quantity: {
@@ -142,13 +165,9 @@ export interface GetInventoryResponse {
     amount: number;
   };
 }
-//getReturns
-export interface WalmartReturnsResponse {
-  meta: {
-    totalCount: number;
-    limit: number;
-    nextCursor: string;
-  };
+
+// Returns
+export interface WalmartReturnsResponse extends BaseResponse {
   returnOrders: ReturnOrder[];
 }
 
@@ -236,4 +255,30 @@ export interface ReturnOrderLine {
       value: string;
     }[];
   }[];
+}
+
+// SDK Response Types
+export interface SdkResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+// Helper type guards
+export function isGetAllItemsResponse(
+  response: any,
+): response is GetAllItemsResponse {
+  return response && Array.isArray(response.ItemResponse);
+}
+
+export function isGetAllOrdersResponse(
+  response: any,
+): response is GetAllOrdersResponse {
+  return (
+    response && response.list && Array.isArray(response.list.elements?.order)
+  );
+}
+
+export function isWalmartItemArray(response: any): response is WalmartItem[] {
+  return Array.isArray(response) && response.length > 0 && 'sku' in response[0];
 }

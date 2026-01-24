@@ -217,9 +217,13 @@ export class ReturnsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       // 1️⃣ Fetch ALL Walmart Returns
       const walmartReturns: ReturnOrder[] =
-        await service.getWalmartProductReturns();
+        await service.getWalmartProductReturns(since);
       if (!walmartReturns?.length) {
         this.logger.warn('No returns returned from Walmart');
         return;

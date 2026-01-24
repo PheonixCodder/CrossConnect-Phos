@@ -422,6 +422,9 @@ export class OrdersProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
       // 1️⃣ Products → productId map
       const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productMap = new Map(
@@ -429,7 +432,7 @@ export class OrdersProcessor extends WorkerHost {
       );
 
       // 2️⃣ Orders
-      const response = await service.getOrders();
+      const response = await service.getOrders(since);
       const orders: Order[] = response ?? [];
       if (!orders.length) return;
 
