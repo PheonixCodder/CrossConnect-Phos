@@ -44,12 +44,10 @@ export function CredentialDialog({
 
     queueMicrotask(() => {
       if (isEdit && existingCredentials?.credentials) {
-        setFormData(
-          JSON.parse(existingCredentials.credentials as string) as Record<
-            string,
-            string
-          >,
-        );
+        const raw = existingCredentials.credentials;
+        const parsed =
+          typeof raw === "string" ? JSON.parse(raw) : (raw ?? {});
+        setFormData(parsed as Record<string, string>);
       } else {
         setFormData({});
       }
