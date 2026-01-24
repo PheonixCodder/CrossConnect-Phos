@@ -18,6 +18,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   storeId: string;
+  isEdit: boolean;
   platform: PlatformType;
   existingCredentials:
     | Database["public"]["Tables"]["store_credentials"]["Row"]
@@ -29,14 +30,12 @@ export function CredentialDialog({
   onOpenChange,
   storeId,
   platform,
+  isEdit,
   existingCredentials,
 }: Props) {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const config = CREDENTIALS_CONFIG[platform];
-  const isEdit = !!existingCredentials;
-
-  console.log(existingCredentials);
 
   const [formData, setFormData] = useState<Record<string, string>>({});
 
@@ -46,7 +45,10 @@ export function CredentialDialog({
     queueMicrotask(() => {
       if (isEdit && existingCredentials?.credentials) {
         setFormData(
-          JSON.parse(existingCredentials.credentials as string) as Record<string, string>,
+          JSON.parse(existingCredentials.credentials as string) as Record<
+            string,
+            string
+          >,
         );
       } else {
         setFormData({});
@@ -56,6 +58,26 @@ export function CredentialDialog({
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Special handling for Shopify OAuth Redirect
+      if (platform === "shopify") {
+        const shopDomain = formData["SHOPDOMAIN"];
+        if (!shopDomain) {
+          throw new Error("Shop Domain is required");
+        }
+
+        // Clean the domain (strip https:// and trailing slashes)
+        const cleanDomain = shopDomain
+          .replace(/^https?:\/\//, "")
+          .replace(/\/$/, "");
+        
+
+        // Redirect to your NestJS Backend
+        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/shopify?storeId=${storeId}&shop=${cleanDomain}`;
+        return;
+      }
+
+      console.log(formData);
+      // Standard logic for other platforms (Amazon, Faire, etc.)
       if (isEdit) {
         await supabase
           .from("store_credentials")
@@ -63,7 +85,7 @@ export function CredentialDialog({
             credentials: formData,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", existingCredentials!.id);
+          .eq("store_id", storeId);
       } else {
         await supabase.from("store_credentials").insert({
           store_id: storeId,
@@ -71,14 +93,23 @@ export function CredentialDialog({
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
+        await supabase
+          .from("stores")
+          .update({
+            auth_status: "active",
+          })
+          .eq("id", storeId);
       }
     },
     onSuccess: () => {
-      toast.success("Credentials saved");
-      queryClient.invalidateQueries({ queryKey: ["stores"] });
-      onOpenChange(false);
+      if (platform !== "shopify") {
+        toast.success("Credentials saved");
+        queryClient.invalidateQueries({ queryKey: ["stores"] });
+        onOpenChange(false);
+      }
     },
-    onError: () => toast.error("Failed to save credentials"),
+    onError: (error) =>
+      toast.error(error.message || "Failed to save credentials"),
   });
 
   return (

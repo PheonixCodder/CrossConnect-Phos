@@ -15,7 +15,6 @@ const PLATFORMS: Platform[] = [
   "faire",
   "amazon",
   "walmart",
-  "tiktok",
   "warehance",
   "target",
 ];

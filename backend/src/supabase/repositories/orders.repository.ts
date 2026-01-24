@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { InjectSupabaseClient } from 'nestjs-supabase-js';
 import { Database } from '../supabase.types';
 
 @Injectable()
 export class OrdersRepository {
+  private readonly logger = new Logger(OrdersRepository.name);
+
   constructor(
     @InjectSupabaseClient()
     private readonly supabaseClient: SupabaseClient<Database>,
@@ -13,16 +15,32 @@ export class OrdersRepository {
   async insertOrdersAndReturn(
     orders: Database['public']['Tables']['orders']['Insert'][],
   ) {
-    // Use upsert and return the inserted rows including generated 'id'
-    const { data, error } = await this.supabaseClient
-      .from('orders')
-      .upsert(orders, {
-        onConflict: 'external_order_id',
-      })
-      .select('*');
+    const BATCH_SIZE = 300;
 
-    if (error) throw error;
-    return { data }; // This will contain 'id' (internal UUID) and 'external_order_id'
+    let allData: Database['public']['Tables']['orders']['Insert'][] = [];
+    let totalAffected = 0;
+
+    for (let i = 0; i < orders.length; i += BATCH_SIZE) {
+      const batch = orders.slice(i, i + BATCH_SIZE);
+
+      this.logger.debug(
+        `Upserting orders batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(orders.length / BATCH_SIZE)} (${batch.length} items)`,
+      );
+
+      const { data, error, count } = await this.supabaseClient
+        .from('orders')
+        .upsert(batch, {
+          onConflict: 'external_order_id',
+        })
+        .select('*');
+
+      if (error) throw error;
+
+      allData = allData.concat(data ?? []);
+      totalAffected += count ?? batch.length;
+    }
+
+    return { data: allData }; // This will contain 'id' (internal UUID) and 'external_order_id'
   }
 
   async syncOrdersItemsAndShipments(

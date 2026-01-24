@@ -106,7 +106,7 @@ export function StoreList({
                       <CardDescription>ID: {store.id}</CardDescription>
                     </div>
 
-                    {store.store_credentials ? (
+                    {store.auth_status === "active" ? (
                       <Badge className="bg-green-600">
                         <ShieldCheck className="h-3 w-3 mr-1" />
                         Configured
@@ -127,12 +127,24 @@ export function StoreList({
 
                   <Button
                     size="sm"
-                    variant={store.store_credentials ? "default" : "outline"}
-                    onClick={() => handleManageCredentials(store)}
+                    onClick={() => {
+                      if (store.platform === "amazon") {
+                        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/amazon?storeId=${store.id}`;
+                      } else if (store.platform === "faire") {
+                        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/faire?storeId=${store.id}`;
+                      } else {
+                        // For Shopify and others, open the dialog to collect the domain first
+                        handleManageCredentials(store);
+                      }
+                    }}
                   >
-                    {store.store_credentials
-                      ? "Edit Credentials"
-                      : "Add Credentials"}
+                    {["amazon", "faire", "shopify"].includes(store.platform)
+                      ? store.auth_status === "active"
+                        ? `Reconnect ${store.platform}`
+                        : `Connect ${store.platform}`
+                      : store.auth_status === "active"
+                        ? "Edit Credentials"
+                        : "Add Credentials"}
                   </Button>
                 </CardContent>
               </Card>
@@ -145,6 +157,7 @@ export function StoreList({
         <CredentialDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
+          isEdit={selectedStore.auth_status === "active"}
           storeId={selectedStore.id}
           platform={platform}
           existingCredentials={selectedStore.store_credentials}

@@ -7,8 +7,9 @@ import {
   FetchReturnsQuery,
 } from './graphql/generated/admin.generated';
 
-type ShopifyProductNode = FetchProductsQuery['products']['nodes'][number];
-type ShopifyInventoryItemNode =
+export type ShopifyProductNode =
+  FetchProductsQuery['products']['nodes'][number];
+export type ShopifyInventoryItemNode =
   FetchInventoryLevelsQuery['inventoryItems']['nodes'][number];
 type ShopifyInventoryLevelNode =
   ShopifyInventoryItemNode['inventoryLevels']['nodes'][number];
@@ -58,9 +59,9 @@ export function shouldUpdateShopifyInventory(
 ): boolean {
   return existing.platform_quantity !== next.platform_quantity;
 }
-type ShopifyOrderNode = FetchOrdersQuery['orders']['nodes'][number];
+export type ShopifyOrderNode = FetchOrdersQuery['orders']['nodes'][number];
 type ShopifyLineItemNode = ShopifyOrderNode['lineItems']['nodes'][number];
-type ShopifyFulfillmentOrderNode =
+export type ShopifyFulfillmentOrderNode =
   FetchFulfillmentsQuery['orders']['nodes'][number];
 
 export function mapShopifyOrderToDB(

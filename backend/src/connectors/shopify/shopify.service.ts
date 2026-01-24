@@ -1,11 +1,9 @@
 import {
   Injectable,
   Logger,
-  OnModuleInit,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { GraphQLClient } from 'graphql-request';
-import { ConfigService } from '@nestjs/config';
 import {
   FETCH_PRODUCTS,
   FETCH_INVENTORY_LEVELS,
@@ -22,28 +20,34 @@ import {
 } from './graphql/generated/admin.generated';
 
 @Injectable()
-export class ShopifyService implements OnModuleInit {
+export class ShopifyService {
   private readonly logger = new Logger(ShopifyService.name);
   private client: GraphQLClient;
 
-  constructor(private configService: ConfigService) {}
+  // Configuration properties to be set by PlatformServiceFactory
+  private shop: string;
+  private accessToken: string;
+  private apiVersion = '2026-01';
 
-  onModuleInit() {
-    const shop = this.configService.get<string>('SHOPIFY_STORE');
-    const token = this.configService.get<string>('SHOPIFY_ACCESS_TOKEN');
+  constructor() {}
 
-    if (!shop || !token) {
-      this.logger.error(
-        'SHOPIFY_STORE or SHOPIFY_ACCESS_TOKEN is missing in environment',
-      );
-      throw new Error('Critical Configuration Missing');
+  /**
+   * Initialize service with credentials from PlatformServiceFactory
+   */
+  initialize(credentials: any): void {
+    this.shop = credentials.shopDomain;
+    this.accessToken = credentials.accessToken;
+
+    if (!this.shop || !this.accessToken) {
+      this.logger.error('Shopify credentials are missing');
+      throw new Error('Critical Shopify Configuration Missing');
     }
 
     this.client = new GraphQLClient(
-      `https://${shop}.myshopify.com/admin/api/2026-01/graphql.json`,
+      `https://${this.shop}.myshopify.com/admin/api/${this.apiVersion}/graphql.json`,
       {
         headers: {
-          'X-Shopify-Access-Token': token,
+          'X-Shopify-Access-Token': this.accessToken,
           'Content-Type': 'application/json',
         },
       },
@@ -54,11 +58,17 @@ export class ShopifyService implements OnModuleInit {
     query: string,
     variables?: Record<string, any>,
   ): Promise<T> {
+    if (!this.client) {
+      throw new Error(
+        'Shopify service not initialized. Call initialize() first.',
+      );
+    }
+
     try {
       return await this.client.request<T>(query, variables);
     } catch (error: any) {
       this.logger.error(
-        `GraphQL Request Failed: ${error.message}`,
+        `Shopify GraphQL Request Failed: ${error.message}`,
         error.stack,
       );
       if (error.response?.errors) {
@@ -86,6 +96,7 @@ export class ShopifyService implements OnModuleInit {
     );
     return data?.inventoryItems?.nodes || [];
   }
+
   async fetchOrders(): Promise<FetchOrdersQuery['orders']['nodes']> {
     const data = await this.execute<FetchOrdersQuery>(FETCH_ORDERS);
     return data?.orders?.nodes || [];

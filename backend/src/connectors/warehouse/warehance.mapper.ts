@@ -31,27 +31,72 @@ export function mapWarehanceProductsToDB(
   );
 }
 export function mapPlatformInventoryToDB(
-  product: any,
+  products: any[], // ← changed: now takes the full array
   storeId: string,
-  productId: string,
-): Database['public']['Tables']['inventory']['Insert'] {
-  return {
-    sku: product.sku,
-    store_id: storeId,
-    product_id: productId,
-    platform_quantity: product.available ?? 0,
-    reserved_quantity: product.allocated ?? 0,
-    warehouse_quantity: product.on_hand ?? 0,
-    inbound_quantity: null,
-    inventory_status:
-      product.backordered > 0
+  productIdBySku: Map<string, string>, // ← pass the map instead of single productId
+): Database['public']['Tables']['inventory']['Insert'][] {
+  // Use a Map to deduplicate by SKU and keep the last occurrence
+  const inventoryMap = new Map<
+    string,
+    Database['public']['Tables']['inventory']['Insert']
+  >();
+
+  for (const product of products) {
+    const sku = product?.sku?.trim?.();
+
+    // Skip invalid entries
+    if (!sku || typeof sku !== 'string' || sku.length === 0) {
+      console.warn(`Skipping product with invalid/missing SKU:`, product);
+      continue;
+    }
+
+    const productId = productIdBySku.get(sku);
+    if (!productId) {
+      console.warn(`No product_id found for SKU: ${sku}`);
+      continue;
+    }
+
+    const nextInventory = {
+      sku,
+      store_id: storeId,
+      product_id: productId,
+      platform_quantity: product.available ?? 0,
+      reserved_quantity: product.allocated ?? 0,
+      warehouse_quantity: product.on_hand ?? 0,
+      inbound_quantity: null,
+      inventory_status: (product.backordered > 0
         ? 'backorder'
         : product.available > 0
           ? 'in_stock'
-          : 'out_of_stock',
-    last_platform_event: 'sync',
-    last_synced_at: new Date().toISOString(),
-  };
+          : 'out_of_stock') as Database['public']['Enums']['inventory_status'],
+      last_platform_event: 'sync',
+      last_synced_at: new Date().toISOString(),
+    };
+
+    // If we already have this SKU, we keep the last one (you can change logic)
+    if (inventoryMap.has(sku)) {
+      console.warn(`Duplicate SKU found, keeping last occurrence: ${sku}`);
+      // Optional: you could merge instead, e.g.:
+      // const existing = inventoryMap.get(sku)!;
+      // nextInventory.platform_quantity += existing.platform_quantity; // example merge
+    }
+
+    inventoryMap.set(sku, nextInventory);
+  }
+
+  const uniqueInventory = Array.from(inventoryMap.values());
+
+  console.log(
+    `Mapped ${products.length} products → ${uniqueInventory.length} unique inventory rows`,
+  );
+
+  if (products.length !== uniqueInventory.length) {
+    console.warn(
+      `${products.length - uniqueInventory.length} duplicate SKUs were deduplicated`,
+    );
+  }
+
+  return uniqueInventory;
 }
 
 /**
@@ -137,7 +182,7 @@ export function mapWarehanceOrderItemsToDB(
 }
 
 export function mapWarehanceShipmentsToDB(
-  shipments: ListShipmentsResponse200['shipments'],
+  shipments: ListShipmentsResponse200['data'],
   storeId: string,
   platform: string,
   orderIdByExternalId: Map<string, string>,
@@ -145,7 +190,9 @@ export function mapWarehanceShipmentsToDB(
 ): Database['public']['Tables']['fulfillments']['Insert'][] {
   const inserts: Database['public']['Tables']['fulfillments']['Insert'][] = [];
 
-  for (const shipment of shipments ?? []) {
+  const newShipments = shipments?.shipments;
+
+  for (const shipment of newShipments ?? []) {
     const orderExternalId = String(shipment.order?.id);
     const orderId = orderIdByExternalId.get(orderExternalId);
     if (!orderId) continue;
