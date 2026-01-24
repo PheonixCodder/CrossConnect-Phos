@@ -34,10 +34,9 @@ export class OrderItemsRepository {
       const { error, data } = await this.supabase
         .from('order_items')
         .upsert(batch, {
-          onConflict: 'store_id, sku', // ← comma-separated string (not array!)
-          // ignoreDuplicates: false,    // default = false → update on conflict
+          onConflict: 'order_id, sku',
         })
-        .select('id'); // optional: get count
+        .select('id');
 
       const count = data?.length || 0;
 
