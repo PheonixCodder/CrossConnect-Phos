@@ -1,25 +1,38 @@
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { TrendingUp, TrendingDown, Clock } from "lucide-react";
-import type { Channel } from "@/lib/mockData";
-import {
-  formatCurrency,
-  formatNumber,
-  formatPercent,
-  formatTimeAgo,
-} from "@/lib/mockData";
+import { formatCurrency, formatNumber, formatDateTime } from "@/lib/formatters";
 import Image from "next/image";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Database } from "@/types/supabase.types";
+
+interface Channel {
+  id: string;
+  name: string;
+  logo: string;
+  status: "success" | "warning" | "error";
+  metrics: {
+    netSales: number;
+    orders: number;
+    unitsSold: number;
+    contribution: number;
+    trend: number;
+  };
+  lastSync: string | null;
+}
 
 interface ChannelCardProps {
   channel: Channel;
-  onClick?: () => void;
+  onClick: (store: Database["public"]["Tables"]["stores"]["Row"]) => void;
   loading?: boolean;
+  store: Database["public"]["Tables"]["stores"]["Row"];
 }
 
 export function ChannelCard({
   channel,
   onClick,
   loading = false,
+  store,
 }: ChannelCardProps) {
   const trend = channel.metrics.trend;
   const isPositive = trend >= 0;
@@ -28,27 +41,27 @@ export function ChannelCard({
 
   if (loading) {
     return (
-      <div className="card-base p-5">
+      <div className="card-base p-6 rounded-xl shadow-sm">
         <div className="space-y-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-muted animate-pulse" />
-              <div className="space-y-1.5">
-                <div className="h-4 w-24 rounded-md bg-muted animate-pulse" />
-                <div className="h-3 w-16 rounded-md bg-muted animate-pulse" />
+              <Skeleton className="h-10 w-10 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-16" />
               </div>
             </div>
-            <div className="h-6 w-16 rounded-md bg-muted animate-pulse" />
+            <Skeleton className="h-6 w-16 rounded-full" />
           </div>
           <div className="space-y-2">
-            <div className="h-3 w-20 rounded-md bg-muted animate-pulse" />
-            <div className="h-7 w-32 rounded-md bg-muted animate-pulse" />
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-8 w-32" />
           </div>
-          <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border/30">
+          <div className="grid grid-cols-3 gap-3 pt-3 border-t">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="space-y-1.5">
-                <div className="h-3 w-16 rounded-md bg-muted animate-pulse" />
-                <div className="h-4 w-12 rounded-md bg-muted animate-pulse" />
+              <div key={i} className="space-y-1">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-12" />
               </div>
             ))}
           </div>
@@ -60,89 +73,79 @@ export function ChannelCard({
   return (
     <div
       className={cn(
-        "card-base card-hover p-5 cursor-pointer group",
-        "channel-accent relative overflow-hidden",
-        `channel-border-${channel.name.toLowerCase()}`,
+        "card-base p-6 rounded-xl shadow-sm cursor-pointer group transition-all hover:shadow-md",
+        "relative overflow-hidden",
       )}
-      onClick={onClick}
+      onClick={() => onClick(store)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          onClick?.();
-          e.preventDefault();
-        }
-      }}
+      onKeyDown={(e) =>
+        (e.key === "Enter" || e.key === " ") && onClick?.(store)
+      }
     >
-      {/* Background gradient effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-      <div className="relative z-10 space-y-3">
+      <div className="relative z-10 space-y-4">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="relative w-9 h-9 flex items-center justify-center">
-              <div className="absolute inset-0 bg-current/10 rounded-lg" />
+            <div className="p-2.5 rounded-lg bg-muted/50">
               <Image
                 src={channel.logo}
                 alt={`${channel.name} logo`}
                 width={24}
                 height={24}
-                className="relative z-10"
-                loading="lazy"
               />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">{channel.name}</h3>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <Clock className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
-                  {formatTimeAgo(new Date(channel.lastSync))}
-                </span>
+              <h3 className="font-semibold">{channel.name}</h3>
+              <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                {formatDateTime(channel.lastSync)}
               </div>
             </div>
           </div>
           <StatusBadge status={channel.status} size="sm" showLabel={false} />
         </div>
 
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium">Net Sales</p>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground font-medium">Net Sales</p>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight gradient-text">
+            <span className="text-2xl font-bold">
               {formatCurrency(channel.metrics.netSales)}
             </span>
-            <div
+            <span
               className={cn(
-                "flex items-center gap-0.5 text-xs font-medium px-2 py-0.5 rounded-full",
+                "text-xs font-medium px-2 py-0.5 rounded-full",
                 trendBg,
                 trendColor,
               )}
             >
               {isPositive ? (
-                <TrendingUp className="h-3 w-3" />
+                <TrendingUp className="h-3 w-3 inline mr-0.5" />
               ) : (
-                <TrendingDown className="h-3 w-3" />
+                <TrendingDown className="h-3 w-3 inline mr-0.5" />
               )}
-              {formatPercent(trend)}
-            </div>
+              {Math.abs(trend).toFixed(1)}%
+            </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border/50">
+        <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border/50">
           <div>
             <p className="text-xs text-muted-foreground">Orders</p>
-            <p className="text-sm font-semibold text-foreground">
+            <p className="text-sm font-semibold">
               {formatNumber(channel.metrics.orders)}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Units</p>
-            <p className="text-sm font-semibold text-foreground">
+            <p className="text-sm font-semibold">
               {formatNumber(channel.metrics.unitsSold)}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Share</p>
-            <p className="text-sm font-semibold text-foreground">
+            <p className="text-sm font-semibold">
               {channel.metrics.contribution.toFixed(1)}%
             </p>
           </div>

@@ -5,13 +5,6 @@ import { useDashboardStore } from "@/store/useStore";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase.types";
 
-// Helper Types
-type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
-type OrderItemRow = Database["public"]["Tables"]["order_items"]["Row"];
-type AlertRow = Database["public"]["Tables"]["alerts"]["Row"];
-type InventoryRow = Database["public"]["Tables"]["inventory"]["Row"];
-type StoreRow = Database["public"]["Tables"]["stores"]["Row"];
-
 // Types for Aggregations
 export type TimeRange = "7d" | "30d" | "90d" | "1y";
 
@@ -48,7 +41,7 @@ export function useDashboardData(timeRange: TimeRange) {
   const isOrgView = !activeStore;
   // If Org view, we might have many stores. We need their IDs to filter orders efficiently.
   // If Store view, we just use that ID.
-  
+
   // Fetch Stores (Needed for Channel Cards and ID list)
   const { data: stores = [], isLoading: isLoadingStores } = useQuery({
     queryKey: ["stores", activeOrg?.id],
@@ -65,7 +58,11 @@ export function useDashboardData(timeRange: TimeRange) {
   });
 
   const storeIds = stores.map((s) => s.id);
-  const targetStoreIds = isOrgView ? storeIds : (activeStore ? [activeStore.id] : []);
+  const targetStoreIds = isOrgView
+    ? storeIds
+    : activeStore
+      ? [activeStore.id]
+      : [];
 
   // 3. Fetch Orders (Core Data)
   const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
@@ -77,7 +74,7 @@ export function useDashboardData(timeRange: TimeRange) {
         .select("*")
         .in("store_id", targetStoreIds)
         .gte("ordered_at", startDateIso)
-        .order("ordered_at", { ascending: true });
+        .order("ordered_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -119,7 +116,7 @@ export function useDashboardData(timeRange: TimeRange) {
     enabled: targetStoreIds.length > 0,
   });
 
-  // 6. Fetch Inventory (Low Stock)
+  // 6. Fetch Inventory (All, limited)
   const { data: inventory = [], isLoading: isLoadingInventory } = useQuery({
     queryKey: ["dashboard_inventory", targetStoreIds],
     queryFn: async () => {
@@ -128,22 +125,81 @@ export function useDashboardData(timeRange: TimeRange) {
         .from("inventory")
         .select("*")
         .in("store_id", targetStoreIds)
-        .or("warehouse_quantity.lt.10,and.warehouse_quantity.is.null")
-        .limit(10); // Only show error low stock
+        .order("updated_at", { ascending: false })
+        .limit(50);
       if (error) throw error;
       return data;
     },
     enabled: targetStoreIds.length > 0,
   });
 
+  // 7. Fetch Products (Limited)
+  const { data: products = [], isLoading: isLoadingProducts } = useQuery({
+    queryKey: ["dashboard_products", targetStoreIds],
+    queryFn: async () => {
+      if (targetStoreIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .in("store_id", targetStoreIds)
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+    enabled: targetStoreIds.length > 0,
+  });
+
+  // 8. Fetch Returns (Time filtered, limited)
+  const { data: returnsData = [], isLoading: isLoadingReturns } = useQuery({
+    queryKey: ["dashboard_returns", targetStoreIds, timeRange],
+    queryFn: async () => {
+      if (targetStoreIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("returns")
+        .select("*")
+        .in("store_id", targetStoreIds)
+        .gte("created_at", startDateIso)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data;
+    },
+    enabled: targetStoreIds.length > 0,
+  });
+
+  // 9. Fetch Fulfillments (For the fetched orders)
+  const { data: fulfillments = [] } = useQuery({
+    queryKey: ["dashboard_fulfillments", orderIds],
+    queryFn: async () => {
+      if (orderIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("fulfillments")
+        .select("*")
+        .in("order_id", orderIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: orderIds.length > 0,
+  });
+
   // --- Aggregations (Memoization happens in component, but types prepared here) ---
-  
+
   return {
     stores,
     orders,
     orderItems,
     alerts,
     inventory,
-    isLoading: isLoadingStores || isLoadingOrders || isLoadingAlerts || isLoadingInventory,
+    products,
+    returns: returnsData,
+    fulfillments,
+    isLoading:
+      isLoadingStores ||
+      isLoadingOrders ||
+      isLoadingAlerts ||
+      isLoadingInventory ||
+      isLoadingProducts ||
+      isLoadingReturns,
   };
 }
