@@ -4,7 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import type { Database } from "@/types/supabase.types";
-import { useQueryState } from "nuqs";
+import { parseAsString, useQueryState } from "nuqs";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-display/data-table";
@@ -81,9 +81,7 @@ interface ProductsTableProps {
 }
 
 export function ProductsTable({ products, loading }: ProductsTableProps) {
-  const [, setProductId] = useQueryState<string | null>("product", {
-    defaultValue: null,
-  });
+  const [, setProductId] = useQueryState("product");
 
   return (
     <div className="card-base p-6 rounded-xl shadow-sm">
