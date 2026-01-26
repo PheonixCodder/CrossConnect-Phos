@@ -21,8 +21,6 @@ import { Badge } from "@/components/ui/badge";
 import { useDashboardStore } from "@/store/useStore";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/formatters";
-
-// Types
 import { ChannelStatus } from "@/lib/mockData";
 import {
   StoreMetrics,
@@ -284,20 +282,22 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-8">
+      <section className="grid gap-6 lg:grid-cols-1">
           <SalesChart data={salesTrend} loading={isLoading} />
-        </div>
-        <div className="lg:col-span-4">
+      </section>
+      <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
           <InventoryTable inventory={inventory} loading={isLoading} />
-        </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-1">
-        <OrdersTable orders={orders} loading={isLoading} />
-        <ProductsTable products={products} loading={isLoading} />
-        <ReturnsTable returns={returns} loading={isLoading} />
-      </section>
+        <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
+          <OrdersTable orders={orders} loading={isLoading} />
+        </section>
+        <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
+          <ProductsTable products={products} loading={isLoading} />
+        </section>
+        <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
+          <ReturnsTable returns={returns} loading={isLoading} />
+        </section>
 
       {orderId && (
         <OrderDialog

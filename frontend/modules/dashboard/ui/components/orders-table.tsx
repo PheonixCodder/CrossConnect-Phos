@@ -96,16 +96,18 @@ export function OrdersTable({ orders, loading }: OrdersTableProps) {
   return (
     <div className="card-base p-6 rounded-xl shadow-sm">
       <h2 className="text-xl font-semibold mb-6">Orders</h2>
-      <DataTable
-        columns={columns}
-        data={orders}
-        isLoading={loading}
-        searchKey="external_order_id"
-        placeholder="Search by Order ID..."
-        onRowClick={(row) => setOrderId(row.id)}
-        emptyImage="/images/empty.svg"
-        emptyDescription="No orders in the selected period or matching your filters."
-      />
+      <div className="relative overflow-x-auto">
+        <DataTable
+          columns={columns}
+          data={orders}
+          isLoading={loading}
+          searchKey="external_order_id"
+          placeholder="Search by Order ID..."
+          onRowClick={(row) => setOrderId(row.id)}
+          emptyImage="/images/empty.svg"
+          emptyDescription="No orders in the selected period or matching your filters."
+        />
+      </div>
     </div>
   );
 }

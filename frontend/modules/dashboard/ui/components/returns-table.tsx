@@ -79,16 +79,18 @@ export function ReturnsTable({ returns, loading }: ReturnsTableProps) {
   return (
     <div className="card-base p-6 rounded-xl shadow-sm">
       <h2 className="text-xl font-semibold mb-6">Returns</h2>
-      <DataTable
-        columns={columns}
-        data={returns}
-        isLoading={loading}
-        searchKey="external_return_id"
-        placeholder="Search by Return ID..."
-        onRowClick={(row) => setReturnId(row.id)}
-        emptyImage="/images/empty.svg"
-        emptyDescription="No returns in the selected period or matching filters."
-      />
+      <div className="relative overflow-x-auto">
+        <DataTable
+          columns={columns}
+          data={returns}
+          isLoading={loading}
+          searchKey="external_return_id"
+          placeholder="Search by Return ID..."
+          onRowClick={(row) => setReturnId(row.id)}
+          emptyImage="/images/empty.svg"
+          emptyDescription="No returns in the selected period or matching filters."
+        />
+      </div>
     </div>
   );
 }

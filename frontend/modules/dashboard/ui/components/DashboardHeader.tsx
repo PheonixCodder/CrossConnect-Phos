@@ -21,7 +21,7 @@ export function DashboardHeader({
   const activeStore = useDashboardStore((state) => state.activeStore);
 
   return (
-    <header className="flex items-center justify-between gap-4">
+    <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-center gap-4">
         <SidebarTrigger className="h-8 w-8" />
         <div className="flex items-center gap-2">

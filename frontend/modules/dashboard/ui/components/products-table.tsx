@@ -88,16 +88,18 @@ export function ProductsTable({ products, loading }: ProductsTableProps) {
   return (
     <div className="card-base p-6 rounded-xl shadow-sm">
       <h2 className="text-xl font-semibold mb-6">Products</h2>
-      <DataTable
-        columns={columns}
-        data={products}
-        isLoading={loading}
-        searchKey="title"
-        placeholder="Search by Title or SKU..."
-        onRowClick={(row) => setProductId(row.id)}
-        emptyImage="/images/empty.svg"
-        emptyDescription="No products available or matching your filters."
-      />
+      <div className="relative overflow-x-auto">
+        <DataTable
+          columns={columns}
+          data={products}
+          isLoading={loading}
+          searchKey="title"
+          placeholder="Search by Title or SKU..."
+          onRowClick={(row) => setProductId(row.id)}
+          emptyImage="/images/empty.svg"
+          emptyDescription="No products available or matching your filters."
+        />
+      </div>
     </div>
   );
 }

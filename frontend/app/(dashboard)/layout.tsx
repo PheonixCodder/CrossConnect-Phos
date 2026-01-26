@@ -28,7 +28,7 @@ const Layout = async ({ children }: { children: ReactNode }) => {
         }
       >
         <AppSidebar user={user} variant="inset" />
-        <div className="m-2 w-[97%]">
+        <div className="m-2 w-full">
           <div className="flex justify-between py-2 my-2 px-4 md:px-12 rounded-xl bg-[#0e0c0c]">
             <GlobalContextSwitcher />
             <SidebarButtons />
