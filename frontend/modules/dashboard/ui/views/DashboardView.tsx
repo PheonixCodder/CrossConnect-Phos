@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQueryState } from "nuqs";
+import {
+  parseAsString,
+  parseAsStringEnum,
+  parseAsStringLiteral,
+  useQueryState,
+} from "nuqs";
 import {
   DollarSign,
   ShoppingCart,
@@ -62,20 +67,16 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
   ) => {
     setActiveStore(store);
   };
+  const timeRangeValues = ["7d", "30d", "90d", "1y"] as const;
 
-  const [timeRange, setTimeRange] = useQueryState<TimeRange>("range", {
-    defaultValue: "7d" as TimeRange,
-  });
+  const [timeRange, setTimeRange] = useQueryState<TimeRange>(
+    "range",
+    parseAsStringLiteral(timeRangeValues).withDefault("7d"),
+  );
 
-  const [orderId, setOrderId] = useQueryState<string | null>("order", {
-    defaultValue: null,
-  });
-  const [productId, setProductId] = useQueryState<string | null>("product", {
-    defaultValue: null,
-  });
-  const [returnId, setReturnId] = useQueryState<string | null>("return", {
-    defaultValue: null,
-  });
+  const [orderId, setOrderId] = useQueryState("order");
+  const [productId, setProductId] = useQueryState("product");
+  const [returnId, setReturnId] = useQueryState("return");
 
   const {
     stores,
@@ -283,21 +284,21 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-1">
-          <SalesChart data={salesTrend} loading={isLoading} />
+        <SalesChart data={salesTrend} loading={isLoading} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-          <InventoryTable inventory={inventory} loading={isLoading} />
+        <InventoryTable inventory={inventory} loading={isLoading} />
       </section>
 
-        <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-          <OrdersTable orders={orders} loading={isLoading} />
-        </section>
-        <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-          <ProductsTable products={products} loading={isLoading} />
-        </section>
-        <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-          <ReturnsTable returns={returns} loading={isLoading} />
-        </section>
+      <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
+        <OrdersTable orders={orders} loading={isLoading} />
+      </section>
+      <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
+        <ProductsTable products={products} loading={isLoading} />
+      </section>
+      <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
+        <ReturnsTable returns={returns} loading={isLoading} />
+      </section>
 
       {orderId && (
         <OrderDialog
