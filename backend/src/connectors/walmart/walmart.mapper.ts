@@ -152,13 +152,15 @@ export function mapWalmartFulfillmentsToDB(
   storeId: string,
   productId?: string,
 ): Database['public']['Tables']['fulfillments']['Insert'] | null {
-  // Look for shipped/created status; adjust per your rules
   const statuses = line.orderLineStatuses?.orderLineStatus ?? [];
-  const shipped = statuses.find((s) =>
-    ['Shipped', 'Created'].includes(s.status),
+
+  const fulfillmentStatus = statuses.find((s) =>
+    ['Shipped', 'Delivered'].includes(s.status),
   );
 
-  if (!shipped) return null;
+  if (!fulfillmentStatus) return null;
+
+  const tracking = fulfillmentStatus.trackingInfo;
 
   return {
     external_fulfillment_id: `${orderId}-${line.lineNumber}`,
@@ -166,9 +168,11 @@ export function mapWalmartFulfillmentsToDB(
     store_id: storeId,
     platform: 'walmart',
     product_id: productId ?? null,
-    status: 'pending', // default - you may map differently
-    tracking_number: null,
-    carrier: null,
+
+    status: fulfillmentStatus.status === 'Delivered' ? 'delivered' : 'shipped',
+
+    tracking_number: tracking?.trackingNumber ?? null,
+    carrier: tracking?.carrierName?.carrier ?? null,
   };
 }
 
@@ -202,39 +206,34 @@ export function mapWalmartOrderToDB(
   order: Order,
   storeId: string,
 ): Database['public']['Tables']['orders']['Insert'] {
-  const summary = order.orderSummary;
   const status = deriveOrderStatus(order);
 
-  // -------------------------
-  // Subtotals (Walmart uses Money, NOT CurrencyAmount here)
-  // -------------------------
-  const productSubTotal =
-    summary?.orderSubTotals?.find((s) => s.subTotalType === 'PRODUCT')
-      ?.totalAmount?.amount ?? null;
+  const orderLines = order.orderLines?.orderLine ?? [];
 
-  const taxTotal =
-    summary?.orderSubTotals?.find((s) => s.subTotalType === 'TAX')?.totalAmount
-      ?.amount ?? null;
+  const productSubtotal = orderLines.reduce((sum, line) => {
+    const productCharge = line.charges?.charge?.find(
+      (c) => c.chargeType === 'PRODUCT',
+    );
+    return sum + (productCharge?.chargeAmount?.amount ?? 0);
+  }, 0);
 
-  const shippingTotal =
-    summary?.orderSubTotals?.find((s) => s.subTotalType === 'SHIPPING')
-      ?.totalAmount?.amount ?? null;
+  const currency =
+    orderLines[0]?.charges?.charge?.[0]?.chargeAmount?.currency ?? 'USD';
 
   return {
     external_order_id: order.purchaseOrderId,
     store_id: storeId,
     platform: 'walmart',
 
-    currency: summary?.totalAmount?.currency ?? 'USD',
+    currency,
     ordered_at: new Date(order.orderDate).toISOString(),
 
-    subtotal: productSubTotal,
-    tax: taxTotal,
-    shipping: shippingTotal,
+    subtotal: productSubtotal,
+    tax: null,
+    shipping: null,
+    total: productSubtotal,
 
-    total: summary?.totalAmount?.amount ?? null,
-
-    status, // ENUM SAFE
+    status,
     payment_status: status === 'paid' || status === 'completed' ? 'paid' : null,
     fulfillment_status: status === 'completed' ? 'fulfilled' : 'unfulfilled',
   };
@@ -250,15 +249,15 @@ export function mapWalmartOrderItemsToDB(
 ): Database['public']['Tables']['order_items']['Insert'] {
   const quantity = Number(line.orderLineQuantity?.amount ?? 0);
 
-  // Best-effort to find product charge
   const productCharge =
     line.charges?.charge?.find((c) => c.chargeType === 'PRODUCT') ??
     line.charges?.charge?.[0];
 
   const unitPrice = productCharge?.chargeAmount?.amount ?? 0;
 
-  const isShipped = (line.orderLineStatuses?.orderLineStatus ?? []).some(
-    (s) => s.status === 'Shipped',
+  const statuses = line.orderLineStatuses?.orderLineStatus ?? [];
+  const isFulfilled = statuses.some((s) =>
+    ['Shipped', 'Delivered'].includes(s.status),
   );
 
   return {
@@ -268,7 +267,7 @@ export function mapWalmartOrderItemsToDB(
     quantity,
     price: unitPrice,
     total: unitPrice * quantity,
-    fulfilled_quantity: isShipped ? quantity : 0,
+    fulfilled_quantity: isFulfilled ? quantity : 0,
   };
 }
 

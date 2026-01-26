@@ -81,6 +81,7 @@ export class WarehanceService {
       const allOrders: any[] = [];
       let offset = 0;
       const limit = 100;
+      const required_ship_date_start = since;
 
       while (true) {
         this.logger.debug(
@@ -91,6 +92,7 @@ export class WarehanceService {
           this.warehance.listOrders({
             limit,
             offset,
+            required_ship_date_start,
             // If Warehance API supports a 'since' or 'updated_after' param,
             // uncomment and adjust:
             // updated_after: since,
@@ -131,6 +133,7 @@ export class WarehanceService {
       const allShipments: any[] = [];
       let offset = 0;
       const limit = 100;
+      const required_ship_date_start = since;
 
       while (true) {
         this.logger.debug(
@@ -141,6 +144,7 @@ export class WarehanceService {
           this.warehance.listShipments({
             limit,
             offset,
+            required_ship_date_start,
             // If API supports since/created_after, add here:
             // created_after: since,
           }),

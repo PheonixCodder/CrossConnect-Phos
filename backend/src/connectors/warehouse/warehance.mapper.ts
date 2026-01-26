@@ -11,24 +11,28 @@ export function mapWarehanceProductsToDB(
   storeId: string,
   platform: string,
 ): Database['public']['Tables']['products']['Insert'][] {
-  return (
-    data?.products?.map((product) => ({
+  return (data?.products ?? []).map((product) => {
+    const status =
+      product.available! > 0
+        ? 'active'
+        : product.backordered! > 0
+          ? 'backorder'
+          : 'out_of_stock';
+
+    return {
       external_product_id: String(product.id),
       sku: product.sku ?? `UNKNOWN-${product.id}`,
       title: product.name,
       description: null,
+
       platform,
       store_id: storeId,
+
       currency: null,
       price: null,
-      status:
-        (product.available ?? 0) > 0
-          ? 'active'
-          : (product.backordered ?? 0) > 0
-            ? 'backorder'
-            : 'out_of_stock',
-    })) ?? []
-  );
+      status,
+    };
+  });
 }
 export function mapPlatformInventoryToDB(
   products: any[], // ← changed: now takes the full array
@@ -138,22 +142,34 @@ export function mapWarehanceOrdersToDB(
   storeId: string,
   platform: string,
 ): Database['public']['Tables']['orders']['Insert'][] {
-  return (
-    (data?.orders ?? []).map((order) => ({
+  return (data?.orders ?? []).map((order) => {
+    const fulfillmentStatus =
+      order.fulfillment_status === 'fulfilled' ? 'fulfilled' : 'unfulfilled';
+
+    const status = order.cancelled
+      ? 'cancelled'
+      : fulfillmentStatus === 'fulfilled'
+        ? 'completed'
+        : 'pending';
+
+    return {
       external_order_id: String(order.id),
       store_id: storeId,
       platform,
       currency: 'USD',
-      status: resolveOrderStatus(order),
-      fulfillment_status: order.fulfillment_status,
-      payment_status: null,
+
+      status,
+      fulfillment_status: fulfillmentStatus,
+      payment_status: order.cancelled ? 'refunded' : 'paid',
+
       ordered_at: order.order_date,
+
       subtotal: order.subtotal_amount ?? null,
       shipping: order.shipping_amount ?? null,
       tax: order.tax_amount ?? null,
       total: order.total_amount ?? null,
-    })) ?? []
-  );
+    };
+  });
 }
 
 export function mapWarehanceOrderItemsToDB(
@@ -162,21 +178,23 @@ export function mapWarehanceOrderItemsToDB(
   productIdBySku: Map<string, string>,
 ): Database['public']['Tables']['order_items']['Insert'][] {
   return (order.order_items ?? []).map((item) => {
-    // 1. Handle the SKU fallback
-    const itemSku = item.sku ?? 'UNKNOWN';
-    const productId = productIdBySku.get(itemSku) ?? null;
+    const sku = item.sku ?? `UNKNOWN-${item.id}`;
+    const productId = productIdBySku.get(sku) ?? null;
+
+    const quantity = item.quantity ?? 0;
+    const fulfilledQuantity = item.quantity_shipped ?? 0;
 
     return {
       order_id: orderId,
-      sku: itemSku, // Ensuring string, not string | undefined
+      sku,
       product_id: productId,
-      // 2. Fallback for quantity (defaults to 0 if undefined)
-      quantity: item.quantity ?? 0,
-      fulfilled_quantity: item.quantity_shipped ?? 0,
-      // 3. Fallback for refunded_quantity
-      refunded_quantity: item.cancelled ? (item.quantity ?? 0) : 0,
-      price: 0,
-      total: 0,
+
+      quantity,
+      fulfilled_quantity: fulfilledQuantity,
+      refunded_quantity: item.cancelled ? quantity : 0,
+
+      price: null, // Warehance does not expose item pricing
+      total: null,
     };
   });
 }
@@ -190,31 +208,34 @@ export function mapWarehanceShipmentsToDB(
 ): Database['public']['Tables']['fulfillments']['Insert'][] {
   const inserts: Database['public']['Tables']['fulfillments']['Insert'][] = [];
 
-  const newShipments = shipments?.shipments;
-
-  for (const shipment of newShipments ?? []) {
+  for (const shipment of shipments?.shipments ?? []) {
     const orderExternalId = String(shipment.order?.id);
     const orderId = orderIdByExternalId.get(orderExternalId);
     if (!orderId) continue;
 
+    const status = shipment.voided ? 'voided' : 'shipped';
+
     for (const parcel of shipment.shipment_parcels ?? []) {
-      const trackingNumber = parcel.tracking_number ?? null;
+      // OPTIONAL: associate first product only
+      let productId: string | null = null;
 
-      for (const item of parcel.items ?? []) {
-        const productExternalId = String(item.product?.id);
-        const productId = productIdByExternalId.get(productExternalId) ?? null;
-
-        inserts.push({
-          external_fulfillment_id: String(parcel.id),
-          store_id: storeId,
-          platform,
-          order_id: orderId,
-          product_id: productId,
-          carrier: shipment.carrier_connection?.carrier ?? null,
-          tracking_number: trackingNumber,
-          status: shipment.voided ? 'voided' : 'shipped',
-        });
+      const firstItem = parcel.items?.[0];
+      if (firstItem?.product?.id) {
+        productId =
+          productIdByExternalId.get(String(firstItem.product.id)) ?? null;
       }
+
+      inserts.push({
+        external_fulfillment_id: `${shipment.id}-${parcel.id}`, // UNIQUE PER PARCEL
+        store_id: storeId,
+        platform,
+        order_id: orderId,
+        product_id: productId, // nullable is OK
+
+        carrier: shipment.carrier_connection?.carrier ?? null,
+        tracking_number: parcel.tracking_number ?? null,
+        status,
+      });
     }
   }
 

@@ -139,7 +139,9 @@ export interface OrderLine {
       trackingInfo: {
         carrierName: {
           otherCarrier: string;
+          carrier: string;
         };
+        trackingNumber: string;
         methodCode: string;
         shipmentNo: string;
       };
