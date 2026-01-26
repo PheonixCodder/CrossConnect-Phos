@@ -17,7 +17,7 @@ export class FulfillmentsRepository {
   ) {
     if (!shipments || shipments.length === 0) return { data: [], error: null };
 
-    const BATCH_SIZE = 3000; // Adjust based on testing; 5000 is safe for free plan
+    const BATCH_SIZE = 300; // Adjust based on testing; 5000 is safe for free plan
 
     let totalAffected = 0;
     let allData: Database['public']['Tables']['fulfillments']['Row'][] = [];
@@ -32,11 +32,12 @@ export class FulfillmentsRepository {
 
         const { data, error, count } = await this.supabaseClient
           .from('fulfillments')
-          .upsert(batch, { onConflict: 'external_fulfillment_id' })
+          .upsert(batch, { onConflict: 'platform, external_fulfillment_id' })
           .select('*');
 
         if (error) {
           this.logger.error('Error upserting fulfillments batch', error);
+          console.log('error', error);
           throw error;
         }
 
