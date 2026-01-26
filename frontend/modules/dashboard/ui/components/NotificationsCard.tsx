@@ -1,25 +1,23 @@
-"use client";
 import { cn } from "@/lib/utils";
-import { LucideIcon } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Check, X } from "lucide-react";
-
-interface NotificationItemProps {
-  notification: Notification;
-  onDismiss?: (id?: string) => void;
-}
 
 export type NotificationState = "success" | "warning" | "error";
 
 export interface Notification {
   id?: string;
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   state: NotificationState;
   channel: string;
   description: string;
   timeAgo: string;
   read?: boolean;
+}
+
+interface NotificationItemProps {
+  notification: Notification;
+  onDismiss?: (id?: string) => void;
 }
 
 export function NotificationItem({
@@ -65,11 +63,11 @@ export function NotificationItem({
           />
         </div>
         {!read && (
-          <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary animate-pulse" />
+          <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
         )}
       </div>
 
-      <div className="flex-1 space-y-1.5 min-w-0">
+      <div className="flex-1 space-y-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-0.5">
             <p className="text-sm font-medium line-clamp-2">{description}</p>

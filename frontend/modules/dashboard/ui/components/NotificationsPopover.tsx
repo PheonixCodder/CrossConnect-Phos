@@ -12,20 +12,26 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Notification, NotificationItem } from "./NotificationsCard";
+import {
+  Notification,
+  NotificationItem,
+} from "@/modules/dashboard/ui/components/NotificationsCard";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { InfoState } from "@/components/layout/empty-state";
 
 interface NotificationsPopoverProps {
   notifications: Notification[];
   className?: string;
+  onMarkAllRead?: () => void;
 }
 
 export function NotificationsPopover({
   notifications,
   className,
+  onMarkAllRead,
 }: NotificationsPopoverProps) {
-  const unreadCount = notifications.filter((n) => n.state !== "success").length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <Popover>
@@ -35,15 +41,12 @@ export function NotificationsPopover({
             <Button
               size="icon"
               variant="outline"
-              className={cn(
-                "relative h-9 w-9 rounded-lg bg-card hover:bg-muted transition-colors",
-                className,
-              )}
+              className={cn("relative h-8 w-8 rounded-md", className)}
             >
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
-                  {unreadCount}
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </Button>
@@ -54,42 +57,46 @@ export function NotificationsPopover({
 
       <PopoverContent
         align="end"
-        className="w-[380px] p-0 bg-popover shadow-xl border"
+        className="w-96 p-0 rounded-xl shadow-lg border"
       >
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-foreground">Notifications</h3>
-              <p className="text-sm text-muted-foreground">
-                {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
-              </p>
-            </div>
-            <Button variant="ghost" size="sm" className="h-7 text-xs">
-              Mark all read
-            </Button>
+        <div className="flex items-center justify-between p-4 border-b">
+          <div>
+            <h3 className="font-semibold">Notifications</h3>
+            <p className="text-xs text-muted-foreground">
+              {unreadCount} unread
+            </p>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={onMarkAllRead}
+          >
+            Mark all read
+          </Button>
         </div>
 
         <ScrollArea className="h-[400px]">
           <div className="p-2">
             {notifications.length === 0 ? (
-              <div className="p-8 text-center">
-                <Bell className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
-                <p className="text-sm font-medium">No notifications</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  You&apos;re all caught up!
-                </p>
-              </div>
+              <InfoState
+                title="No notifications"
+                description="You're all caught up!"
+                image="/images/empty.svg"
+              />
             ) : (
-              notifications.map((notification, index) => (
-                <NotificationItem key={index} notification={notification} />
+              notifications.map((notification) => (
+                <NotificationItem
+                  key={notification.description}
+                  notification={notification}
+                />
               ))
             )}
           </div>
         </ScrollArea>
 
-        <div className="p-4 border-t border-border">
-          <Button variant="ghost" className="w-full text-sm" size="sm">
+        <div className="p-4 border-t">
+          <Button variant="ghost" className="w-full text-sm">
             View all notifications
           </Button>
         </div>

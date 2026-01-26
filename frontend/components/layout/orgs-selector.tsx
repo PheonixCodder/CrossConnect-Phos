@@ -53,6 +53,8 @@ export function GlobalContextSwitcher() {
     setActiveOrg,
     activeStore,
     setStores,
+    organizations,
+    stores,
     setActiveStore,
   } = useDashboardStore();
 
@@ -79,7 +81,7 @@ export function GlobalContextSwitcher() {
   });
 
   // 1. Fetch Organizations
-  const { data: organizations = [], isLoading: loadingOrgs } = useQuery({
+  const { data: newOrganizations = [], isLoading: loadingOrgs } = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -94,7 +96,7 @@ export function GlobalContextSwitcher() {
   });
 
   // 2. Fetch Stores (Dependent on activeOrg)
-  const { data: stores = [], isLoading: loadingStores } = useQuery({
+  const { data: newStores = [], isLoading: loadingStores } = useQuery({
     queryKey: ["stores", activeOrg?.id],
     queryFn: async () => {
       if (!activeOrg?.id) return [];
@@ -121,15 +123,6 @@ export function GlobalContextSwitcher() {
       {} as Record<PlatformType, Store[]>,
     );
   }, [stores]);
-
-  // Auto-select defaults
-  React.useEffect(() => {
-    if (organizations.length > 0 && !activeOrg) setActiveOrg(organizations[0]);
-  }, [organizations, activeOrg, setActiveOrg]);
-
-  React.useEffect(() => {
-    if (stores.length > 0 && !activeStore) setActiveStore(stores[0]);
-  }, [stores, activeStore, setActiveStore]);
 
   return (
     <div className="flex items-center gap-1 text-sm font-medium">

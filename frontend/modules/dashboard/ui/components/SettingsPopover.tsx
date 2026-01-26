@@ -40,7 +40,7 @@ export function SettingsPopover() {
         className="w-[100px] p-0 shadow-xl border-0 bg-transparent"
       >
         <div className="flex flex-col items-center justify-center gap-2">
-          <Link href={'/settings'}><Button variant={'secondary'} className="w-full">Settings</Button></Link>
+          <Link className="bg-secondary text-secondary-foreground hover:bg-secondary/80 w-full inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all p-1.5" href={'/settings'}>Settings</Link>
           <Button variant={'secondary'} className="w-full">Logout</Button>
         </div>
       </PopoverContent>

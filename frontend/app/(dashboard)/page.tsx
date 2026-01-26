@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx
 import { createClient } from "@/lib/supabase/server";
 import { DashboardView } from "@/modules/dashboard/ui/views/DashboardView";
 import { redirect } from "next/navigation";

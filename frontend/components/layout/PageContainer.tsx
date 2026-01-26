@@ -18,9 +18,9 @@ const maxWidthClasses = {
 
 const paddingClasses = {
   none: "",
-  sm: "px-4 sm:px-6",
-  md: "px-4 sm:px-6 lg:px-8",
-  lg: "px-4 sm:px-6 lg:px-8 xl:px-12"
+  sm: "px-3 sm:px-6",
+  md: "px-3 sm:px-6 lg:px-8",
+  lg: "px-3 sm:px-6 lg:px-8 xl:px-12",
 };
 
 export function PageContainer({
