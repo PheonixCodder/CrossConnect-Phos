@@ -44,7 +44,7 @@ export function TeamMembersTable({
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border overflow-scroll [&::-webkit-scrollbar]:hidden">
       <table className="w-full text-sm text-left">
         <thead className="bg-muted/50">
           <tr>

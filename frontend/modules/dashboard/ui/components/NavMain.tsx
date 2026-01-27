@@ -5,6 +5,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@tabler/icons-react";
@@ -23,6 +24,7 @@ export function NavMain({
   }[];
 }) {
   const pathname = usePathname();
+  const { setOpenMobile, isMobile } = useSidebar();
   return (
     <SidebarGroup>
       <SidebarGroupContent>
@@ -32,18 +34,22 @@ export function NavMain({
           </h3>
           <SidebarMenu>
             {items.map((item) => (
-              <SidebarMenuItem key={item.title}>
+              <SidebarMenuItem
+                onClick={() => {
+                  if (isMobile) setOpenMobile(false);
+                }}
+                key={item.title}
+              >
                 <SidebarMenuButton
                   tooltip={item.title}
                   className={cn(
                     "hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary",
-                    (pathname === item.url) &&
-                      "bg-primary/10 text-primary",
+                    pathname === item.url && "bg-primary/10 text-primary",
                   )}
                   asChild
                 >
                   <Link href={item.url}>
-                    {item.icon && <item.icon className="!size-4" />}
+                    {item.icon && <item.icon className="size-4" />}
                     <span className="text-sm">{item.title}</span>
                     {item.badge && (
                       <Badge

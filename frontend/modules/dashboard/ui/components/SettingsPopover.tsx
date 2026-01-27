@@ -14,8 +14,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 export function SettingsPopover() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.refresh(); // Refresh the page to update the UI and clear server-side session
+  };
   return (
     <Popover>
       <Tooltip>
@@ -25,7 +34,7 @@ export function SettingsPopover() {
               size="icon"
               variant="outline"
               className={cn(
-                "relative h-9 w-9 rounded-lg bg-card hover:bg-muted transition-colors"
+                "relative h-9 w-9 rounded-lg bg-card hover:bg-muted transition-colors",
               )}
             >
               <Settings className="h-4 w-4" />
@@ -40,8 +49,15 @@ export function SettingsPopover() {
         className="w-[100px] p-0 shadow-xl border-0 bg-transparent"
       >
         <div className="flex flex-col items-center justify-center gap-2">
-          <Link className="bg-secondary text-secondary-foreground hover:bg-secondary/80 w-full inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all p-1.5" href={'/settings'}>Settings</Link>
-          <Button variant={'secondary'} className="w-full">Logout</Button>
+          <Link
+            className="bg-secondary text-secondary-foreground hover:bg-secondary/80 w-full inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all p-1.5"
+            href={"/settings"}
+          >
+            Settings
+          </Link>
+          <Button variant={"secondary"} onClick={handleSignOut} className="w-full">
+            Logout
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

@@ -19,6 +19,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { InfoState } from "@/components/layout/empty-state";
+import Link from "next/link";
+import { useState } from "react";
 
 interface NotificationsPopoverProps {
   notifications: Notification[];
@@ -32,9 +34,10 @@ export function NotificationsPopover({
   onMarkAllRead,
 }: NotificationsPopoverProps) {
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
@@ -96,9 +99,14 @@ export function NotificationsPopover({
         </ScrollArea>
 
         <div className="p-4 border-t">
-          <Button variant="ghost" className="w-full text-sm">
-            View all notifications
-          </Button>
+          <Link
+            onClick={() => setOpen((prev) => !prev)}
+            href={"/notifications"}
+          >
+            <Button variant="ghost" className="w-full text-sm">
+              View all notifications
+            </Button>
+          </Link>
         </div>
       </PopoverContent>
     </Popover>

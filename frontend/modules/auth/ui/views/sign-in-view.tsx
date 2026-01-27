@@ -22,7 +22,7 @@ export const SignInView = () => {
   const { form, error, setError, isLoading, setIsLoading, handleSubmit } = useSignIn();
 
   return (
-    <div className="w-full max-w-md animate-fade-in">
+    <div className="max-w-md animate-fade-in">
       <Card className="overflow-hidden border-border/50 shadow-lg">
         <CardContent className="p-6 md:p-8">
           <div className="flex flex-col items-center text-center mb-6">

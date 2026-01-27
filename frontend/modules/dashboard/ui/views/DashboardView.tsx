@@ -182,10 +182,6 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
               </Badge>
             </div>
           </div>
-          <Button variant="outline" className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Refresh Data
-          </Button>
         </div>
       </section>
 

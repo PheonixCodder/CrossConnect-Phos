@@ -30,8 +30,8 @@ export default function RootLayout({
       <body className={`${outfit.className} antialiased`}>
         <Providers
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark"
+          enableSystem={false}
           disableTransitionOnChange
         >
           {children}

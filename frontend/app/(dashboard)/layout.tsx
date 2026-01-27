@@ -18,7 +18,7 @@ const Layout = async ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <div className="bg-primary-foreground">
+    <div className="min-h-screen">
       <SidebarProvider
         style={
           {
@@ -28,12 +28,16 @@ const Layout = async ({ children }: { children: ReactNode }) => {
         }
       >
         <AppSidebar user={user} variant="inset" />
-        <div className="m-2 w-full">
-          <div className="flex justify-between py-2 my-2 px-4 md:px-12 rounded-xl bg-[#0e0c0c]">
+        <div className="flex flex-col w-full min-h-screen">
+          <div className="flex justify-between py-2 mt-6 mx-3 md:mx-6 px-3 sm:px-6 md:px-12 rounded-xl bg-[#0e0c0c]">
             <GlobalContextSwitcher />
             <SidebarButtons />
           </div>
-          <SidebarInset className="bg-[#0e0c0c]">{children}</SidebarInset>
+          <main className="flex-1 overflow-y-auto p-3 sm:p-6">
+            <SidebarInset className="bg-[#0e0c0c] rounded-xl p-4 sm:p-6">
+              {children}
+            </SidebarInset>
+          </main>
         </div>
       </SidebarProvider>
     </div>
@@ -41,3 +45,45 @@ const Layout = async ({ children }: { children: ReactNode }) => {
 };
 
 export default Layout;
+
+// const Layout = async ({ children }: { children: ReactNode }) => {
+//   const supabase = await createClient();
+//   const {
+//     data: { user },
+//   } = await supabase.auth.getUser();
+
+//   if (!user) redirect("/signin");
+
+//   return (
+//     <div className="min-h-screen bg-primary-foreground">
+//       <SidebarProvider
+//         style={
+//           {
+//             "--sidebar-width": "16rem",
+//             "--header-height": "3rem",
+//           } as React.CSSProperties
+//         }
+//       >
+//         <AppSidebar user={user} variant="inset" />
+
+//         {/* Main column */}
+//         <div className="flex flex-col w-full min-h-screen">
+//           {/* Header */}
+//           <header className="sticky top-0 z-20 bg-[#0e0c0c] border-b border-border px-3 sm:px-6">
+//             <div className="flex items-center justify-between h-12 gap-2">
+//               <GlobalContextSwitcher />
+//               <SidebarButtons />
+//             </div>
+//           </header>
+
+//           {/* Content */}
+//           <main className="flex-1 overflow-y-auto p-3 sm:p-6">
+//             <SidebarInset className="bg-[#0e0c0c] rounded-xl p-4 sm:p-6">
+//               {children}
+//             </SidebarInset>
+//           </main>
+//         </div>
+//       </SidebarProvider>
+//     </div>
+//   );
+// };

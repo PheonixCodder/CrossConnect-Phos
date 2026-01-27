@@ -1,9 +1,7 @@
 import { cn } from "@/lib/utils";
 import {
   TrendingUp,
-  TrendingDown,
   Clock,
-  Store as StoreIcon,
 } from "lucide-react";
 import Image from "next/image";
 import type { PlatformOverview } from "../../hooks/use-platform-overview";
@@ -17,13 +15,7 @@ interface PlatformCardProps {
 
 export function PlatformCard({ data, onClick, loading }: PlatformCardProps) {
   const issuccess = data.activeStores > 0;
-  const status =
-    data.totalStores > 0 ? (issuccess ? "active" : "warning") : "disconnected";
 
-  const trend = data.trend;
-  const isPositive = trend >= 0;
-  const trendColor = isPositive ? "text-green-500" : "text-red-500";
-  const trendBg = isPositive ? "bg-green-500/10" : "bg-red-500/10";
 
   // Formatters
   const formatNumber = (val: number) => new Intl.NumberFormat().format(val);
@@ -95,7 +87,7 @@ export function PlatformCard({ data, onClick, loading }: PlatformCardProps) {
       }}
     >
       {/* Background gradient effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
       <div className="relative z-10 space-y-3">
         <div className="flex items-start justify-between">

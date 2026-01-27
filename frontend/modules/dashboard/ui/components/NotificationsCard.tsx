@@ -78,17 +78,6 @@ export function NotificationItem({
               <span>{timeAgo}</span>
             </div>
           </div>
-
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-6 w-6"
-              onClick={() => onDismiss?.(notification.id)}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
         </div>
       </div>
     </div>

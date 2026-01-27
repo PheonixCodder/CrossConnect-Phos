@@ -124,20 +124,26 @@ export function GlobalContextSwitcher() {
     );
   }, [stores]);
 
+  React.useEffect(() => {
+    if (!activeOrg) {
+      setActiveOrg(organizations[0]);
+    }
+  }, [activeOrg, organizations, setActiveOrg]);
+
   return (
-    <div className="flex items-center gap-1 text-sm font-medium">
+    <div className="flex items-center gap-1 text-sm font-medium min-w-0">
       {/* Organization Selector */}
       <Popover open={isOrgOpen} onOpenChange={setIsOrgOpen}>
         <PopoverTrigger asChild>
           <Button variant="ghost" className="h-9 gap-2 px-2">
             <div className="flex h-5 w-5 items-center justify-center rounded-md border bg-background">
               {loadingOrgs ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Loader2 className="lg:h-3 lg:w-3 h-1 animate-spin" />
               ) : (
                 <Building2 className="h-3 w-3" />
               )}
             </div>
-            <span className="max-w-[120px] truncate">
+            <span className="max-w-[80px] sm:max-w-[140px] truncate">
               {activeOrg?.name || "Select Org"}
             </span>
             <ChevronsUpDown className="h-3 w-3 opacity-50" />

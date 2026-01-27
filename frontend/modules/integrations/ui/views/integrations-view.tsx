@@ -35,6 +35,7 @@ export function IntegrationsView() {
   const { data: stores, isLoading: storesLoading } =
     useIntegrationsData(platform);
 
+  // Show Store List if a platform is selected
   if (platform) {
     return (
       <PageContainer>
@@ -48,9 +49,10 @@ export function IntegrationsView() {
     );
   }
 
+  // Platform overview grid
   return (
     <PageContainer>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {PLATFORMS.map((p) => {
           const data =
             platforms.find((x) => x.platform === p) ?? {

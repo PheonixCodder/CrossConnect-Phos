@@ -28,6 +28,7 @@ import { Bell, SquareMousePointer, TargetIcon } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SearchCommand } from "@/components/layout/SearchCommand";
+import { useSidebar } from "@/components/ui/sidebar";
 
 const data = {
   navMain: [
@@ -107,6 +108,8 @@ export function AppSidebar({
   user,
   ...props
 }: React.ComponentProps<typeof Sidebar> & { user: User }) {
+  const { setOpenMobile: sidebarSetOpen, isMobile } = useSidebar();
+
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = React.useState(false);
@@ -159,35 +162,31 @@ export function AppSidebar({
           <div className="space-y-1">
             {data.navClouds.map((item) => (
               <SidebarMenu key={item.title}>
-                <Link href={`${item.url}?platform=${item.title.toLocaleLowerCase()}`}>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      tooltip={item.title}
-                      className={cn(
-                        platform === item.title.toLocaleLowerCase() && "bg-primary/10 text-primary",
-                        "hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary",
-                      )}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    onClick={() => {
+                      if (isMobile) sidebarSetOpen(false);
+                    }}
+                    className={cn(
+                      platform === item.title.toLowerCase() &&
+                        "bg-primary/10 text-primary",
+                      "hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary",
+                    )}
+                  >
+                    <Link
+                      href={`${item.url}?platform=${item.title.toLowerCase()}`}
                     >
                       {typeof item.icon === "string" ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={item.icon}
-                          width={18}
-                          alt="icon"
-                          onMouseEnter={(e) => {
-                            if (item.hover) e.currentTarget.src = item.hover;
-                          }}
-                          onMouseLeave={(e) => {
-                            if (item.hover) e.currentTarget.src = item.icon;
-                          }}
-                        />
+                        <img src={item.icon} width={18} alt="icon" />
                       ) : (
                         <item.icon className="size-4!" />
                       )}
                       <span className="text-sm">{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </Link>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             ))}
           </div>
@@ -199,20 +198,24 @@ export function AppSidebar({
           <div className="space-y-1">
             {data.monitoring.map((item) => (
               <SidebarMenu key={item.title}>
-                <Link href={item.url}>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      tooltip={item.title}
-                      className={cn(
-                        pathname === item.url && "bg-primary/10 text-primary",
-                        "hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary",
-                      )}
-                    >
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    onClick={() => {
+                      if (isMobile) sidebarSetOpen(false);
+                    }}
+                    className={cn(
+                      pathname === item.url && "bg-primary/10 text-primary",
+                      "hover:bg-primary/5",
+                    )}
+                  >
+                    <Link href={item.url}>
                       <item.icon className="size-4" />
                       <span className="text-sm">{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </Link>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             ))}
           </div>

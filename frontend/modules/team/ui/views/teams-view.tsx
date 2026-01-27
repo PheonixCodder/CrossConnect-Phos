@@ -55,7 +55,6 @@ export function TeamsView() {
   };
 
   return (
-    <PageContainer>
       <div className="flex flex-col gap-6">
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -105,6 +104,5 @@ export function TeamsView() {
           isSubmitting={isSubmitting}
         />
       </div>
-    </PageContainer>
   );
 }

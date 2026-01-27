@@ -32,7 +32,6 @@ const PLATFORMS: Platform[] = [
 
 export function EventsView() {
   // --- URL State Management with nuqs ---
-  // Default value changed to "all"
   const [search, setSearch] = useQueryState("search", {
     defaultValue: "",
     throttleMs: 500,
@@ -42,55 +41,50 @@ export function EventsView() {
     defaultValue: "all",
   });
 
-  // Prepare the filters object to pass to the hook
   const filters: EventFilters = { search, platform };
-
-  // --- Fetch & Filter ---
   const { events, isLoading } = useEventsData(filters);
 
-  // --- Dialog State ---
   const [selectedPayload, setSelectedPayload] = useState<unknown | null>(null);
   const [selectedTitle, setSelectedTitle] = useState<string>("");
 
   const clearFilters = () => {
     setSearch("");
-    setPlatform("all"); // Reset to "all" instead of empty string
+    setPlatform("all");
   };
 
   return (
     <PageContainer>
       <div className="flex flex-col gap-6">
         {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Events</h2>
-            <p className="text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Events</h2>
+            <p className="text-muted-foreground text-sm sm:text-base">
               Real time logs of incoming webhooks and platform events.
             </p>
           </div>
         </div>
 
         {/* Filters Toolbar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-1">
-            <div className="relative w-full sm:max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by ID or entity..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8"
-              />
-            </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full flex-wrap">
+          {/* Search */}
+          <div className="relative w-full sm:w-auto flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by ID or entity..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 w-full"
+            />
           </div>
-          
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+
+          {/* Platform & Clear */}
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
             <Select value={platform} onValueChange={setPlatform}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Platform" />
               </SelectTrigger>
               <SelectContent>
-                {/* Value is now "all" */}
                 <SelectItem value="all">All Platforms</SelectItem>
                 {PLATFORMS.map((p) => (
                   <SelectItem key={p} value={p} className="capitalize">
@@ -99,7 +93,7 @@ export function EventsView() {
                 ))}
               </SelectContent>
             </Select>
-            
+
             {(search || platform !== "all") && (
               <Button variant="outline" size="icon" onClick={clearFilters}>
                 <FilterX className="h-4 w-4" />
