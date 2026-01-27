@@ -1,54 +1,54 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { PlatformServiceFactory } from 'src/connectors/platform-factory.service';
-import { OrdersRepository } from 'src/supabase/repositories/orders.repository';
-import { OrderItemsRepository } from 'src/supabase/repositories/order_items.repository';
-import { FulfillmentsRepository } from 'src/supabase/repositories/fulfillments.repository';
-import { StoresRepository } from 'src/supabase/repositories/stores.repository';
-import { ProductsRepository } from 'src/supabase/repositories/products.repository';
-import { StoreCredentialsService } from 'src/supabase/repositories/store_credentials.repository';
-import { Database } from 'src/supabase/supabase.types';
+import { PlatformServiceFactory } from '../connectors/platform-factory.service';
+import { OrdersRepository } from '../supabase/repositories/orders.repository';
+import { OrderItemsRepository } from '../supabase/repositories/order_items.repository';
+import { FulfillmentsRepository } from '../supabase/repositories/fulfillments.repository';
+import { StoresRepository } from '../supabase/repositories/stores.repository';
+import { ProductsRepository } from '../supabase/repositories/products.repository';
+import { StoreCredentialsService } from '../supabase/repositories/store_credentials.repository';
+import { Database } from '../supabase/supabase.types';
 import {
   Order as AmazonOrder,
   OrderItem as AmazonOrderItem,
 } from '@sp-api-sdk/orders-api-v0';
-import { FaireOrder, mapOrdersToDB } from 'src/connectors/faire/faire.mapper';
+import { FaireOrder, mapOrdersToDB } from '../connectors/faire/faire.mapper';
 import {
   mapFulfillmentToDB,
   mapOrderLinesToDB,
   mapOrderToDB,
   TargetFulfillment,
   TargetOrder,
-} from 'src/connectors/target/target.mapper';
+} from '../connectors/target/target.mapper';
 import {
   mapWalmartFulfillmentsToDB,
   mapWalmartOrderItemsToDB,
   mapWalmartOrderToDB,
-} from 'src/connectors/walmart/walmart.mapper';
+} from '../connectors/walmart/walmart.mapper';
 import {
   mapAmazonOrderItemToDB,
   mapAmazonOrderToDB,
   mapAmazonShipmentToDB,
-} from 'src/connectors/amazon/amazon.mapper';
+} from '../connectors/amazon/amazon.mapper';
 import {
   mapWarehanceOrderItemsToDB,
   mapWarehanceOrdersToDB,
   mapWarehanceShipmentsToDB,
-} from 'src/connectors/warehouse/warehance.mapper';
+} from '../connectors/warehouse/warehance.mapper';
 import {
   mapShopifyFulfillmentsToDB,
   mapShopifyOrderItemsToDB,
   mapShopifyOrderToDB,
   ShopifyFulfillmentOrderNode,
   ShopifyOrderNode,
-} from 'src/connectors/shopify/shopify.mapper';
-import { Order } from 'src/connectors/walmart/walmart.types';
+} from '../connectors/shopify/shopify.mapper';
+import { Order } from '../connectors/walmart/walmart.types';
 import {
   ListOrdersResponse200,
   ListShipmentsResponse200,
-} from '.api/apis/warehance-api';
-import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
+} from '../../.api/apis/warehance-api';
+import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { InjectSupabaseClient } from 'nestjs-supabase-js';
 

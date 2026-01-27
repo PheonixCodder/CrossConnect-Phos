@@ -1,25 +1,25 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { PlatformServiceFactory } from 'src/connectors/platform-factory.service';
-import { OrdersRepository } from 'src/supabase/repositories/orders.repository';
-import { ReturnsRepository } from 'src/supabase/repositories/returns.repository';
-import { StoresRepository } from 'src/supabase/repositories/stores.repository';
-import { Database } from 'src/supabase/supabase.types';
+import { PlatformServiceFactory } from '../connectors/platform-factory.service';
+import { OrdersRepository } from '../supabase/repositories/orders.repository';
+import { ReturnsRepository } from '../supabase/repositories/returns.repository';
+import { StoresRepository } from '../supabase/repositories/stores.repository';
+import { Database } from '../supabase/supabase.types';
 
 // Import all mappers
-import { mapAmazonReturnToDB } from 'src/connectors/amazon/amazon.mapper';
-import { mapShopifyReturnToDB } from 'src/connectors/shopify/shopify.mapper';
+import { mapAmazonReturnToDB } from '../connectors/amazon/amazon.mapper';
+import { mapShopifyReturnToDB } from '../connectors/shopify/shopify.mapper';
 import {
   mapTargetReturnsToDB,
   TargetProductReturn,
-} from 'src/connectors/target/target.mapper';
-import { mapWalmartReturnsToDB } from 'src/connectors/walmart/walmart.mapper';
-import { StoreCredentialsService } from 'src/supabase/repositories/store_credentials.repository';
-import { ReturnOrder } from 'src/connectors/walmart/walmart.types';
-import { AmazonReturnReportItem } from 'src/connectors/amazon/amazon.types';
-import { FetchReturnsQuery } from 'src/connectors/shopify/graphql/generated/admin.generated';
-import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
+} from '../connectors/target/target.mapper';
+import { mapWalmartReturnsToDB } from '../connectors/walmart/walmart.mapper';
+import { StoreCredentialsService } from '../supabase/repositories/store_credentials.repository';
+import { ReturnOrder } from '../connectors/walmart/walmart.types';
+import { AmazonReturnReportItem } from '../connectors/amazon/amazon.types';
+import { FetchReturnsQuery } from '../connectors/shopify/graphql/generated/admin.generated';
+import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 
 @Processor('returns', { concurrency: 5 })
 export class ReturnsProcessor extends WorkerHost {

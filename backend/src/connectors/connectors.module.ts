@@ -8,7 +8,7 @@ import { WalmartModule } from './walmart/walmart.module';
 import { AmazonModule } from './amazon/amazon.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { WarehanceModule } from './warehouse/warehance.module';
-import { JobsModule } from 'src/jobs/jobs.module';
+import { JobsModule } from '../jobs/jobs.module';
 
 @Module({
   imports: [

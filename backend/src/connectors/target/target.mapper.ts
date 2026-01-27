@@ -1,4 +1,4 @@
-import { Database } from 'src/supabase/supabase.types';
+import { Database } from '../../supabase/supabase.types';
 
 // Product
 export interface TargetProductField {

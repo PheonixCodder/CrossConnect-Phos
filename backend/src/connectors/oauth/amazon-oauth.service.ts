@@ -2,7 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { firstValueFrom } from 'rxjs';
-import { Database } from 'src/supabase/supabase.types';
+import { Database } from '../../supabase/supabase.types';
 
 @Injectable()
 export class AmazonOAuthService {

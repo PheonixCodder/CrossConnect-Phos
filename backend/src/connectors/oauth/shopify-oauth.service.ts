@@ -3,7 +3,7 @@ import { createHmac } from 'crypto';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from 'src/supabase/supabase.types';
+import { Database } from '../../supabase/supabase.types';
 
 @Injectable()
 export class ShopifyOAuthService {

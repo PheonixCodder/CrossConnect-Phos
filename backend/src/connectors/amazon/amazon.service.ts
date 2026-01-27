@@ -13,7 +13,7 @@ import {
   AmazonMerchantListingRow,
   AmazonReturnReportItem,
 } from './amazon.types';
-import { Database } from 'src/supabase/supabase.types';
+import { Database } from '../../supabase/supabase.types';
 import { SellingPartnerRegion } from '@sp-api-sdk/common';
 
 @Injectable()

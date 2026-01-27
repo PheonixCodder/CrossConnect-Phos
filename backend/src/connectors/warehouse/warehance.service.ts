@@ -8,7 +8,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
+import { AlertsRepository } from '../../supabase/repositories/alerts.repository';
 
 @Injectable()
 export class WarehanceService {

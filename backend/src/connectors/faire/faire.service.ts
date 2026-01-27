@@ -6,7 +6,7 @@ import {
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { GetInventory, getOrders, getProducts } from './faire.types';
-import { Database } from 'src/supabase/supabase.types';
+import { Database } from '../../supabase/supabase.types';
 import { generateInventoryUrl } from './faire.mapper';
 
 @Injectable()

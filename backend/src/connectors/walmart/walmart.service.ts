@@ -17,7 +17,7 @@ import {
   GetAllItemsResponse,
   GetAllOrdersResponse,
 } from './walmart.types';
-import { Database } from 'src/supabase/supabase.types';
+import { Database } from '../../supabase/supabase.types';
 import * as crypto from 'crypto';
 
 @Injectable()

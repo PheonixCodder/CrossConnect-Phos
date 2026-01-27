@@ -1,56 +1,56 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { PlatformServiceFactory } from 'src/connectors/platform-factory.service';
-import { InventoryRepository } from 'src/supabase/repositories/inventory.repository';
-import { ProductsRepository } from 'src/supabase/repositories/products.repository';
-import { StoresRepository } from 'src/supabase/repositories/stores.repository';
-import { Database } from 'src/supabase/supabase.types';
+import { PlatformServiceFactory } from '../connectors/platform-factory.service';
+import { InventoryRepository } from '../supabase/repositories/inventory.repository';
+import { ProductsRepository } from '../supabase/repositories/products.repository';
+import { StoresRepository } from '../supabase/repositories/stores.repository';
+import { Database } from '../supabase/supabase.types';
 
 // Import all mappers
 import {
   FaireProduct,
   mapInventoryToDB,
   mapProductsToDB,
-} from 'src/connectors/faire/faire.mapper';
-import { GetInventory } from 'src/connectors/faire/faire.types';
+} from '../connectors/faire/faire.mapper';
+import { GetInventory } from '../connectors/faire/faire.types';
 import {
   mapShopifyInventoryToDB,
   mapShopifyProductToDB,
   ShopifyInventoryItemNode,
   ShopifyProductNode,
   shouldUpdateShopifyInventory,
-} from 'src/connectors/shopify/shopify.mapper';
+} from '../connectors/shopify/shopify.mapper';
 import {
   mapTargetInventoryToSupabaseInventory,
   mapTargetProductToSupabaseProduct,
   TargetProduct,
-} from 'src/connectors/target/target.mapper';
+} from '../connectors/target/target.mapper';
 import {
   fetchInventoryAdaptive,
   mapWalmartInventoryToDB,
   mapWalmartProductToDB,
   shouldUpdateInventory,
-} from 'src/connectors/walmart/walmart.mapper';
+} from '../connectors/walmart/walmart.mapper';
 import {
   mapPlatformInventoryToDB,
   mapWarehanceProductsToDB,
   shouldUpdateWarehouseInventory,
-} from 'src/connectors/warehouse/warehance.mapper';
+} from '../connectors/warehouse/warehance.mapper';
 import {
   mapAmazonInventoryFromFbaSummary,
   mapAmazonProductToSupabaseProduct,
   shouldUpdateAmazonInventory,
-} from 'src/connectors/amazon/amazon.mapper';
-import { StoreCredentialsService } from 'src/supabase/repositories/store_credentials.repository';
+} from '../connectors/amazon/amazon.mapper';
+import { StoreCredentialsService } from '../supabase/repositories/store_credentials.repository';
 import {
   GetInventoryResponse,
   WalmartItem,
-} from 'src/connectors/walmart/walmart.types';
-import { AmazonMerchantListingRow } from 'src/connectors/amazon/amazon.types';
+} from '../connectors/walmart/walmart.types';
+import { AmazonMerchantListingRow } from '../connectors/amazon/amazon.types';
 import { InventorySummary } from '@sp-api-sdk/fba-inventory-api-v1';
-import { ListProductsResponse200 } from '.api/apis/warehance-api';
-import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
+import { ListProductsResponse200 } from '../../.api/apis/warehance-api';
+import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 @Processor('products', { concurrency: 5 })

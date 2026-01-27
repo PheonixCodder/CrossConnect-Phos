@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { WarehanceService } from './warehance.service';
-import { AlertsRepository } from 'src/supabase/repositories/alerts.repository';
+import { AlertsRepository } from '../../supabase/repositories/alerts.repository';
 import { SupabaseModule } from 'nestjs-supabase-js';
 
 @Module({
