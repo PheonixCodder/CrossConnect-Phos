@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
-import { StoresRepository } from 'src/supabase/repositories/stores.repository';
-import { WalmartWebhookBody } from 'src/api/webhooks/connectors/walmart/walmart.types';
+import { StoresRepository } from '../../../../supabase/repositories/stores.repository';
+import { WalmartWebhookBody } from '../../../../api/webhooks/connectors/walmart/walmart.types';
 
 @Injectable()
 export class WalmartWebhooksService {

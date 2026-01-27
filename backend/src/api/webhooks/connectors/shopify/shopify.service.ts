@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { StoresRepository } from 'src/supabase/repositories/stores.repository';
+import { StoresRepository } from '../../../../supabase/repositories/stores.repository';
 import axios from 'axios';
 
 @Injectable()

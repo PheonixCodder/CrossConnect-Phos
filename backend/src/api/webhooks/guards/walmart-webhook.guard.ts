@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { StoresRepository } from 'src/supabase/repositories/stores.repository';
+import { StoresRepository } from '../../../supabase/repositories/stores.repository';
 
 @Injectable()
 export class WalmartWebhookGuard implements CanActivate {

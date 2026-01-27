@@ -135,7 +135,7 @@ export class OrdersProcessor extends WorkerHost {
           await this.processShopifyOrders(service, store);
           break;
         case 'warehance':
-          await this.processWarehanceOrders(service, store, since);
+          await this.processWarehanceOrders(service, store);
           break;
         default:
           throw new Error(`Unsupported platform: ${platform}`);
@@ -513,28 +513,30 @@ export class OrdersProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      // 1️⃣ Fetch all products for this store -> external_product_id -> product.id
-      const products = await this.productsRepo.getAllProductsByStore(store.id);
-      const productMap: Record<string, string> = {};
-      products.forEach((p) => {
-        if (p.external_product_id) productMap[p.external_product_id] = p.id!;
-      });
+      // Get since parameter for incremental sync
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
 
-      // 2️⃣ Fetch orders from Amazon
-      const orders: AmazonOrder[] = await service.getOrders(store);
-      if (!orders?.length) {
-        this.logger.warn('No orders fetched from Amazon');
+      // 1️⃣ Products → productId map
+      const products = await this.productsRepo.getAllProductsByStore(store.id);
+      const productMap = new Map(
+        products.map((p) => [p.external_product_id, p.id]),
+      );
+
+      // 2️⃣ Orders with incremental sync
+      const orders: AmazonOrder[] = await service.getOrders(store, since);
+      if (!orders.length) {
+        this.logger.log('No new Amazon orders to sync');
         return;
       }
 
-      // 3️⃣ Map orders -> DB insert objects
-      const orderInserts = orders.map((o) =>
+      // 3️⃣ Orders → DB
+      const dbOrders = orders.map((o) =>
         mapAmazonOrderToDB(o, store.id, store.platform),
       );
-
-      // 4️⃣ Insert orders & capture internal IDs
       const { data: insertedOrders } =
-        await this.ordersRepo.insertOrdersAndReturn(orderInserts);
+        await this.ordersRepo.insertOrdersAndReturn(dbOrders);
 
       if (!insertedOrders || !insertedOrders.length) {
         throw new Error('Failed to insert Amazon orders or no rows returned');
@@ -544,53 +546,49 @@ export class OrdersProcessor extends WorkerHost {
         insertedOrders.map((o) => [o.external_order_id, o.id]),
       );
 
-      // 5️⃣ Fetch order items per order & map to DB
-      const orderItemsInserts: Database['public']['Tables']['order_items']['Insert'][] =
+      const orderItems: Database['public']['Tables']['order_items']['Insert'][] =
         [];
-      const shipmentsInserts: Database['public']['Tables']['fulfillments']['Insert'][] =
+      const fulfillments: Database['public']['Tables']['fulfillments']['Insert'][] =
         [];
 
+      // 4️⃣ Items + Fulfillments
       for (const order of orders) {
         const orderId = orderIdByExternal.get(order.AmazonOrderId);
         if (!orderId) continue;
 
-        // Fetch items from Amazon service
+        // Fetch order items
         const items: AmazonOrderItem[] = await service.getOrderItems(
           order.AmazonOrderId,
         );
 
         for (const item of items) {
           const productId =
-            productMap[item.ASIN] ??
-            productMap[item.SellerSKU ?? ''] ??
+            productMap.get(item.ASIN) ||
+            productMap.get(item.SellerSKU!) ||
             undefined;
 
-          // Map order items
-          orderItemsInserts.push(
-            mapAmazonOrderItemToDB(item, orderId, productId),
-          );
+          orderItems.push(mapAmazonOrderItemToDB(item, orderId, productId));
 
-          // Map shipments (fulfillments)
-          if (order.FulfillmentChannel) {
-            shipmentsInserts.push(
-              mapAmazonShipmentToDB(order, item, store.id, orderId, productId),
-            );
-          }
+          const fulfillment = mapAmazonShipmentToDB(
+            order,
+            item,
+            store.id,
+            orderId,
+            productId,
+          );
+          if (fulfillment) fulfillments.push(fulfillment);
         }
       }
 
-      // 6️⃣ Insert order items
-      if (orderItemsInserts.length) {
-        await this.orderItemsRepo.bulkUpsertOrderItems(orderItemsInserts);
-      }
+      // 5️⃣ Persist children
+      if (orderItems.length)
+        await this.orderItemsRepo.bulkUpsertOrderItems(orderItems);
 
-      // 7️⃣ Insert shipments
-      if (shipmentsInserts.length) {
-        await this.shipmentRepo.insertShipments(shipmentsInserts);
-      }
+      if (fulfillments.length)
+        await this.shipmentRepo.insertShipments(fulfillments);
 
       this.logger.log(
-        `Amazon sync complete: ${orders.length} orders, ${orderItemsInserts.length} items, ${shipmentsInserts.length} shipments`,
+        `Amazon orders synced: ${insertedOrders.length} orders, ${orderItems.length} items, ${fulfillments.length} fulfillments`,
       );
     } catch (error) {
       this.logger.error(
@@ -619,9 +617,12 @@ export class OrdersProcessor extends WorkerHost {
   private async processWarehanceOrders(
     service: any,
     store: Database['public']['Tables']['stores']['Row'],
-    since?: string,
   ) {
     const syncStart = new Date();
+    const since = store.last_synced_at
+      ? new Date(store.last_synced_at).toISOString()
+      : undefined;
+
     try {
       this.logger.log(
         `Starting Warehance orders sync for store ${store.id} (incremental: ${!!since})`,

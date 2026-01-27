@@ -1,7 +1,7 @@
 import { Controller, Post, Body } from '@nestjs/common';
-import { StoresRepository } from 'src/supabase/repositories/stores.repository';
+import { StoresRepository } from '../supabase/repositories/stores.repository';
 import { UpdateStoreCredentialsDto } from './dto/updateStoreStatus.dto';
-import { CryptoService } from 'src/common/crypto.service';
+import { CryptoService } from '../common/crypto.service';
 
 @Controller('users')
 export class UserController {

@@ -73,10 +73,12 @@ export class ProductsProcessor extends WorkerHost {
     const {
       storeId,
       platform,
+      since,
     }: {
       storeId: string;
       platform: Database['public']['Enums']['platform_types'];
       orgId: string;
+      since: string;
     } = job.data;
 
     if (!storeId) {
@@ -125,7 +127,7 @@ export class ProductsProcessor extends WorkerHost {
           await this.processAmazonProducts(service, store);
           break;
         case 'warehance':
-          await this.processWarehanceProducts(service, store);
+          await this.processWarehanceProducts(service, store, since);
           break;
         case 'shopify':
           await this.processShopifyProducts(service, store);

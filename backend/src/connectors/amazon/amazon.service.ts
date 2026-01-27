@@ -25,7 +25,7 @@ export class AmazonService {
   private clientId: string;
   private clientSecret: string;
   private refreshToken: string;
-  private region = 'eu';
+  private region = 'us-east-1';
 
   constructor() {}
 

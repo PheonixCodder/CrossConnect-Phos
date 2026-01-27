@@ -19,6 +19,10 @@
     "noFallthroughCasesInSwitch": false,
     "moduleResolution": "node",
     "resolveJsonModule": true,
+    "paths": {
+      "src/*": ["src/*"]
+    }
+
   },
   "exclude": ["node_modules", "dist", ".api", ".api/**"]
 }
