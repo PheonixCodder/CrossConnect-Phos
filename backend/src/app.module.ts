@@ -21,6 +21,11 @@ import { CommonModule } from './common/common.module';
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379'),
         password: process.env.REDIS_PASSWORD,
+        tls: {},
+        // 2. REQUIRED FOR BULLMQ
+        maxRetriesPerRequest: null,
+        // 3. HELPS PREVENT TIMEOUTS
+        connectTimeout: 10000,
       },
       defaultJobOptions: {
         removeOnComplete: true,
