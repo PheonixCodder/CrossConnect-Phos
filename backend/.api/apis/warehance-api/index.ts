@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { join } from 'path';
 
 // Construct the path to your .api folder
-const jsonPath = join(process.cwd(), '.api/apis/warehance-api/openapi.json');
+const jsonPath = join('.api/apis/warehance-api/openapi.json');
 const definition = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 
 class SDK {

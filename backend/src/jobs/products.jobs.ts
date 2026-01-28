@@ -49,7 +49,7 @@ import {
 } from '../connectors/walmart/walmart.types';
 import { AmazonMerchantListingRow } from '../connectors/amazon/amazon.types';
 import { InventorySummary } from '@sp-api-sdk/fba-inventory-api-v1';
-import { ListProductsResponse200 } from '../.api/apis/warehance-api';
+import { ListProductsResponse200 } from '../../.api/apis/warehance-api';
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 import { SupabaseClient } from '@supabase/supabase-js';
 

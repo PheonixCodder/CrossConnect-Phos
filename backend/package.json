@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build && cp -R src/.api/apis/warehance-api/openapi.json dist/.api/apis/warehance-api",
+    "build": "nest build && cp -R .api/apis/warehance-api/openapi.json dist/.api/apis/warehance-api",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
