@@ -2,7 +2,7 @@ import warehanceApi, {
   ListProductsResponse200,
   ListOrdersResponse200,
   ListShipmentsResponse200,
-} from '@api/warehance-api';
+} from '../../.api/apis/warehance-api';
 import {
   Injectable,
   InternalServerErrorException,

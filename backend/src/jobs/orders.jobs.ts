@@ -47,7 +47,7 @@ import { Order } from '../connectors/walmart/walmart.types';
 import {
   ListOrdersResponse200,
   ListShipmentsResponse200,
-} from '../../.api/apis/warehance-api';
+} from '../.api/apis/warehance-api';
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { InjectSupabaseClient } from 'nestjs-supabase-js';

@@ -1,7 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "assets": [{ "include": ".api/apis/**/*", "outDir": "./dist/.api/apis" }],
+    "assets": [
+      {
+        "include": "src/.api/apis/**/*.json",
+        "outDir": ".api/apis"
+      }
+    ],
   "compilerOptions": {
     "deleteOutDir": true
   }

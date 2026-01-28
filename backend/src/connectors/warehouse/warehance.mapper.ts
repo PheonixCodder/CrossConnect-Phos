@@ -2,7 +2,7 @@ import {
   ListOrdersResponse200,
   ListShipmentsResponse200,
   ListProductsResponse200,
-} from '@api/warehance-api';
+} from '../../.api/apis/warehance-api';
 import { Database } from '../../supabase/supabase.types';
 import { Order } from './warehance.types';
 
