@@ -4,10 +4,7 @@ import Oas from 'oas';
 import APICore from 'api/dist/core/index.js';
 import * as fs from 'fs';
 import { join } from 'path';
-
-// Construct the path to your .api folder
-const jsonPath = join('.api/apis/warehance-api/openapi.json');
-const definition = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+import definition from './openapi';
 
 class SDK {
   spec: Oas;
