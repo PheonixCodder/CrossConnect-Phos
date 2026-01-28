@@ -264,6 +264,10 @@ export class OrdersProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       // 1️⃣ Fetch all products for this store -> build productMap: external_product_id -> product.id
       const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productMap: Record<string, string> = {};
@@ -272,7 +276,7 @@ export class OrdersProcessor extends WorkerHost {
       });
 
       // 2️⃣ Fetch orders from Target
-      const orders: TargetOrder[] = await service.getAllOrders();
+      const orders: TargetOrder[] = await service.getAllOrders(since);
       if (!orders?.length) {
         this.logger.warn('No orders fetched from Target');
         return;
@@ -425,6 +429,7 @@ export class OrdersProcessor extends WorkerHost {
       const since = store.last_synced_at
         ? new Date(store.last_synced_at).toISOString()
         : undefined;
+
       // 1️⃣ Products → productId map
       const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productMap = new Map(
@@ -637,7 +642,7 @@ export class OrdersProcessor extends WorkerHost {
 
       // Fetch Orders (incremental)
       const ordersResponse: ListOrdersResponse200['data'] =
-        await service.getOrders(since);
+        await service.getOrders(store, since);
       const orders = ordersResponse?.orders ?? [];
 
       if (!orders.length) {
@@ -750,6 +755,10 @@ export class OrdersProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       // 1. Reference Data for Mapping
       const products = await this.productsRepo.getAllProductsByStore(store.id);
       const productIdByExternalId = new Map(
@@ -758,7 +767,8 @@ export class OrdersProcessor extends WorkerHost {
       const productIdBySku = new Map(products.map((p) => [p.sku, p.id]));
 
       // 2. Fetch & Insert Orders
-      const shopifyOrders: ShopifyOrderNode[] = await service.fetchOrders();
+      const shopifyOrders: ShopifyOrderNode[] =
+        await service.fetchOrders(since);
       if (!shopifyOrders.length) return;
 
       const orderInserts = shopifyOrders.map((o) =>

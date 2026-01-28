@@ -129,9 +129,13 @@ export class ReturnsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       // 1️⃣ Fetch ALL Target Returns
       const targetReturns: TargetProductReturn[] =
-        await service.getAllProductReturns();
+        await service.getAllProductReturns(since);
       if (!targetReturns.length) {
         this.logger.warn('No returns returned from Target');
         return;
@@ -318,9 +322,15 @@ export class ReturnsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       // 1️⃣ Fetch ALL Amazon Returns
-      const reportReturns: AmazonReturnReportItem[] =
-        await service.getReturns(store);
+      const reportReturns: AmazonReturnReportItem[] = await service.getReturns(
+        store,
+        since,
+      );
       if (!reportReturns.length) return;
 
       // 2️⃣ Resolve orders
@@ -381,9 +391,13 @@ export class ReturnsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       // 1️⃣ Fetch the logistical return data
       const ordersWithReturns: FetchReturnsQuery['orders']['edges'] =
-        await service.fetchReturns();
+        await service.fetchReturns(since);
       if (!ordersWithReturns.length) return;
 
       // 2️⃣ Resolve internal order_id (FK)

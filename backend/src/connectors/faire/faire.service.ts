@@ -13,16 +13,19 @@ import { generateInventoryUrl } from './faire.mapper';
 export class FaireService {
   private readonly logger = new Logger(FaireService.name);
 
-  // Configuration properties to be set by PlatformServiceFactory
   private baseUrl: string;
   private accessToken: string;
   private timeout: number;
 
+  /** Retry policy */
+  private readonly maxRetries = 5;
+  private readonly baseDelayMs = 500;
+
   constructor(private readonly http: HttpService) {}
 
-  /**
-   * Initialize service with credentials from PlatformServiceFactory
-   */
+  // -----------------------------
+  // INITIALIZATION
+  // -----------------------------
   initialize(credentials: any): void {
     this.baseUrl = credentials.baseUrl || 'https://www.faire.com/api/v2';
     this.accessToken = credentials.access_token;
@@ -43,15 +46,21 @@ export class FaireService {
     };
   }
 
+  // -----------------------------
+  // RETRY + BACKOFF CORE
+  // -----------------------------
+  private async sleep(ms: number) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
   private async request<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
-    data?: unknown,
+    params?: Record<string, unknown>,
+    attempt = 0,
   ): Promise<T> {
     if (!this.baseUrl) {
-      throw new Error(
-        'Faire service not initialized. Call initialize() first.',
-      );
+      throw new Error('Faire service not initialized');
     }
 
     try {
@@ -59,28 +68,75 @@ export class FaireService {
         method,
         url: `${this.baseUrl}${path}`,
         headers: this.headers,
-        data,
+        params,
         timeout: this.timeout,
       });
 
-      const { data: responseData } = await firstValueFrom(response$);
-      return responseData;
-    } catch (error) {
-      this.logger.error(
-        `Faire API error on ${method} ${path}`,
-        error?.response?.data || error.message,
+      const { data } = await firstValueFrom(response$);
+      return data;
+    } catch (error: any) {
+      const status = error?.response?.status;
+
+      const shouldRetry =
+        attempt < this.maxRetries &&
+        (!status || status === 429 || status >= 500);
+
+      if (!shouldRetry) {
+        this.logger.error(
+          `Faire API error ${method} ${path}`,
+          error?.response?.data || error.message,
+        );
+        throw new InternalServerErrorException(
+          'Failed to communicate with Faire API',
+        );
+      }
+
+      const delay =
+        this.baseDelayMs * 2 ** attempt + Math.floor(Math.random() * 250);
+
+      this.logger.warn(
+        `Retrying Faire API ${method} ${path} (attempt ${
+          attempt + 1
+        }) in ${delay}ms`,
       );
-      throw new InternalServerErrorException(
-        'Failed to communicate with Faire API',
-      );
+
+      await this.sleep(delay);
+      return this.request<T>(method, path, params, attempt + 1);
     }
   }
 
   // -------------------------
-  // ORDERS
+  // ORDERS (FULL + DELTA)
   // -------------------------
-  async getOrders(): Promise<getOrders> {
-    return this.request<getOrders>('GET', '/orders');
+  async getAllOrders(since?: string): Promise<getOrders['orders']> {
+    const allOrders: getOrders['orders'] = [];
+    let page = 1;
+    const limit = 250;
+
+    while (true) {
+      const query = new URLSearchParams({
+        limit: String(limit),
+        page: String(page),
+      });
+
+      if (since) {
+        query.append('updated_at_min', since);
+      }
+
+      const response = await this.request<getOrders>(
+        'GET',
+        `/orders?${query.toString()}`,
+      );
+
+      if (!response?.orders?.length) break;
+
+      allOrders.push(...response.orders);
+
+      if (response.orders.length < limit) break;
+      page++;
+    }
+
+    return allOrders;
   }
 
   async getOrderById(orderId: string): Promise<any> {
@@ -88,18 +144,49 @@ export class FaireService {
   }
 
   // -------------------------
-  // PRODUCTS
+  // PRODUCTS (FULL + DELTA)
   // -------------------------
-  async getProducts(): Promise<getProducts> {
-    return this.request<getProducts>('GET', '/products?limit=250');
+  async getAllProducts(since?: string): Promise<getProducts['products']> {
+    const allProducts: getProducts['products'] = [];
+    let page = 1;
+    const limit = 250;
+
+    while (true) {
+      const query = new URLSearchParams({
+        limit: String(limit),
+        page: String(page),
+      });
+
+      if (since) {
+        query.append('updated_at_min', since);
+      }
+
+      const response = await this.request<getProducts>(
+        'GET',
+        `/products?${query.toString()}`,
+      );
+
+      if (!response?.products?.length) break;
+
+      allProducts.push(...response.products);
+
+      if (response.products.length < limit) break;
+      page++;
+    }
+
+    return allProducts;
   }
 
   // -------------------------
-  // INVENTORY
+  // INVENTORY (BULK SAFE)
   // -------------------------
   async getInventory(
     products: Database['public']['Tables']['products']['Insert'][],
-  ) {
+  ): Promise<GetInventory> {
+    if (!products?.length) {
+      return {};
+    }
+
     const url = generateInventoryUrl(products);
     return this.request<GetInventory>('POST', url);
   }

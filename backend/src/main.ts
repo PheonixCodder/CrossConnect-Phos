@@ -28,7 +28,9 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
 
   // Global prefix for API routes
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['/'],
+  });
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

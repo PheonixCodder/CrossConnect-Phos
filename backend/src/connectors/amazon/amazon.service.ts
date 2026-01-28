@@ -21,17 +21,13 @@ export class AmazonService {
   private readonly logger = new Logger(AmazonService.name);
   private auth: SellingPartnerApiAuth;
 
-  // Configuration properties to be set by PlatformServiceFactory
   private clientId: string;
   private clientSecret: string;
   private refreshToken: string;
   private region = 'us-east-1';
 
-  constructor() {}
+  /* -------------------- INIT -------------------- */
 
-  /**
-   * Initialize service with credentials from PlatformServiceFactory
-   */
   initialize(credentials: any): void {
     this.clientId = credentials.lwa_client_id;
     this.clientSecret = credentials.lwa_client_secret;
@@ -48,36 +44,79 @@ export class AmazonService {
     });
   }
 
-  // ------------------------------------------------------------------
-  // PRODUCTS (Listings Report)
-  // ------------------------------------------------------------------
+  /* -------------------- RETRY + BACKOFF -------------------- */
+
+  private async withRetry<T>(
+    fn: () => Promise<T>,
+    context: string,
+    maxRetries = 5,
+    baseDelayMs = 1000,
+  ): Promise<T> {
+    let attempt = 0;
+
+    while (true) {
+      try {
+        return await fn();
+      } catch (err: any) {
+        attempt++;
+
+        const status =
+          err?.response?.statusCode ?? err?.response?.status ?? err?.statusCode;
+
+        const retryable = status === 429 || (status >= 500 && status < 600);
+
+        if (!retryable || attempt > maxRetries) {
+          this.logger.error(
+            `Amazon API failed [${context}] after ${attempt} attempts`,
+            err?.stack ?? err,
+          );
+          throw err;
+        }
+
+        const backoff =
+          baseDelayMs * Math.pow(2, attempt - 1) +
+          Math.floor(Math.random() * 300);
+
+        this.logger.warn(
+          `Amazon API retry ${attempt}/${maxRetries} [${context}] in ${backoff}ms`,
+        );
+
+        await this.sleep(backoff);
+      }
+    }
+  }
+
+  /* -------------------- PRODUCTS (SNAPSHOT) -------------------- */
+
   async getAllProducts(
     store: Database['public']['Tables']['stores']['Row'],
   ): Promise<AmazonMerchantListingRow[]> {
-    if (!this.auth) {
-      throw new Error(
-        'Amazon service not initialized. Call initialize() first.',
-      );
-    }
-
     const client = new ReportsApiClient({
       auth: this.auth,
       region: this.region as SellingPartnerRegion,
     });
 
-    const { data } = await client.createReport({
-      body: {
-        reportType: 'GET_MERCHANT_LISTINGS_ALL_DATA',
-        marketplaceIds: [store.marketplaceId!],
-      },
-    });
+    const { data } = await this.withRetry(
+      () =>
+        client.createReport({
+          body: {
+            reportType: 'GET_MERCHANT_LISTINGS_ALL_DATA',
+            marketplaceIds: [store.marketplaceId!],
+          },
+        }),
+      'createListingsReport',
+    );
 
     const reportId = data.reportId;
     let report;
 
     for (let i = 0; i < 15; i++) {
       await this.sleep(30_000);
-      report = await client.getReport({ reportId });
+
+      report = await this.withRetry(
+        () => client.getReport({ reportId }),
+        'getListingsReportStatus',
+      );
 
       if (report.data.processingStatus === 'DONE') break;
       if (report.data.processingStatus === 'CANCELLED') {
@@ -89,11 +128,15 @@ export class AmazonService {
       throw new Error('Listings report timeout');
     }
 
-    const doc = await client.getReportDocument({
-      reportDocumentId: report.data.reportDocumentId!,
-    });
+    const doc = await this.withRetry(
+      () =>
+        client.getReportDocument({
+          reportDocumentId: report.data.reportDocumentId!,
+        }),
+      'getListingsReportDocument',
+    );
 
-    const raw = await axios.get(doc.data.url, {
+    const raw = await axios.get(doc.data.url as string, {
       responseType: 'arraybuffer',
     });
 
@@ -106,18 +149,12 @@ export class AmazonService {
     return this.parseTSV(buffer.toString('utf8'));
   }
 
-  // ------------------------------------------------------------------
-  // INVENTORY (FBA)
-  // ------------------------------------------------------------------
+  /* -------------------- INVENTORY (DELTA) -------------------- */
+
   async getInventorySummaries(
     store: Database['public']['Tables']['stores']['Row'],
+    since?: string,
   ): Promise<InventorySummary[]> {
-    if (!this.auth) {
-      throw new Error(
-        'Amazon service not initialized. Call initialize() first.',
-      );
-    }
-
     const client = new FbaInventoryApiClient({
       auth: this.auth,
       region: this.region as SellingPartnerRegion,
@@ -127,33 +164,34 @@ export class AmazonService {
     let nextToken: string | undefined;
 
     do {
-      const { data } = await client.getInventorySummaries({
-        marketplaceIds: [store.marketplaceId!],
-        granularityType: 'Marketplace',
-        granularityId: store.marketplaceId!,
-        nextToken,
-      });
+      const { data } = await this.withRetry(
+        () =>
+          client.getInventorySummaries({
+            marketplaceIds: [store.marketplaceId!],
+            granularityType: 'Marketplace',
+            granularityId: store.marketplaceId!,
+            startDateTime: since,
+            nextToken,
+          }),
+        'getInventorySummaries',
+      );
 
-      results.push(...(data.payload!.inventorySummaries ?? []));
+      results.push(
+        ...((data.payload.inventorySummaries as InventorySummary[]) ?? []),
+      );
+
       nextToken = data.pagination?.nextToken;
     } while (nextToken);
 
     return results;
   }
 
-  // ------------------------------------------------------------------
-  // ORDERS
-  // ------------------------------------------------------------------
+  /* -------------------- ORDERS (DELTA) -------------------- */
+
   async getOrders(
     store: Database['public']['Tables']['stores']['Row'],
-    createdAfter?: string,
+    since?: string,
   ): Promise<Order[]> {
-    if (!this.auth) {
-      throw new Error(
-        'Amazon service not initialized. Call initialize() first.',
-      );
-    }
-
     const client = new OrdersApiClient({
       auth: this.auth,
       region: this.region as SellingPartnerRegion,
@@ -163,13 +201,17 @@ export class AmazonService {
     let nextToken: string | undefined;
 
     do {
-      const { data } = await client.getOrders({
-        marketplaceIds: [store.marketplaceId!],
-        createdAfter,
-        nextToken,
-      });
+      const { data } = await this.withRetry(
+        () =>
+          client.getOrders({
+            marketplaceIds: [store.marketplaceId!],
+            lastUpdatedAfter: since,
+            nextToken,
+          }),
+        'getOrders',
+      );
 
-      orders.push(...(data.payload?.Orders ?? []));
+      orders.push(...((data.payload?.Orders as Order[]) ?? []));
       nextToken = data.payload?.NextToken;
     } while (nextToken);
 
@@ -177,12 +219,6 @@ export class AmazonService {
   }
 
   async getOrderItems(orderId: string): Promise<OrderItem[]> {
-    if (!this.auth) {
-      throw new Error(
-        'Amazon service not initialized. Call initialize() first.',
-      );
-    }
-
     const client = new OrdersApiClient({
       auth: this.auth,
       region: this.region as SellingPartnerRegion,
@@ -192,48 +228,50 @@ export class AmazonService {
     let nextToken: string | undefined;
 
     do {
-      const { data } = await client.getOrderItems({
-        orderId,
-        nextToken,
-      });
+      const { data } = await this.withRetry(
+        () => client.getOrderItems({ orderId, nextToken }),
+        'getOrderItems',
+      );
 
-      items.push(...(data.payload?.OrderItems ?? []));
+      items.push(...((data.payload.OrderItems as OrderItem[]) ?? []));
       nextToken = data.payload?.NextToken;
     } while (nextToken);
 
     return items;
   }
 
-  // ------------------------------------------------------------------
-  // RETURNS
-  // ------------------------------------------------------------------
+  /* -------------------- RETURNS (SNAPSHOT + FILTER) -------------------- */
+
   async getReturns(
     store: Database['public']['Tables']['stores']['Row'],
+    since?: string,
   ): Promise<AmazonReturnReportItem[]> {
-    if (!this.auth) {
-      throw new Error(
-        'Amazon service not initialized. Call initialize() first.',
-      );
-    }
-
     const client = new ReportsApiClient({
       auth: this.auth,
       region: this.region as SellingPartnerRegion,
     });
 
-    const { data } = await client.createReport({
-      body: {
-        reportType: 'GET_XML_RETURNS_DATA_BY_RETURN_DATE',
-        marketplaceIds: [store.marketplaceId!],
-      },
-    });
+    const { data } = await this.withRetry(
+      () =>
+        client.createReport({
+          body: {
+            reportType: 'GET_XML_RETURNS_DATA_BY_RETURN_DATE',
+            marketplaceIds: [store.marketplaceId!],
+          },
+        }),
+      'createReturnsReport',
+    );
 
     const reportId = data.reportId;
     let report;
 
     for (let i = 0; i < 15; i++) {
       await this.sleep(30_000);
-      report = await client.getReport({ reportId });
+
+      report = await this.withRetry(
+        () => client.getReport({ reportId }),
+        'getReturnsReportStatus',
+      );
 
       if (report.data.processingStatus === 'DONE') break;
       if (report.data.processingStatus === 'CANCELLED') {
@@ -245,11 +283,15 @@ export class AmazonService {
       throw new Error('Returns report timeout');
     }
 
-    const doc = await client.getReportDocument({
-      reportDocumentId: report.data.reportDocumentId!,
-    });
+    const doc = await this.withRetry(
+      () =>
+        client.getReportDocument({
+          reportDocumentId: report.data.reportDocumentId!,
+        }),
+      'getReturnsReportDocument',
+    );
 
-    const raw = await axios.get(doc.data.url, {
+    const raw = await axios.get(doc.data.url as string, {
       responseType: 'arraybuffer',
     });
 
@@ -258,12 +300,17 @@ export class AmazonService {
       buffer = zlib.gunzipSync(buffer);
     }
 
-    return this.parseReturnsXml(buffer.toString('utf8'));
+    const parsed = await this.parseReturnsXml(buffer.toString('utf8'));
+
+    if (!since) return parsed;
+
+    return parsed.filter(
+      (r) => new Date(r.return_request_date) > new Date(since),
+    );
   }
 
-  // ------------------------------------------------------------------
-  // HELPERS
-  // ------------------------------------------------------------------
+  /* -------------------- HELPERS -------------------- */
+
   private parseTSV(data: string) {
     const lines = data.trim().split(/\r?\n/);
     const headers = lines.shift()!.split('\t');
@@ -271,16 +318,14 @@ export class AmazonService {
     return lines.map((line) => {
       const values = line.split('\t');
       const row: any = {};
-
-      headers.forEach((h, i) => {
-        row[h] = values[i] ?? null;
-      });
-
+      headers.forEach((h, i) => (row[h] = values[i] ?? null));
       return row;
     });
   }
 
-  async parseReturnsXml(xml: string): Promise<AmazonReturnReportItem[]> {
+  private async parseReturnsXml(
+    xml: string,
+  ): Promise<AmazonReturnReportItem[]> {
     const parsed = await parseStringPromise(xml, {
       explicitArray: false,
       ignoreAttrs: true,
@@ -297,25 +342,19 @@ export class AmazonService {
       item_name: r.ItemName,
       asin: r.ASIN,
       merchant_sku: r.MerchantSKU,
-
       order_id: r.OrderID,
       order_date: r.OrderDate,
-
       amazon_rma_id: r.AmazonRMAID,
       return_request_date: r.ReturnRequestDate,
       return_request_status: r.ReturnRequestStatus,
-
       return_reason_code: r.ReturnReasonCode,
       return_quantity: Number(r.ReturnQuantity ?? 0),
       resolution: r.Resolution,
-
       refund_amount: Number(r.RefundAmount ?? 0),
       currency_code: r.CurrencyCode,
-
       in_policy: r.InPolicy === 'true',
       a_to_z_claim: r.AToZClaim === 'true',
       is_prime: r.IsPrime === 'true',
-
       return_type: r.ReturnType,
     }));
   }

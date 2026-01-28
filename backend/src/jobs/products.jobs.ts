@@ -264,8 +264,13 @@ export class ProductsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       // 1️⃣ Fetch ALL Target Products
-      const targetProducts: TargetProduct[] = await service.getAllProducts();
+      const targetProducts: TargetProduct[] =
+        await service.getAllProducts(since);
       if (!targetProducts.length) {
         this.logger.warn('No products returned from Target');
         return;
@@ -432,6 +437,10 @@ export class ProductsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       // 1️⃣ Fetch Products (Listings Report)
       const listings: AmazonMerchantListingRow[] =
         await service.getAllProducts(store);
@@ -465,7 +474,7 @@ export class ProductsProcessor extends WorkerHost {
 
       // 5️⃣ Fetch FBA Inventory & Delta Mapping
       const inventorySummaries: InventorySummary[] =
-        await service.getInventorySummaries(store);
+        await service.getInventorySummaries(store, since);
 
       if (!inventorySummaries.length) {
         this.logger.warn('No Amazon inventory summaries returned');
@@ -672,6 +681,10 @@ export class ProductsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
+      const since = store.last_synced_at
+        ? new Date(store.last_synced_at).toISOString()
+        : undefined;
+
       this.logger.log(`Starting product sync for platform: ${store.platform}`);
 
       // 1. Fetch Data with Error Boundary
@@ -703,7 +716,7 @@ export class ProductsProcessor extends WorkerHost {
         store.id,
       );
       const inventoryItems: ShopifyInventoryItemNode[] =
-        await service.fetchInventory();
+        await service.fetchInventory(since);
 
       const inventoryUpserts: Database['public']['Tables']['inventory']['Insert'][] =
         [];

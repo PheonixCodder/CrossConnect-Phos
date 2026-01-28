@@ -16,12 +16,14 @@ export class WarehanceService {
   private warehance: typeof warehanceApi;
 
   private apiKey: string;
+  private tiktokStoreId: number;
 
   constructor(
     private readonly alertsRepo: AlertsRepository, // Inject here
   ) {}
   initialize(credentials: any): void {
     this.apiKey = credentials.WAREHANCE_API_KEY;
+    this.tiktokStoreId = credentials.TIKTOK_STORE_ID;
 
     if (!this.apiKey) {
       this.logger.error('Warehance API key is missing');
@@ -82,6 +84,7 @@ export class WarehanceService {
       let offset = 0;
       const limit = 100;
       const required_ship_date_start = since;
+      const store_id = this.tiktokStoreId;
 
       while (true) {
         this.logger.debug(
@@ -93,6 +96,7 @@ export class WarehanceService {
             limit,
             offset,
             required_ship_date_start,
+            store_id,
             // If Warehance API supports a 'since' or 'updated_after' param,
             // uncomment and adjust:
             // updated_after: since,
