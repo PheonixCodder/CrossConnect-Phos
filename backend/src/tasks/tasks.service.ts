@@ -20,7 +20,6 @@ export class TasksService {
     private readonly alertsRepository: AlertsRepository,
   ) {}
 
-  @Interval(300000) // 60 seconds – adjust to 300000 (5 min) in production
   async pollAllActiveStores() {
     this.logger.log('Starting scheduled poll of all active stores');
 
