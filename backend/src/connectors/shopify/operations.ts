@@ -1,6 +1,6 @@
 export const FETCH_FULFILLMENTS = `#graphql
-  query FetchFulfillments($after: String) {
-  orders(first: 250, after: $after, query: "updated_at:>=$since") {
+  query FetchFulfillments($after: String, $since: String) {
+  orders(first: 250, after: $after, query: $since) {
     nodes {
       id
       updatedAt
@@ -20,6 +20,8 @@ export const FETCH_FULFILLMENTS = `#graphql
             quantity
             lineItem {
               id
+              sku
+              product { id }
             }
           }
         }
@@ -31,15 +33,14 @@ export const FETCH_FULFILLMENTS = `#graphql
       }
   }
 }
-
 `;
 
 export const FETCH_INVENTORY_LEVELS = `#graphql
-  query FetchInventoryLevels($after: String) {
+  query FetchInventoryLevels($after: String, $since: String) {
     # Fix: Use inventoryItems to fetch a list of items and their levels
     inventoryItems(    first: 250
     after: $after
-    query: "updated_at:>=$since"
+    query: $since
 ) {
       nodes {
         id
@@ -69,8 +70,8 @@ export const FETCH_INVENTORY_LEVELS = `#graphql
 `;
 
 export const FETCH_ORDERS = `#graphql
-  query FetchOrders($after: String) {
-    orders(first: 250, after: $after, query: "updated_at:>=$since") {
+  query FetchOrders($after: String, $since: String) {
+    orders(first: 250, after: $after, query: $since) {
       nodes {
         id
         updatedAt
@@ -99,6 +100,7 @@ export const FETCH_ORDERS = `#graphql
         }
         lineItems(first: 250) {
           nodes {
+            id
             sku
             quantity
             originalUnitPrice
@@ -161,8 +163,8 @@ export const FETCH_PRODUCTS = `#graphql
 `;
 
 export const FETCH_RETURNS = `#graphql
-  query FetchReturns($after: String) {
-    orders(first: 250, after: $after, query: "updated_at:>=$since") {
+  query FetchReturns($after: String, $since: String) {
+    orders(first: 250, after: $after, query: $since) {
       edges {
         node {
           id

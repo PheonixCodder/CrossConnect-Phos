@@ -166,6 +166,7 @@ export function mapWalmartFulfillmentsToDB(
     external_fulfillment_id: `${orderId}-${line.lineNumber}`,
     order_id: orderId,
     store_id: storeId,
+    external_fulfillment_line_item_id: line.lineNumber,
     platform: 'walmart',
     product_id: productId ?? null,
 
@@ -261,6 +262,7 @@ export function mapWalmartOrderItemsToDB(
   );
 
   return {
+    external_line_item_id: line.lineNumber,
     order_id: orderId,
     product_id: productId ?? null,
     sku: line.item?.sku ?? '',

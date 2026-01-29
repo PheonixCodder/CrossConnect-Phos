@@ -39,7 +39,7 @@ export class ShopifyService {
     }
 
     this.client = new GraphQLClient(
-      `https://${this.shop}.myshopify.com/admin/api/${this.apiVersion}/graphql.json`,
+      `https://${this.shop}/admin/api/${this.apiVersion}/graphql.json`,
       {
         headers: {
           'X-Shopify-Access-Token': this.accessToken,
@@ -166,10 +166,12 @@ export class ShopifyService {
   async fetchOrders(
     since?: string,
   ): Promise<FetchOrdersQuery['orders']['nodes']> {
+    const filter = since ? `updated_at:>='${since}'` : '';
+
     const data = await this.execute<FetchOrdersQuery>(
       FETCH_ORDERS,
       {
-        since, // updatedAt >= $since
+        since: filter,
       },
       'fetchOrders',
     );
@@ -182,10 +184,12 @@ export class ShopifyService {
   async fetchFulfillments(
     since?: string,
   ): Promise<FetchFulfillmentsQuery['orders']['nodes']> {
+    const filter = since ? `updated_at:>='${since}'` : '';
+
     const data = await this.execute<FetchFulfillmentsQuery>(
       FETCH_FULFILLMENTS,
       {
-        since, // fulfillment.updatedAt >= $since
+        since: filter,
       },
       'fetchFulfillments',
     );
@@ -198,10 +202,12 @@ export class ShopifyService {
   async fetchReturns(
     since?: string,
   ): Promise<FetchReturnsQuery['orders']['edges']> {
+    const filter = since ? `updated_at:>='${since}'` : '';
+
     const data = await this.execute<FetchReturnsQuery>(
       FETCH_RETURNS,
       {
-        since, // return.updatedAt >= $since
+        since: filter,
       },
       'fetchReturns',
     );

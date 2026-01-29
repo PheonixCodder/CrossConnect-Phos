@@ -41,10 +41,11 @@ export class ProductsRepository {
             const { data, error } = await this.supabaseClient
               .from('products')
               .upsert(batch, {
-                onConflict: 'store_id,external_product_id',
+                onConflict: 'store_id,platform,external_product_id,sku',
               })
               .select('*');
 
+            console.log(error);
             if (error) throw error;
 
             this.logger.debug(
@@ -57,6 +58,7 @@ export class ProductsRepository {
                 `Products batch ${index + 1} failed after 3 attempts`,
                 err,
               );
+              console.log(err);
               throw err;
             }
             const delay = 1000 * Math.pow(2, attempt - 1);

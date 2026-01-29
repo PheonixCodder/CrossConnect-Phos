@@ -32,7 +32,10 @@ export class FulfillmentsRepository {
 
         const { data, error, count } = await this.supabaseClient
           .from('fulfillments')
-          .upsert(batch, { onConflict: 'platform, external_fulfillment_id' })
+          .upsert(batch, {
+            onConflict:
+              'store_id,platform,external_fulfillment_id,external_fulfillment_line_item_id',
+          })
           .select('*');
 
         if (error) {

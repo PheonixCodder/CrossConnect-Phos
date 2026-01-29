@@ -171,6 +171,7 @@ export function mapAmazonOrderItemToDB(
   const total = price * item.QuantityOrdered;
 
   return {
+    external_line_item_id: item.OrderItemId,
     order_id: orderId,
     product_id: productId ?? null,
     sku: item.SellerSKU ?? item.ASIN,
@@ -193,6 +194,7 @@ export function mapAmazonShipmentToDB(
   return {
     store_id: storeId,
     platform: 'amazon',
+    external_fulfillment_line_item_id: item.OrderItemId,
     order_id: orderId,
     product_id: productId ?? null,
     external_fulfillment_id: externalFulfillmentId,

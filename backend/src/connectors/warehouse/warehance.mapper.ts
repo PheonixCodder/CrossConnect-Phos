@@ -188,7 +188,7 @@ export function mapWarehanceOrderItemsToDB(
       order_id: orderId,
       sku,
       product_id: productId,
-
+      external_line_item_id: String(item.id),
       quantity,
       fulfilled_quantity: fulfilledQuantity,
       refunded_quantity: item.cancelled ? quantity : 0,
@@ -226,7 +226,8 @@ export function mapWarehanceShipmentsToDB(
       }
 
       inserts.push({
-        external_fulfillment_id: `${shipment.id}-${parcel.id}`, // UNIQUE PER PARCEL
+        external_fulfillment_id: `${shipment.id}-${parcel.id}`,
+        external_fulfillment_line_item_id: String(firstItem?.product?.id),
         store_id: storeId,
         platform,
         order_id: orderId,

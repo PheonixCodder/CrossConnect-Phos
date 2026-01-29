@@ -18,19 +18,30 @@ export function mapShopifyProductToDB(
   product: ShopifyProductNode,
   storeId: string,
 ): Database['public']['Tables']['products']['Insert'][] {
-  if (!product.variants?.nodes) return [];
+  if (!product.variants?.nodes?.length) return [];
 
-  return product.variants.nodes.map((variant) => ({
-    external_product_id: product.id,
-    platform: 'shopify',
-    store_id: storeId,
-    sku: variant.sku || `UNKNOWN-${variant.id.split('/').pop()}`,
-    title: product.title,
-    description: product.descriptionPlainSummary || null,
-    price: variant.price ? parseFloat(variant.price as string) : 0,
-    currency: 'USD',
-    status: product.status.toLowerCase(),
-  }));
+  return product.variants.nodes.map((variant) => {
+    const productId = product.id.split('/').pop();
+    const variantId = variant.id.split('/').pop();
+
+    // 🔑 CRITICAL FIX:
+    // Namespace SKU by product to avoid batch conflicts
+    const sku = variant.sku
+      ? `shopify-${productId}-${variant.sku}`
+      : `shopify-${productId}-variant-${variantId}`;
+
+    return {
+      external_product_id: product.id, // product-level ID (correct)
+      platform: 'shopify',
+      store_id: storeId,
+      sku,
+      title: product.title,
+      description: product.descriptionPlainSummary || null,
+      price: variant.price ? Number(variant.price) : 0,
+      currency: 'USD',
+      status: product.status?.toLowerCase() ?? 'draft',
+    };
+  });
 }
 
 export function mapShopifyInventoryToDB(
@@ -108,6 +119,7 @@ export function mapShopifyOrderItemsToDB(
     const quantity = item.quantity || 0;
 
     return {
+      external_line_item_id: item.id,
       order_id: orderId,
       sku: item.sku ?? 'UNKNOWN',
       product_id: item.sku ? productIdBySku.get(item.sku) : null,
@@ -122,7 +134,7 @@ export function mapShopifyFulfillmentsToDB(
   orderNodes: ShopifyFulfillmentOrderNode[],
   storeId: string,
   orderIdByExternalId: Map<string, string>,
-  productIdByExternalId: Map<string, string>,
+  productIdBySku: Map<string, string>,
 ): Database['public']['Tables']['fulfillments']['Insert'][] {
   const rows: Database['public']['Tables']['fulfillments']['Insert'][] = [];
 
@@ -132,24 +144,34 @@ export function mapShopifyFulfillmentsToDB(
 
     for (const fulfillment of orderNode.fulfillments || []) {
       const tracking = fulfillment.trackingInfo?.[0];
-
-      // FIX: Iterate fulfillment-specific items to avoid cartesian product
       const fulfillmentLines = fulfillment.fulfillmentLineItems?.nodes || [];
 
       for (const fLine of fulfillmentLines) {
-        // Extract the associated original line item ID
-        const lineItemExternalId = fLine.lineItem?.id;
-        if (!lineItemExternalId) continue;
+        const lineItem = fLine.lineItem;
+        if (!lineItem) continue;
 
-        const internalProductId = productIdByExternalId.get(lineItemExternalId);
+        const rawSku = lineItem.sku;
+        const productGid = lineItem.product?.id;
+        if (!rawSku || !productGid) continue;
 
-        // Skip entry if no internal product ID is resolved (FK safety)
-        if (!internalProductId) continue;
+        // product.id looks like "gid://shopify/Product/123456789"
+        const productNumericId = productGid.split('/').pop();
+
+        // Rebuild the same SKU key we used when inserting products
+        const skuKey = `shopify-${productNumericId}-${rawSku}`;
+
+        const internalProductId = productIdBySku.get(skuKey);
+        if (!internalProductId) {
+          // Optional: log to debug what's not matching
+          // console.warn('No product match for fulfillment line', { skuKey, rawSku, productGid });
+          continue;
+        }
 
         rows.push({
           store_id: storeId,
           platform: 'shopify',
           external_fulfillment_id: fulfillment.id,
+          external_fulfillment_line_item_id: fLine.id,
           order_id: internalOrderId,
           product_id: internalProductId,
           status: fulfillment.status.toLowerCase(),

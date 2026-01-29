@@ -28,6 +28,7 @@ export class AmazonController {
 
   @Get('callback')
   async callback(
+    @Query('selling_partner_id') sellerId: string,
     @Query('spapi_oauth_code') code: string,
     @Query('state') storeId: string,
     @Res() res: Response,
@@ -36,7 +37,7 @@ export class AmazonController {
       throw new BadRequestException('Missing SP-API authorization code');
     }
 
-    await this.amazonOAuth.handleCallback(code, storeId);
+    await this.amazonOAuth.handleCallback(code, storeId, sellerId);
 
     return res.redirect(
       `${process.env.FRONTEND_URL}/integrations?platform=amazon`,

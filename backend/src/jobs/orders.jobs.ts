@@ -761,9 +761,6 @@ export class OrdersProcessor extends WorkerHost {
 
       // 1. Reference Data for Mapping
       const products = await this.productsRepo.getAllProductsByStore(store.id);
-      const productIdByExternalId = new Map(
-        products.map((p) => [p.external_product_id, p.id]),
-      );
       const productIdBySku = new Map(products.map((p) => [p.sku, p.id]));
 
       // 2. Fetch & Insert Orders
@@ -811,7 +808,7 @@ export class OrdersProcessor extends WorkerHost {
           fulfillmentNodes,
           store.id,
           orderIdByExternalId,
-          productIdByExternalId,
+          productIdBySku,
         );
 
         if (fulfillmentInserts.length > 0) {

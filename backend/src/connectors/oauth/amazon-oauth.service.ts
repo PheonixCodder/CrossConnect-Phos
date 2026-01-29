@@ -28,7 +28,11 @@ export class AmazonOAuthService {
   /**
    * Handles SP-API OAuth callback
    */
-  async handleCallback(spapiCode: string, storeId: string): Promise<void> {
+  async handleCallback(
+    spapiCode: string,
+    storeId: string,
+    sellerId: string,
+  ): Promise<void> {
     if (!storeId) {
       throw new Error('Invalid OAuth state');
     }
@@ -59,6 +63,7 @@ export class AmazonOAuthService {
       store_id: storeId,
       credentials: {
         refresh_token,
+        sellerId,
         lwa_client_id: process.env.AMAZON_LWA_CLIENT_ID!,
         lwa_client_secret: process.env.AMAZON_LWA_CLIENT_SECRET!,
       },

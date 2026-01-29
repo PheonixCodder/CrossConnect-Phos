@@ -243,8 +243,9 @@ export const mapOrdersToDB = (
 
       const itemInsert: Database['public']['Tables']['order_items']['Insert'] =
         {
-          order_id: orderIdMap?.get(order.id) ?? order.id, // use internal ID if available
+          order_id: orderIdMap?.get(order.id) ?? order.id, // internal ID if available
           sku: item.sku,
+          external_line_item_id: item.id,
           product_id: item.product_id
             ? (productMap?.get(item.product_id) ?? null)
             : null,
@@ -263,20 +264,29 @@ export const mapOrdersToDB = (
     // --- Shipments / Fulfillments ---
     if (order.shipments && order.shipments.length > 0) {
       for (const shipment of order.shipments) {
-        const shipmentInsert: Database['public']['Tables']['fulfillments']['Insert'] =
-          {
-            store_id: storeId,
-            platform: 'faire',
-            external_fulfillment_id: shipment.id,
-            order_id: orderIdMap?.get(order.id) ?? order.id,
-            status: 'pending',
-            carrier: shipment.carrier ?? null,
-            tracking_number: shipment.tracking_code ?? null,
-            created_at: shipment.created_at,
-            updated_at: shipment.updated_at,
-          };
+        for (const item of order.items) {
+          const shipmentInsert: Database['public']['Tables']['fulfillments']['Insert'] =
+            {
+              store_id: storeId,
+              platform: 'faire',
 
-        shipmentsDB.push(shipmentInsert);
+              // ✅ Correct external_fulfillment_line_item_id mapping
+              external_fulfillment_line_item_id: item.id,
+
+              external_fulfillment_id: shipment.id,
+              order_id: orderIdMap?.get(order.id) ?? order.id,
+              product_id: item.product_id
+                ? (productMap?.get(item.product_id) ?? null)
+                : null,
+              status: shipment.tracking_code ? 'shipped' : 'pending',
+              carrier: shipment.carrier ?? null,
+              tracking_number: shipment.tracking_code ?? null,
+              created_at: shipment.created_at,
+              updated_at: shipment.updated_at,
+            };
+
+          shipmentsDB.push(shipmentInsert);
+        }
       }
     }
   }

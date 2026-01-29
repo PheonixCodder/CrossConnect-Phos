@@ -34,6 +34,7 @@ export class OrdersRepository {
         })
         .select('*');
 
+      console.log(error);
       if (error) throw error;
 
       allData = allData.concat(data ?? []);

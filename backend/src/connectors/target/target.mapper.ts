@@ -276,6 +276,7 @@ export function mapOrderLinesToDB(
       null;
 
     return {
+      external_line_item_id: line.external_id,
       order_id: orderInternalId,
       product_id: productId,
       sku: line.external_id,
@@ -305,6 +306,7 @@ export function mapFulfillmentToDB(
     external_fulfillment_id: fulfillment.id,
     order_id: orderInternalId,
     platform: 'target',
+    external_fulfillment_line_item_id: productId,
     product_id: productId ?? null,
     store_id: storeId,
     status: 'shipped',

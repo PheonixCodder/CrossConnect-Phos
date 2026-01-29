@@ -34,13 +34,14 @@ export class OrderItemsRepository {
       const { error, data } = await this.supabase
         .from('order_items')
         .upsert(batch, {
-          onConflict: 'order_id, sku',
+          onConflict: 'order_id, external_line_item_id',
         })
         .select('id');
 
       const count = data?.length || 0;
 
       if (error) {
+        console.log(error);
         this.logger.error('Batch upsert failed', {
           batchSize: batch.length,
           errorCode: error.code,
