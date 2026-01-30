@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
-import { TiktokService } from './tiktok.service';
+import { ConfigModule } from '@nestjs/config';
+import { HttpModule } from '@nestjs/axios';
+import { WalmartService } from './walmart.service';
 
 @Module({
-  imports: [],
-  providers: [TiktokService],
-  exports: [TiktokService],
+  imports: [ConfigModule, HttpModule],
+  providers: [WalmartService],
+  controllers: [],
+  exports: [WalmartService],
 })
-export class TiktokModule {}
+export class WalmartModule {}

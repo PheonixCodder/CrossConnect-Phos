@@ -28,12 +28,12 @@ const itemColumns: ColumnDef<OrderItem>[] = [
   {
     accessorKey: "price",
     header: "Price",
-    cell: ({ row }) => formatCurrency(row.original.price),
+    cell: ({ row }) => formatCurrency(row.original.price!),
   },
   {
     accessorKey: "total",
     header: "Total",
-    cell: ({ row }) => formatCurrency(row.original.total),
+    cell: ({ row }) => formatCurrency(row.original.total!),
   },
   {
     accessorKey: "fulfilled_quantity",

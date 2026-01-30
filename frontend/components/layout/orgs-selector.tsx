@@ -87,7 +87,7 @@ export function GlobalContextSwitcher() {
       const { data, error } = await supabase
         .from("organizations")
         .select("*, organization_members!inner(role)")
-        .eq("organization_members.user_id", userProfile?.id);
+        .eq("organization_members.user_id", userProfile!.id);
       if (error) throw error;
       setOrganizations(data ?? []);
       return data as Organization[];

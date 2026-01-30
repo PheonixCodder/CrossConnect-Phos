@@ -70,7 +70,7 @@ export const SearchCommand = ({ open, setOpen }: SearchCommandProps) => {
   const storesToRender = useMemo(() => queryStores || [], [queryStores]);
 
   // Group stores by platform
-  const storesByPlatform: [[PlatformType: Store]] = useMemo(() => {
+  const storesByPlatform: Record<PlatformType, Store[]> = useMemo(() => {
     return storesToRender.reduce(
       (acc, store) => {
         const platform = store.platform;
