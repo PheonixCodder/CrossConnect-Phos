@@ -29,14 +29,10 @@ export class WalmartWebhooksService {
   ) {}
   async setupWebhookForUser(
     userId: string,
-    orgId: string,
+    storeId: string,
     config: { eventType: string; eventVersion: string; resourceName: string },
   ) {
-    const store = await this.credentialsRepo.getCredentials(
-      userId,
-      orgId,
-      'walmart',
-    );
+    const store = await this.credentialsRepo.getCredentials(storeId);
     if (!store?.credentials) throw new Error('Walmart credentials not found');
     let creds: { clientId: string; clientSecret: string };
     try {
@@ -57,7 +53,7 @@ export class WalmartWebhooksService {
     if (!appUrl) {
       throw new InternalServerErrorException('APP_URL is not configured');
     }
-    const eventUrl = `${appUrl}/api/webhooks/walmart/${orgId}/${userId}`;
+    const eventUrl = `${appUrl}/api/webhooks/walmart/${storeId}/${userId}`;
     const payload = {
       eventType: config.eventType,
       eventVersion: config.eventVersion,

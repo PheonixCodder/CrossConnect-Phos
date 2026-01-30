@@ -58,7 +58,6 @@ export const CREDENTIALS_CONFIG: Record<
     label: "Warehance",
     fields: [
       { key: "WAREHANCE_API_KEY", label: "API Key", type: "password" },
-      { key: "TIKTOK_STORE_ID", label: "Tiktok Store ID", type: "text" },
     ],
   },
 };

@@ -17,12 +17,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import type { StoreWithCredentials } from "../../hooks/use-integrations-data";
 import { CredentialDialog } from "./credential-dialog";
 import { useState } from "react";
 import type { Database } from "@/types/supabase.types";
 import { cn } from "@/lib/utils";
 import { AddStoreDialog } from "./add-store-dialog";
+import { createClient } from "@/lib/supabase/client";
 
 interface StoreListProps {
   platform: Database["public"]["Enums"]["platform_types"];
@@ -30,6 +39,27 @@ interface StoreListProps {
   isLoading: boolean;
   onBack: () => void;
 }
+
+export type ListStore = {
+  [x: string]: unknown;
+  id?: number | undefined;
+  name?: string | undefined;
+  marketplace?:
+    | {
+        [x: string]: unknown;
+        id?: number | undefined;
+        name?: string | undefined;
+        thumbnail_url?: string | undefined;
+      }
+    | undefined;
+  client?:
+    | {
+        [x: string]: unknown;
+        id?: number | undefined;
+        name?: string | undefined;
+      }
+    | undefined;
+};
 
 export function StoreList({
   platform,
@@ -167,6 +197,48 @@ export function StoreList({
                         ? "Edit Credentials"
                         : "Add Credentials"}
                   </Button>
+                  {platform === "warehance" &&
+                    store.auth_status === "inactive" &&
+                    store.stores && (
+                      <Combobox
+                        items={(store.stores as ListStore[]).map((s) => s.name)}
+                      >
+                        <ComboboxInput placeholder="Select a Warehance Store" />
+                        <ComboboxContent>
+                          <ComboboxEmpty>No stores found</ComboboxEmpty>
+                          <ComboboxList>
+                            {(item) => (
+                              <ComboboxItem
+                                key={item}
+                                value={item}
+                                onClick={async () => {
+                                  const selectedStore = (
+                                    store.stores as ListStore[]
+                                  ).find((s: ListStore) => s.name === item);
+                                  const supabase = createClient();
+                                  await supabase
+                                    .from("store_credentials")
+                                    .upsert({
+                                      store_id: store.id,
+                                      credentials: {
+                                        TIKTOK_STORE_ID: selectedStore!.id,
+                                      },
+                                    });
+                                  await supabase
+                                    .from("stores")
+                                    .update({
+                                      auth_status: "active",
+                                    })
+                                    .eq("id", store.id);
+                                }}
+                              >
+                                {item}
+                              </ComboboxItem>
+                            )}
+                          </ComboboxList>
+                        </ComboboxContent>
+                      </Combobox>
+                    )}
                 </CardContent>
               </Card>
             );

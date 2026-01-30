@@ -15,12 +15,8 @@ export class ShopifyWebhooksService {
     private readonly httpService: HttpService,
   ) {}
 
-  async setupWebhookForUser(userId: string, orgId: string, topic: string) {
-    const store = await this.storesRepo.getCredentials(
-      userId,
-      orgId,
-      'shopify',
-    );
+  async setupWebhookForUser(userId: string, storeId: string, topic: string) {
+    const store = await this.storesRepo.getCredentials(storeId);
     const creds =
       typeof store.credentials === 'string'
         ? JSON.parse(store.credentials)
@@ -31,12 +27,12 @@ export class ShopifyWebhooksService {
     }
 
     const appUrl = this.config.get<string>('APP_URL');
-    // Callback URL includes both userId and orgId
-    const eventUrl = `${appUrl}/api/webhooks/shopify/${orgId}/${userId}`;
+    // Callback URL includes both userId and Store
+    const eventUrl = `${appUrl}/api/webhooks/shopify/${storeId}/${userId}`;
 
     const payload = {
       webhook: {
-        topic: topic, // e.g., 'orders/create'
+        topic: topic,
         address: eventUrl,
         format: 'json',
       },
@@ -60,11 +56,11 @@ export class ShopifyWebhooksService {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         this.logger.error(
-          `Shopify Setup Error for Org: ${orgId}`,
+          `Shopify Setup Error for Store: ${storeId}`,
           error.response?.data || error.message,
         );
       } else {
-        this.logger.error(`Shopify Setup Error for Org: ${orgId}`, error);
+        this.logger.error(`Shopify Setup Error for Store: ${storeId}`, error);
       }
       throw error;
     }
@@ -72,11 +68,13 @@ export class ShopifyWebhooksService {
 
   async processEvent(
     userId: string,
-    orgId: string,
+    storeId: string,
     topic: string,
     payload: any,
   ) {
-    this.logger.log(`Processing ${topic} for Org: ${orgId}, User: ${userId}`);
+    this.logger.log(
+      `Processing ${topic} for Store: ${storeId}, User: ${userId}`,
+    );
 
     switch (topic) {
       case 'orders/create':

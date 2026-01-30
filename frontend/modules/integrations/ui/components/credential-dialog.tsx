@@ -11,7 +11,6 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { CREDENTIALS_CONFIG } from "../../schema/schema";
 import type { Database } from "@/types/supabase.types";
-
 type PlatformType = Database["public"]["Enums"]["platform_types"];
 
 interface Props {
@@ -45,8 +44,7 @@ export function CredentialDialog({
     queueMicrotask(() => {
       if (isEdit && existingCredentials?.credentials) {
         const raw = existingCredentials.credentials;
-        const parsed =
-          typeof raw === "string" ? JSON.parse(raw) : (raw ?? {});
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : (raw ?? {});
         setFormData(parsed as Record<string, string>);
       } else {
         setFormData({});
@@ -67,14 +65,27 @@ export function CredentialDialog({
         const cleanDomain = shopDomain
           .replace(/^https?:\/\//, "")
           .replace(/\/$/, "");
-        
 
         // Redirect to your NestJS Backend
         window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/shopify?storeId=${storeId}&shop=${cleanDomain}`;
         return;
       }
 
-      console.log(formData);
+      if (platform === "warehance") {
+        const apiKey = formData["WAREHANCE_API_KEY"];
+        if (!apiKey) throw new Error("API Key is required");
+
+        const res = await fetch("/api/warehance", {
+          method: "POST",
+          body: JSON.stringify({ apiKey, storeId }),
+        });
+        const data = await res.json();
+
+        if (data.ok === "false") {
+          toast.success("Failed Fetching Tiktok Stores");
+        }
+      }
+
       // Standard logic for other platforms (Amazon, Faire, etc.)
       if (isEdit) {
         await supabase
@@ -91,12 +102,14 @@ export function CredentialDialog({
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
-        await supabase
-          .from("stores")
-          .update({
-            auth_status: "active",
-          })
-          .eq("id", storeId);
+        if (platform !== "warehance") {
+          await supabase
+            .from("stores")
+            .update({
+              auth_status: "active",
+            })
+            .eq("id", storeId);
+        }
       }
     },
     onSuccess: () => {

@@ -15,11 +15,11 @@ import { ShopifyMultiTenantGuard } from '../../guards/shopify-webhook.guard';
 export class ShopifyWebhookController {
   constructor(private readonly shopifyService: ShopifyWebhooksService) {}
 
-  @Post(':orgId/:userId')
+  @Post(':storeId/:userId')
   @UseGuards(ShopifyMultiTenantGuard)
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
-    @Param('orgId') orgId: string,
+    @Param('storeId') orgId: string,
     @Param('userId') userId: string,
     @Headers('x-shopify-topic') topic: string,
     @Body() body: any,
