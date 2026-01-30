@@ -27,14 +27,14 @@ export class FaireAuthController {
     @Query('state') storeId: string,
     @Res() res: Response,
   ) {
-    if (!code) {
-      throw new BadRequestException('Missing authorization code');
-    }
+    console.log('FAIRE CALLBACK HIT', { code, storeId });
 
-    await this.faireOAuth.handleCallback(code, storeId);
+    // respond immediately
+    res.redirect(`${process.env.FRONTEND_URL}/integrations?platform=faire`);
 
-    return res.redirect(
-      `${process.env.FRONTEND_URL}/integrations?platform=faire`,
-    );
+    // continue async (do NOT await)
+    this.faireOAuth
+      .handleCallback(code, storeId)
+      .catch((err) => console.error('FAIRE OAUTH ERROR', err));
   }
 }

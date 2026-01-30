@@ -16,7 +16,7 @@ export class FaireOAuthService {
       applicationId: process.env.FAIRE_APP_ID!,
       redirectUrl: process.env.FAIRE_REDIRECT_URI!,
       state: storeId,
-      scope: ['READ_PRODUCTS', 'READ_ORDERS', 'READ_INVENTORIES'].join(' '),
+      scope: ['READ_PRODUCTS', 'READ_ORDERS', 'READ_INVENTORIES'].join(','),
     });
 
     return `https://faire.com/oauth2/authorize?${params}`;
