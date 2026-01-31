@@ -17,7 +17,7 @@ export class TikTokOAuthController {
    * Step 1: Redirect user to TikTok Shop OAuth
    * Mirrors Amazon / Walmart connect endpoints
    */
-  @Get(':storeId')
+  @Get()
   redirectToTikTok(@Param('storeId') storeId: string, @Res() res: Response) {
     const url = this.oauth.getAuthUrl(storeId);
     return res.redirect(url);
