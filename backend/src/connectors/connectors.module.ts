@@ -8,6 +8,7 @@ import { WalmartModule } from './walmart/walmart.module';
 import { AmazonModule } from './amazon/amazon.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { WarehanceModule } from './warehouse/warehance.module';
+import { TikTokModule } from './tiktok/tiktok.module';
 import { JobsModule } from '../jobs/jobs.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { JobsModule } from '../jobs/jobs.module';
     ShopifyModule,
     WarehanceModule,
     JobsModule,
+    TikTokModule
   ],
   providers: [PlatformServiceFactory],
   exports: [PlatformServiceFactory],
