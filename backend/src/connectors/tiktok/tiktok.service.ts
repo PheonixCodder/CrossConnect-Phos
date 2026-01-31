@@ -8,8 +8,8 @@ import {
   Product202502SearchProductsResponseDataProducts,
   ReturnRefund202309SearchReturnsResponseDataReturnOrders,
   TikTokShopNodeApiClient,
-} from 'libs/tiktok';
-import { TikTokOAuthService } from 'connectors/oauth/tiktok-oauth.service';
+} from '../../libs/tiktok';
+import { TikTokOAuthService } from '../oauth/tiktok-oauth.service';
 
 @Injectable()
 export class TikTokService {

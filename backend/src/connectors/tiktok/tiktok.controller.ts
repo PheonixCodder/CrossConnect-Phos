@@ -6,7 +6,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
-import { TikTokOAuthService } from 'connectors/oauth/tiktok-oauth.service';
+import { TikTokOAuthService } from '../oauth/tiktok-oauth.service';
 import { Response } from 'express';
 
 @Controller('auth/tiktok')
