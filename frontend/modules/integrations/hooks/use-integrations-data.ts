@@ -6,15 +6,14 @@ import { useDashboardStore } from "@/store/useStore";
 import type { Database } from "@/types/supabase.types";
 
 type StoreRow = Database["public"]["Tables"]["stores"]["Row"];
-type CredentialRow =
-  Database["public"]["Tables"]["store_credentials"]["Row"];
+type CredentialRow = Database["public"]["Tables"]["store_credentials"]["Row"];
 
 export type StoreWithCredentials = StoreRow & {
-  store_credentials: CredentialRow | null;
+  store_credentials: CredentialRow[] | null;
 };
 
 export function useIntegrationsData(
-  platform: Database["public"]["Enums"]["platform_types"] | null
+  platform: Database["public"]["Enums"]["platform_types"] | null,
 ) {
   const supabase = createClient();
   const activeOrgId = useDashboardStore((s) => s.activeOrg?.id);

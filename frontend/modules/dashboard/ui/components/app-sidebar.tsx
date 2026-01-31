@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { FaAmazon, FaShopify } from "react-icons/fa";
+import { FaAmazon, FaShopify, FaTiktok } from "react-icons/fa";
 import { User } from "@supabase/supabase-js";
 import { getFirstTwoLetters } from "@/lib/shortenName";
 import { Bell, SquareMousePointer, TargetIcon } from "lucide-react";
@@ -75,6 +75,11 @@ const data = {
     {
       title: "Target",
       icon: TargetIcon,
+      url: "/integrations",
+    },
+    {
+      title: "Tiktok",
+      icon: FaTiktok,
       url: "/integrations",
     },
   ],

@@ -135,11 +135,9 @@ export class StoresRepository {
       .in('id', storeIds);
   }
 
-  async getCredentials(storeId: string): Promise<
-    Database['public']['Tables']['store_credentials']['Row'] & {
-      shopDomain: string;
-    }
-  > {
+  async getCredentials(
+    storeId: string,
+  ): Promise<Database['public']['Tables']['store_credentials']['Row']> {
     const { data, error } = await this.supabaseClient
       .from('store_credentials')
       .select('*')
@@ -149,6 +147,6 @@ export class StoresRepository {
       this.logger.error('Failed to fetch credentials', error);
       throw error;
     }
-    return { data };
+    return data[0];
   }
 }

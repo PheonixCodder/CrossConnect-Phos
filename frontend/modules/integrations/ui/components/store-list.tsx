@@ -184,12 +184,16 @@ export function StoreList({
                         window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/amazon?storeId=${store.id}`;
                       } else if (store.platform === "faire") {
                         window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/faire?storeId=${store.id}`;
+                      } else if (store.platform === "tiktok") {
+                        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/tiktok?storeId=${store.id}`;
                       } else {
                         handleManageCredentials(store);
                       }
                     }}
                   >
-                    {["amazon", "faire", "shopify"].includes(store.platform)
+                    {["amazon", "faire", "shopify", "tiktok"].includes(
+                      store.platform,
+                    )
                       ? store.auth_status === "active"
                         ? `Reconnect ${store.platform}`
                         : `Connect ${store.platform}`
@@ -253,7 +257,7 @@ export function StoreList({
           isEdit={selectedStore.auth_status === "active"}
           storeId={selectedStore.id}
           platform={platform}
-          existingCredentials={selectedStore.store_credentials}
+          existingCredentials={selectedStore.store_credentials?.[0] ?? null}
         />
       )}
     </div>

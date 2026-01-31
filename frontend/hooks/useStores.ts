@@ -16,7 +16,7 @@ export function useStores(orgId?: string) {
       const { data, error } = await supabase
         .from("stores")
         .select("*")
-        .eq("org_id", orgId);
+        .eq("org_id", orgId as string);
 
       if (error) throw error;
 

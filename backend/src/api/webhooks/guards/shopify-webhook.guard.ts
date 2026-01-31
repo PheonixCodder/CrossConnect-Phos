@@ -14,7 +14,7 @@ export class ShopifyMultiTenantGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RawBodyRequest<any>>();
-    const { userId, orgId } = request.params;
+    const { userId, storeId } = request.params;
 
     const hmac = request.headers['x-shopify-hmac-sha256'] as string | undefined;
     const shopDomainHeader = request.headers['x-shopify-shop-domain'] as
@@ -22,11 +22,7 @@ export class ShopifyMultiTenantGuard implements CanActivate {
       | undefined;
 
     // Load tenant-specific Shopify credentials
-    const store = await this.storesRepo.getCredentials(
-      userId,
-      orgId,
-      'shopify',
-    );
+    const store = await this.storesRepo.getCredentials(storeId as string);
 
     const creds =
       typeof store.credentials === 'string'
@@ -34,7 +30,7 @@ export class ShopifyMultiTenantGuard implements CanActivate {
         : store.credentials;
 
     const apiSecret = creds.apiSecret as string | undefined;
-    const storedShopDomain = creds.shopDomain ?? store.shopDomain;
+    const storedShopDomain = creds.shopDomain ?? creds.shopDomain;
 
     if (!apiSecret || !hmac || !request.rawBody) {
       throw new UnauthorizedException('Security validation failed');

@@ -5,17 +5,17 @@ import type { Database } from "@/types/supabase.types";
 import { createClient } from "@/lib/supabase/client";
 import { getCurrentUserId } from "@/lib/helpers/getUser";
 
-export type OrganizationRow = Database["public"]["Tables"]["organizations"]["Row"];
+export type OrganizationRow =
+  Database["public"]["Tables"]["organizations"]["Row"];
 export type UserRow = Database["public"]["Tables"]["users"]["Row"];
 export type StoreRow = Database["public"]["Tables"]["stores"]["Row"];
-type OrganizationMemberRow = Database["public"]["Tables"]["organization_members"]["Row"];
+type OrganizationMemberRow =
+  Database["public"]["Tables"]["organization_members"]["Row"];
 export type MemberWithUser = OrganizationMemberRow & {
   // The property name "users" matches the Supabase table name used in the select query
   // We use | null because the relationship might not find a matching user
   users: UserRow | null;
 };
-
-
 
 export function useSettingsData() {
   const supabase = createClient();
@@ -50,7 +50,7 @@ export function useSettingsData() {
         .eq("organization_members.user_id", user.id);
       if (error) throw error;
       return data as (OrganizationRow & {
-        organization_members: { role: string };
+        organization_members: { role: string }[];
       })[];
     },
   });

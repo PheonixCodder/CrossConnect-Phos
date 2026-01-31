@@ -37,7 +37,7 @@ export function useAlertsData(filters: AlertFilters) {
       const { data, error } = await supabase
         .from("alerts")
         .select("*, stores!inner(name)")
-        .eq("stores.org_id", orgId)
+        .eq("stores.org_id", orgId as string)
         .order("created_at", { ascending: false })
         .limit(200);
 

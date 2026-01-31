@@ -33,7 +33,7 @@ export function useEventsData(filters: EventFilters) {
       const { data, error } = await supabase
         .from("raw_events")
         .select("*, stores!inner(name)")
-        .eq("stores.org_id", orgId)
+        .eq("stores.org_id", orgId as string)
         .order("created_at", { ascending: false })
         .limit(200);
 

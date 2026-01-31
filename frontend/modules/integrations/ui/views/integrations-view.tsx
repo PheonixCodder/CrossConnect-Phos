@@ -17,6 +17,7 @@ const PLATFORMS: Platform[] = [
   "walmart",
   "warehance",
   "target",
+  "tiktok"
 ];
 
 export function IntegrationsView() {

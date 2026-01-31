@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/types/supabase.types";
 import type { Notification } from "@/modules/dashboard/ui/components/NotificationsCard";
 import { Package, TrendingUp, WifiOff } from "lucide-react";
 

@@ -70,5 +70,5 @@ export const PLATFORM_ICONS: Record<PlatformTypes, string> = {
   target: "/images/target.png",
   walmart: "/images/walmart.svg",
   warehance: "/images/warehance.svg",
-  tiktok: "/images/tiktok.svg", // Added fallback for completeness
+  tiktok: "/images/tiktok.svg",
 };

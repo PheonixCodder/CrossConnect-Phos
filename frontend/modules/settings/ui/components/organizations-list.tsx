@@ -12,7 +12,7 @@ import { useDashboardStore } from "@/store/useStore";
 import { cn } from "@/lib/utils";
 
 interface OrganizationsListProps {
-  organizations: Array<OrganizationRow & { organization_members: { role: string } }>;
+  organizations: Array<OrganizationRow & { organization_members: { role: string }[] }>;
 }
 
 export function OrganizationsList({ organizations }: OrganizationsListProps) {
@@ -57,7 +57,7 @@ export function OrganizationsList({ organizations }: OrganizationsListProps) {
                     </Badge>
                   )}
                   <Badge variant="secondary" className="text-[10px] h-5 px-1.5 capitalize">
-                    {org.organization_members.role}
+                    {org.organization_members[0].role}
                   </Badge>
                 </div>
               </button>

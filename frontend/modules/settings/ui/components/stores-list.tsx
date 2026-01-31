@@ -17,7 +17,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { StoreRow } from "../../hooks/use-settings-data";
-import { Database } from "@/types/supabase.types";
 import { Separator } from "@/components/ui/separator";
 
 type PlatformType = NonNullable<StoreRow["platform"]>;
