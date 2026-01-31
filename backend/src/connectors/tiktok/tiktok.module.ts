@@ -1,7 +1,7 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { TikTokOAuthService } from 'connectors/oauth/tiktok-oauth.service';
+import { TikTokOAuthService } from '../oauth/tiktok-oauth.service';
 import { SupabaseModule } from 'nestjs-supabase-js';
 import { TikTokService } from './tiktok.service';
 import { TikTokOAuthController } from './tiktok.controller';
