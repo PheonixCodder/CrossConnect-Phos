@@ -98,7 +98,7 @@ export class ShopifyService {
 
   /* -------------------- EXECUTOR -------------------- */
 
-  private async execute<T>(
+  async execute<T>(
     query: string,
     variables?: Record<string, any>,
     context = 'graphql',

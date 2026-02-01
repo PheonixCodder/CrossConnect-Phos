@@ -3,9 +3,10 @@ import {
   Controller,
   Get,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { FaireOAuthService } from '../oauth/faire-oauth.service';
 
 @Controller('auth/faire')
@@ -23,11 +24,12 @@ export class FaireAuthController {
 
   @Get('callback')
   async callback(
-    @Query('authorizationCode') code: string,
+    @Query('authorization_code') code: string,
     @Query('state') storeId: string,
     @Res() res: Response,
+    @Req() req: Request,
   ) {
-    console.log('FAIRE CALLBACK HIT', { code, storeId });
+    console.log('FAIRE CALLBACK HIT', req.url);
 
     // respond immediately
     res.redirect(`${process.env.FRONTEND_URL}/integrations?platform=faire`);

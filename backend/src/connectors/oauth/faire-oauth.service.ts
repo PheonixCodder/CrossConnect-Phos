@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { firstValueFrom } from 'rxjs';
 import { Database } from '../../supabase/supabase.types';
-
+// /api/auth/faire/callback?state=8f42a956-a93e-4a3a-8c83-b44b041a5b92&authorization_code=oac_dbvrq9j5j7qt0f910ywl9a8uh6aegilhgvzhfs71jn32l3wcxob70pp68gmzpmoto4xn9rbierx9hodp59mtso447354wcs8
 @Injectable()
 export class FaireOAuthService {
   constructor(
@@ -16,10 +16,12 @@ export class FaireOAuthService {
       applicationId: process.env.FAIRE_APP_ID!,
       redirectUrl: process.env.FAIRE_REDIRECT_URI!,
       state: storeId,
-      scope: ['READ_PRODUCTS', 'READ_ORDERS', 'READ_INVENTORIES'].join(','),
     });
 
-    return `https://faire.com/oauth2/authorize?${params}`;
+    const scopes = ['READ_PRODUCTS', 'READ_ORDERS', 'READ_INVENTORIES'];
+    scopes.forEach((scope) => params.append('scope', scope));
+
+    return `https://faire.com/oauth2/authorize?${params.toString()}`;
   }
 
   async handleCallback(
@@ -31,12 +33,13 @@ export class FaireOAuthService {
       this.http.post(
         'https://www.faire.com/api/external-api-oauth2/token',
         {
-          applicationId: process.env.FAIRE_APP_ID!,
-          applicationSecret: process.env.FAIRE_APP_SECRET!,
-          redirectUrl: process.env.FAIRE_REDIRECT_URI!,
+          // Use the keys exactly as shown in the Faire Sample Request
+          application_token: process.env.FAIRE_APP_ID!,
+          application_secret: process.env.FAIRE_APP_SECRET!,
+          redirect_url: process.env.FAIRE_REDIRECT_URI!,
           scope: ['READ_PRODUCTS', 'READ_ORDERS', 'READ_INVENTORIES'],
-          grantType: 'AUTHORIZATION_CODE',
-          authorizationCode,
+          grant_type: 'AUTHORIZATION_CODE',
+          authorization_code: authorizationCode,
         },
         { headers: { 'Content-Type': 'application/json' } },
       ),

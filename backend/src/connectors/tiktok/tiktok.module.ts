@@ -10,6 +10,6 @@ import { TikTokOAuthController } from './tiktok.controller';
   imports: [ConfigModule, HttpModule, SupabaseModule.injectClient()],
   providers: [TikTokService, TikTokOAuthService],
   controllers: [TikTokOAuthController],
-  exports: [TikTokService],
+  exports: [TikTokService, TikTokOAuthService],
 })
 export class TikTokModule {}

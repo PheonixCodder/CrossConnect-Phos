@@ -20,6 +20,14 @@ import { ReturnOrder } from '../connectors/walmart/walmart.types';
 import { AmazonReturnReportItem } from '../connectors/amazon/amazon.types';
 import { FetchReturnsQuery } from '../connectors/shopify/graphql/generated/admin.generated';
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
+import { InjectSupabaseClient } from 'nestjs-supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { ShopifyService } from '../connectors/shopify/shopify.service';
+import { AmazonService } from '../connectors/amazon/amazon.service';
+import { WalmartService } from '../connectors/walmart/walmart.service';
+import { TargetService } from '../connectors/target/target.service';
+import { TikTokService } from '../connectors/tiktok/tiktok.service';
+import { mapTiktokReturnsToDB } from '../connectors/tiktok/tiktok.mapper';
 
 @Processor('returns', { concurrency: 5 })
 export class ReturnsProcessor extends WorkerHost {
@@ -32,6 +40,8 @@ export class ReturnsProcessor extends WorkerHost {
     private readonly returnsRepo: ReturnsRepository,
     private readonly storeCredentialsService: StoreCredentialsService,
     private readonly alertsRepo: AlertsRepository,
+    @InjectSupabaseClient()
+    private readonly supabaseClient: SupabaseClient,
   ) {
     super();
   }
@@ -43,7 +53,6 @@ export class ReturnsProcessor extends WorkerHost {
     }: {
       storeId: string;
       platform: Database['public']['Enums']['platform_types'];
-      orgId: string;
     } = job.data;
 
     if (!storeId) {
@@ -85,16 +94,19 @@ export class ReturnsProcessor extends WorkerHost {
       // Process based on platform
       switch (platform) {
         case 'target':
-          await this.processTargetReturns(service, store);
+          await this.processTargetReturns(service as TargetService, store);
           break;
         case 'walmart':
-          await this.processWalmartReturns(service, store);
+          await this.processWalmartReturns(service as WalmartService, store);
           break;
         case 'amazon':
-          await this.processAmazonReturns(service, store);
+          await this.processAmazonReturns(service as AmazonService, store);
           break;
         case 'shopify':
-          await this.processShopifyReturns(service, store);
+          await this.processShopifyReturns(service as ShopifyService, store);
+          break;
+        case 'tiktok':
+          await this.processTiktokReturns(service as TikTokService, store);
           break;
         default:
           this.logger.warn(
@@ -105,6 +117,13 @@ export class ReturnsProcessor extends WorkerHost {
 
       // Update store health on success
       await this.storeRepo.updateStoreHealth(storeId, 'healthy');
+      await this.supabaseClient
+        .from('stores')
+        .update({
+          last_synced_at: new Date().toISOString(),
+          last_returns_synced_at: new Date().toISOString(),
+        })
+        .eq('id', store.id);
     } catch (error) {
       this.logger.error(
         `Failed to process returns for store ${storeId}: ${error.message}`,
@@ -125,17 +144,17 @@ export class ReturnsProcessor extends WorkerHost {
   }
 
   private async processTargetReturns(
-    service: any,
+    service: TargetService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_returns_synced_at
+        ? new Date(store.last_returns_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Fetch ALL Target Returns
       const targetReturns: TargetProductReturn[] =
-        await service.getAllProductReturns(since);
+        await service.getAllProductReturns({ since });
       if (!targetReturns.length) {
         this.logger.warn('No returns returned from Target');
         return;
@@ -217,16 +236,16 @@ export class ReturnsProcessor extends WorkerHost {
   }
 
   private async processWalmartReturns(
-    service: any,
+    service: WalmartService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_returns_synced_at
+        ? new Date(store.last_returns_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Fetch ALL Walmart Returns
-      const walmartReturns: ReturnOrder[] =
+      const walmartReturns: ReturnOrder[] | null =
         await service.getWalmartProductReturns(since);
       if (!walmartReturns?.length) {
         this.logger.warn('No returns returned from Walmart');
@@ -318,12 +337,12 @@ export class ReturnsProcessor extends WorkerHost {
   }
 
   private async processAmazonReturns(
-    service: any,
+    service: AmazonService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_returns_synced_at
+        ? new Date(store.last_returns_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Fetch ALL Amazon Returns
@@ -387,12 +406,12 @@ export class ReturnsProcessor extends WorkerHost {
   }
 
   private async processShopifyReturns(
-    service: any,
+    service: ShopifyService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_returns_synced_at
+        ? new Date(store.last_returns_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Fetch the logistical return data
@@ -463,6 +482,95 @@ export class ReturnsProcessor extends WorkerHost {
         message: `${store.platform.toUpperCase()} product returns sync failed: ${error.message}`,
         severity: 'high',
         platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+
+  private async processTiktokReturns(
+    service: TikTokService,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      // 1️⃣ Fetch TikTok returns
+      const tiktokReturns = await service.getAllReturns(store.id);
+
+      if (!tiktokReturns?.length) {
+        this.logger.log('No TikTok returns found');
+        return;
+      }
+
+      // 2️⃣ Collect UNIQUE external order IDs
+      const externalOrderIds = [
+        ...new Set(
+          tiktokReturns
+            .map((r) => r.orderId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+
+      if (!externalOrderIds.length) {
+        this.logger.warn('TikTok returns missing order IDs');
+        return;
+      }
+
+      // 3️⃣ Fetch matching orders (DO NOT MODIFY this method)
+      const orders = await this.ordersRepo.getByExternalOrderIds(
+        store.id,
+        externalOrderIds,
+      );
+
+      if (!orders.length) {
+        this.logger.warn(
+          `No orders found for ${externalOrderIds.length} TikTok returns`,
+        );
+        return;
+      }
+
+      // 4️⃣ Build external → internal order ID map
+      const orderIdMap = new Map<string, string>();
+      for (const order of orders) {
+        orderIdMap.set(order.external_order_id, order.id);
+      }
+
+      // 5️⃣ Map TikTok returns → DB rows (INTERNAL order_id)
+      const returnsToInsert = mapTiktokReturnsToDB(
+        tiktokReturns,
+        store.id,
+        orderIdMap,
+      );
+
+      if (!returnsToInsert.length) {
+        this.logger.warn('No TikTok returns passed FK validation');
+        return;
+      }
+
+      // 6️⃣ Upsert returns (DO NOT MODIFY this method)
+      const { error } = await this.returnsRepo.insertReturns(returnsToInsert);
+      if (error) throw error;
+
+      this.logger.log(
+        `Synced ${returnsToInsert.length} TikTok returns for store ${store.id}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `TIKTOK returns sync failed for store ${store.id}`,
+        error.stack,
+      );
+
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Returns sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'returns_sync_failure',
+        message: `TikTok returns sync failed: ${error.message}`,
+        severity: 'high',
+        platform: 'tiktok',
       });
 
       throw error;

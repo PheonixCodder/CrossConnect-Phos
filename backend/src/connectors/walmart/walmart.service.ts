@@ -14,11 +14,11 @@ import {
   isGetAllItemsResponse,
   isGetAllOrdersResponse,
   isWalmartItemArray,
-  GetAllItemsResponse,
-  GetAllOrdersResponse,
 } from './walmart.types';
 import { Database } from '../../supabase/supabase.types';
 import * as crypto from 'crypto';
+import { WalmartOAuthHook } from '../../api/webhooks/connectors/walmart/walmart-oauth.hook';
+import { StoresRepository } from '../../supabase/repositories/stores.repository';
 
 @Injectable()
 export class WalmartService {
@@ -28,11 +28,17 @@ export class WalmartService {
   private clientId: string;
   private clientSecret: string;
   private url: string;
-  private readonly HISTORICAL_YEARS_BACK = 5; // Go back 5 years for historical sync
+  private readonly HISTORICAL_YEARS_BACK = 5;
 
-  constructor() {}
+  constructor(
+    private readonly walmartOAuthHook: WalmartOAuthHook,
+    private readonly storeRepo: StoresRepository,
+  ) {}
 
-  initialize(credentials: any): void {
+  async initialize(
+    credentials: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ): Promise<void> {
     this.clientId = credentials.WALMART_CLIENT_ID;
     this.clientSecret = credentials.WALMART_CLIENT_SECRET;
     this.url = credentials.url || 'https://marketplace.walmartapis.com';
@@ -52,6 +58,23 @@ export class WalmartService {
     } catch (error) {
       this.logger.error('Failed to init Walmart client', error);
       throw error;
+    }
+
+    const { access_token } = await this.walmart.authentication.getAccessToken();
+
+    const { created_by } = await this.storeRepo.getOrgById(store.org_id);
+
+    if (
+      !store.last_synced_at &&
+      !store.last_orders_synced_at &&
+      !store.last_returns_synced_at &&
+      !store.last_products_synced_at
+    ) {
+      await this.walmartOAuthHook.afterOAuth(
+        access_token as string,
+        store.id,
+        created_by,
+      );
     }
   }
 

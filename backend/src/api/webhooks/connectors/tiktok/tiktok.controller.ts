@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   Param,
@@ -13,23 +14,28 @@ import { TikTokWebhooksService } from './tiktok.service';
 export class TikTokWebhookController {
   constructor(private readonly service: TikTokWebhooksService) {}
 
-  @Post(':storeId')
+  @Post()
   @HttpCode(200)
   async handle(
-    @Param('storeId') storeId: string,
-    @Req() req: Request & { rawBody: Buffer },
+    @Req() req: any,
     @Body() body: any,
-    @Headers('x-tt-signature') signature: string,
-    @Headers('x-tt-timestamp') timestamp: string,
+    @Headers('authorization') signature: string,
   ) {
-    await this.service.verifyAndProcess(
-      storeId,
-      req.rawBody,
-      body,
+    const tiktokShopId: string = body.shop_id;
+
+    this.service.verifySignature(
+      req.rawBody as Buffer<ArrayBufferLike>,
       signature,
-      timestamp,
     );
 
+    await this.service.verifyAndProcess(body, tiktokShopId);
+
+    return { status: 'ACK' };
+  }
+
+  @Get()
+  @HttpCode(200)
+  handleGet(@Req() req: any) {
     return { status: 'ACK' };
   }
 }

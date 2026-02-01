@@ -27,7 +27,7 @@ export class FaireService {
   // INITIALIZATION
   // -----------------------------
   initialize(credentials: any): void {
-    this.baseUrl = credentials.baseUrl || 'https://www.faire.com/api/v2';
+    this.baseUrl = credentials.baseUrl || 'https://www.faire.com/external-api/v2';
     this.accessToken = credentials.access_token;
     this.timeout = credentials.timeout || 30000;
 

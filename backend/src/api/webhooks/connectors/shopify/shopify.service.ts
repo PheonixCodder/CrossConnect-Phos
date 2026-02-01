@@ -1,88 +1,56 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
-import { StoresRepository } from '../../../../supabase/repositories/stores.repository';
-import axios from 'axios';
+import { CREATE_WEBHOOK, LIST_WEBHOOKS } from './graphql/shopify-webhooks';
+import { ShopifyService } from '../../../../connectors/shopify/shopify.service';
+import {
+  ListWebhooksQuery,
+  WebhookCreateMutation,
+} from '../../../../connectors/shopify/graphql/generated/admin.generated';
+import { WebhookSubscriptionTopic } from '../../../../connectors/shopify/graphql/generated/admin.types';
 
 @Injectable()
-export class ShopifyWebhooksService {
-  private readonly logger = new Logger(ShopifyWebhooksService.name);
+export class ShopifyWebhookService {
+  private readonly logger = new Logger(ShopifyWebhookService.name);
 
   constructor(
+    private readonly shopify: ShopifyService,
     private readonly config: ConfigService,
-    private readonly storesRepo: StoresRepository,
-    private readonly httpService: HttpService,
   ) {}
 
-  async setupWebhookForUser(userId: string, storeId: string, topic: string) {
-    const store = await this.storesRepo.getCredentials(storeId);
-    const creds =
-      typeof store.credentials === 'string'
-        ? JSON.parse(store.credentials)
-        : store.credentials;
-
-    if (!creds.accessToken || !creds.shopDomain) {
-      throw new Error('Shopify credentials not found for this user/org');
-    }
-
-    const appUrl = this.config.get<string>('APP_URL');
-    // Callback URL includes both userId and Store
-    const eventUrl = `${appUrl}/api/webhooks/shopify/${storeId}/${userId}`;
-
-    const payload = {
-      webhook: {
-        topic: topic,
-        address: eventUrl,
-        format: 'json',
-      },
-    };
-
-    try {
-      const shopDomain = creds.shopDomain;
-      const response = await firstValueFrom(
-        this.httpService.post(
-          `https://${shopDomain}/admin/api/2026-01/webhooks.json`,
-          payload,
-          {
-            headers: {
-              'X-Shopify-Access-Token': creds.accessToken,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
-      );
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        this.logger.error(
-          `Shopify Setup Error for Store: ${storeId}`,
-          error.response?.data || error.message,
-        );
-      } else {
-        this.logger.error(`Shopify Setup Error for Store: ${storeId}`, error);
-      }
-      throw error;
-    }
-  }
-
-  async processEvent(
-    userId: string,
+  async reconcileWebhooks(
+    credentials: any,
     storeId: string,
-    topic: string,
-    payload: any,
+    userId: string,
+    topics: string[],
   ) {
-    this.logger.log(
-      `Processing ${topic} for Store: ${storeId}, User: ${userId}`,
+    this.shopify.initialize(credentials);
+
+    const baseUrl = `${this.config.get('APP_URL')}/api/webhooks/shopify/${storeId}/${userId}`;
+
+    const existing =
+      await this.shopify.execute<ListWebhooksQuery>(LIST_WEBHOOKS);
+    const existingTopics = new Set(
+      existing.webhookSubscriptions.nodes.map((w) => w.topic),
     );
 
-    switch (topic) {
-      case 'orders/create':
-        // await this.handleOrder(userId, orgId, payload);
-        break;
-      case 'products/update':
-        // await this.handleProduct(userId, orgId, payload);
-        break;
+    for (const topic of topics) {
+      if (existingTopics.has(topic as WebhookSubscriptionTopic)) continue;
+
+      const res = await this.shopify.execute<WebhookCreateMutation>(
+        CREATE_WEBHOOK,
+        {
+          topic,
+          callbackUrl: baseUrl,
+        },
+      );
+
+      if (res.webhookSubscriptionCreate?.userErrors.length) {
+        throw new Error(
+          JSON.stringify(res.webhookSubscriptionCreate.userErrors),
+        );
+      }
+
+      this.logger.log(`Created webhook: ${topic}`);
     }
   }
 }

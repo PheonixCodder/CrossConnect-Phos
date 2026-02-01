@@ -1,20 +1,20 @@
-import { StoresRepository } from './../../../../supabase/repositories/stores.repository';
 import { Module } from '@nestjs/common';
-import { ShopifyWebhooksModule } from '@nestjs-shopify/webhooks';
-import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
-import { ShopifyWebhooksService } from './shopify.service';
 import { ShopifyWebhookController } from './shopify.controller';
-import { ShopifyMultiTenantGuard } from '../../guards/shopify-webhook.guard';
+import { ShopifyWebhookGuard } from '../../guards/shopify-webhook.guard';
+import { ShopifyWebhookService } from './shopify.service';
+import { ShopifyWebhookProcessor } from './shopify.processor';
+import { ShopifyService } from '../../../../connectors/shopify/shopify.service';
 
 @Module({
-  imports: [HttpModule, ConfigModule, ShopifyWebhooksModule],
-  providers: [
-    ShopifyWebhooksService,
-    ShopifyMultiTenantGuard,
-    StoresRepository,
-  ],
+  imports: [ConfigModule],
   controllers: [ShopifyWebhookController],
-  exports: [ShopifyWebhooksService],
+  providers: [
+    ShopifyWebhookGuard,
+    ShopifyWebhookService,
+    ShopifyService,
+    ShopifyWebhookProcessor,
+  ],
+  exports: [ShopifyService, ShopifyWebhookService],
 })
-export class ShopifyIntegrationModule {}
+export class ShopifyWebhookModule {}

@@ -6,26 +6,30 @@ import {
   Headers,
   UseGuards,
   HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
-import { ShopifyWebhooksService } from './shopify.service';
-import { ShopifyMultiTenantGuard } from '../../guards/shopify-webhook.guard';
+import { ShopifyWebhookGuard } from '../../guards/shopify-webhook.guard';
+import { ShopifyWebhookProcessor } from './shopify.processor';
 
 @Controller('webhooks/shopify')
 export class ShopifyWebhookController {
-  constructor(private readonly shopifyService: ShopifyWebhooksService) {}
+  constructor(private readonly processor: ShopifyWebhookProcessor) {}
 
   @Post(':storeId/:userId')
-  @UseGuards(ShopifyMultiTenantGuard)
-  @HttpCode(HttpStatus.OK)
-  async handleWebhook(
-    @Param('storeId') orgId: string,
+  @UseGuards(ShopifyWebhookGuard)
+  @HttpCode(200)
+  async handle(
+    @Param('storeId') storeId: string,
     @Param('userId') userId: string,
     @Headers('x-shopify-topic') topic: string,
+    @Headers('x-shopify-webhook-id') webhookId: string,
     @Body() body: any,
   ) {
-    // Process event synchronously before acknowledging
-    await this.shopifyService.processEvent(userId, orgId, topic, body);
-    return { status: 'ACKNOWLEDGED' };
+    await this.processor.enqueue({
+      webhookId,
+      topic,
+      storeId,
+      userId,
+      payload: body,
+    });
   }
 }

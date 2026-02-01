@@ -291,8 +291,8 @@ export function mapWalmartReturnsToDB(
     if (!returnOrder.returnOrderId) continue;
 
     const externalOrderId =
-      returnOrder.customerOrderId ??
-      returnOrder.returnOrderLines?.[0]?.purchaseOrderId;
+      returnOrder.returnOrderLines?.[0]?.purchaseOrderId ??
+      returnOrder.returnOrderId;
 
     if (!externalOrderId) continue;
 

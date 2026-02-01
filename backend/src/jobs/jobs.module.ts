@@ -21,6 +21,7 @@ import { StoreCredentialsService } from '../supabase/repositories/store_credenti
 import { SupabaseModule } from 'nestjs-supabase-js';
 import { HttpModule } from '@nestjs/axios';
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
+import { TikTokModule } from '../connectors/tiktok/tiktok.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { AlertsRepository } from '../supabase/repositories/alerts.repository';
     WarehanceModule,
     SupabaseModule.injectClient(),
     HttpModule,
+    TikTokModule,
   ],
   providers: [
     // Processors

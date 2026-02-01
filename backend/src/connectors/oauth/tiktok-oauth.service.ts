@@ -60,6 +60,7 @@ export class TikTokOAuthService {
       .from('stores')
       .update({
         auth_status: 'active',
+        shopDomain: shop_id,
         auth_expires_at: new Date(
           Date.now() + access_token_expire_in * 1000,
         ).toISOString(),

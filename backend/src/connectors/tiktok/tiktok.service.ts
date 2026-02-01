@@ -1,10 +1,10 @@
 import { ConfigService } from '@nestjs/config';
-import { Injectable, Logger } from '@nestjs/common';
-import * as zlib from 'zlib';
+import { Injectable } from '@nestjs/common';
 import {
   ClientConfiguration,
   Fulfillment202309SearchPackageResponseDataPackages,
   Order202309GetOrderListResponseDataOrders,
+  Product202309InventorySearchResponseDataInventory,
   Product202502SearchProductsResponseDataProducts,
   ReturnRefund202309SearchReturnsResponseDataReturnOrders,
   TikTokShopNodeApiClient,
@@ -16,9 +16,11 @@ export class TikTokService {
   private client: TikTokShopNodeApiClient;
 
   constructor(
-    private readonly config: ConfigService,
-    private readonly oauth: TikTokOAuthService,
-  ) {
+    private config: ConfigService,
+    private oauth: TikTokOAuthService,
+  ) {}
+
+  initialize(): void {
     ClientConfiguration.globalConfig.app_key =
       this.config.get('TIKTOK_APP_KEY');
     ClientConfiguration.globalConfig.app_secret =
@@ -29,7 +31,9 @@ export class TikTokService {
     });
   }
 
-  async getAllOrders(storeId: string) {
+  async getAllOrders(
+    storeId: string,
+  ): Promise<Order202309GetOrderListResponseDataOrders[]> {
     const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
     const allOrders: Order202309GetOrderListResponseDataOrders[] = [];
     let pageToken = '';
@@ -53,7 +57,9 @@ export class TikTokService {
     return allOrders;
   }
 
-  async getAllProducts(storeId: string) {
+  async getAllProducts(
+    storeId: string,
+  ): Promise<Product202502SearchProductsResponseDataProducts[] | []> {
     const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
     const allProducts: Product202502SearchProductsResponseDataProducts[] = [];
     let pageToken = '';
@@ -72,21 +78,26 @@ export class TikTokService {
       pageToken = data?.nextPageToken || '';
     } while (pageToken !== '');
 
-    return allProducts;
+    return allProducts ?? [];
   }
 
-  async getOrderItems(storeId: string, orderId: string) {
+  async getProductInventories(
+    storeId: string,
+    orderIds: string[],
+  ): Promise<Product202309InventorySearchResponseDataInventory[]> {
     const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
-    const res = await this.client.api.OrderV202309Api.OrdersGet(
-      [orderId],
+    const res = await this.client.api.ProductV202309Api.InventorySearchPost(
       accessToken,
       'application/json',
       shopCipher,
+      { productIds: orderIds },
     );
-    return res.body.data?.orders?.[0]?.lineItems || [];
+    return res.body.data?.inventory || [];
   }
 
-  async getAllReturns(storeId: string) {
+  async getAllReturns(
+    storeId: string,
+  ): Promise<ReturnRefund202309SearchReturnsResponseDataReturnOrders[]> {
     const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
     const allReturns: ReturnRefund202309SearchReturnsResponseDataReturnOrders[] =
       [];
@@ -118,7 +129,9 @@ export class TikTokService {
    * FBT Fulfillment: Fetches shipment provider and package details.
    * Note: In FBT, TikTok provides the tracking and shipping labels.
    */
-  async getAllFulfillments(storeId: string, orderId: string) {
+  async getAllFulfillments(
+    storeId: string,
+  ): Promise<Fulfillment202309SearchPackageResponseDataPackages[]> {
     const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
 
     const allPackages: Fulfillment202309SearchPackageResponseDataPackages[] =

@@ -22,7 +22,7 @@ import { JobsModule } from '../jobs/jobs.module';
     ShopifyModule,
     WarehanceModule,
     JobsModule,
-    TikTokModule
+    TikTokModule,  
   ],
   providers: [PlatformServiceFactory],
   exports: [PlatformServiceFactory],

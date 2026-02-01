@@ -52,6 +52,22 @@ import { InventorySummary } from '@sp-api-sdk/fba-inventory-api-v1';
 import { ListProductsResponse200 } from '../../.api/apis/warehance-api';
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 import { SupabaseClient } from '@supabase/supabase-js';
+import {
+  Product202309InventorySearchResponseDataInventory,
+  Product202502SearchProductsResponseDataProducts,
+} from '../libs/tiktok';
+import {
+  mapTiktokInventoryToDB,
+  mapTiktokProductToDB,
+  shouldUpdateTiktokInventory,
+} from '../connectors/tiktok/tiktok.mapper';
+import { ShopifyService } from '../connectors/shopify/shopify.service';
+import { WarehanceService } from '../connectors/warehouse/warehance.service';
+import { AmazonService } from '../connectors/amazon/amazon.service';
+import { WalmartService } from '../connectors/walmart/walmart.service';
+import { TargetService } from '../connectors/target/target.service';
+import { FaireService } from '../connectors/faire/faire.service';
+import { TikTokService } from '../connectors/tiktok/tiktok.service';
 
 @Processor('products', { concurrency: 5 })
 export class ProductsProcessor extends WorkerHost {
@@ -73,12 +89,10 @@ export class ProductsProcessor extends WorkerHost {
     const {
       storeId,
       platform,
-      since,
     }: {
       storeId: string;
       platform: Database['public']['Enums']['platform_types'];
       orgId: string;
-      since: string;
     } = job.data;
 
     if (!storeId) {
@@ -115,25 +129,29 @@ export class ProductsProcessor extends WorkerHost {
       // Process based on platform
       switch (platform) {
         case 'faire':
-          await this.processFaireProducts(service, store);
+          await this.processFaireProducts(service as FaireService, store);
           break;
         case 'target':
-          await this.processTargetProducts(service, store);
+          await this.processTargetProducts(service as TargetService, store);
           break;
         case 'walmart':
-          await this.processWalmartProducts(service, store);
+          await this.processWalmartProducts(service as WalmartService, store);
           break;
         case 'amazon':
-          await this.processAmazonProducts(service, store);
+          await this.processAmazonProducts(service as AmazonService, store);
           break;
         case 'warehance':
-          await this.processWarehanceProducts(service, store, since);
+          await this.processWarehanceProducts(
+            service as WarehanceService,
+            store,
+          );
           break;
         case 'shopify':
-          await this.processShopifyProducts(service, store);
+          await this.processShopifyProducts(service as ShopifyService, store);
           break;
-        default:
-          throw new Error(`Unsupported platform: ${platform}`);
+        case 'tiktok':
+          await this.processTiktokProducts(service as TikTokService, store);
+          break;
       }
 
       // Update store health on success
@@ -141,7 +159,10 @@ export class ProductsProcessor extends WorkerHost {
 
       await this.supabaseClient
         .from('stores')
-        .update({ last_synced_at: new Date().toISOString() })
+        .update({
+          last_synced_at: new Date().toISOString(),
+          last_products_synced_at: new Date().toISOString(),
+        })
         .eq('id', store.id);
     } catch (error) {
       this.logger.error(
@@ -163,13 +184,12 @@ export class ProductsProcessor extends WorkerHost {
   }
 
   private async processFaireProducts(
-    service: any,
+    service: FaireService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
       // 1️⃣ Fetch Products from Faire
-      const { products }: { products: FaireProduct[] } =
-        await service.getProducts();
+      const products = await service.getAllProducts();
       if (!products || products.length === 0) {
         this.logger.warn('No products returned from faire');
         return;
@@ -260,12 +280,12 @@ export class ProductsProcessor extends WorkerHost {
   }
 
   private async processTargetProducts(
-    service: any,
+    service: TargetService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_products_synced_at
+        ? new Date(store.last_products_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Fetch ALL Target Products
@@ -342,7 +362,7 @@ export class ProductsProcessor extends WorkerHost {
   }
 
   private async processWalmartProducts(
-    service: any,
+    service: WalmartService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
@@ -384,7 +404,7 @@ export class ProductsProcessor extends WorkerHost {
           const productId = productIdRows.get(product.sku);
           if (!productId) return;
 
-          const inventory: GetInventoryResponse =
+          const inventory: GetInventoryResponse | null =
             await service.getInventory(product);
           if (!inventory) return;
 
@@ -433,12 +453,12 @@ export class ProductsProcessor extends WorkerHost {
   }
 
   private async processAmazonProducts(
-    service: any,
+    service: AmazonService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_products_synced_at
+        ? new Date(store.last_products_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Fetch Products (Listings Report)
@@ -543,11 +563,14 @@ export class ProductsProcessor extends WorkerHost {
   }
 
   private async processWarehanceProducts(
-    service: any,
+    service: WarehanceService,
     store: Database['public']['Tables']['stores']['Row'],
-    since?: string,
   ) {
     const syncStart = new Date();
+
+    const since = store.last_products_synced_at
+      ? new Date(store.last_products_synced_at).toISOString()
+      : undefined;
 
     try {
       this.logger.log(
@@ -557,7 +580,7 @@ export class ProductsProcessor extends WorkerHost {
 
       // ── 1. Fetch ALL Products (incremental if supported)
       const response: ListProductsResponse200['data'] =
-        await service.getProducts(since);
+        await service.getProducts();
       const products = response?.products ?? [];
 
       if (!products.length) {
@@ -598,7 +621,7 @@ export class ProductsProcessor extends WorkerHost {
 
       // ── 5. Inventory Delta Mapping + Deduplication
       this.logger.debug('Mapping inventory data to DB format');
-      let inventoryInserts;
+      let inventoryInserts: Database['public']['Tables']['inventory']['Insert'][];
       try {
         inventoryInserts = mapPlatformInventoryToDB(
           products,
@@ -677,12 +700,12 @@ export class ProductsProcessor extends WorkerHost {
   }
 
   private async processShopifyProducts(
-    service: any,
+    service: ShopifyService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_products_synced_at
+        ? new Date(store.last_products_synced_at).toISOString()
         : undefined;
 
       this.logger.log(`Starting product sync for platform: ${store.platform}`);
@@ -768,6 +791,110 @@ export class ProductsProcessor extends WorkerHost {
         message: `${store.platform.toUpperCase()} products sync failed: ${error.message}`,
         severity: 'high',
         platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+  private async processTiktokProducts(
+    service: TikTokService,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      this.logger.log(`Starting TikTok product sync for store ${store.id}`);
+
+      /* ---------- 1. FETCH PRODUCTS ---------- */
+      const products: Product202502SearchProductsResponseDataProducts[] =
+        await service.getAllProducts(store.id);
+
+      if (!products.length) {
+        this.logger.warn('No TikTok products found. Skipping.');
+        return;
+      }
+
+      /* ---------- 2. MAP + UPSERT PRODUCTS ---------- */
+      const productRows = products.flatMap((p) =>
+        mapTiktokProductToDB(p, store.id),
+      );
+
+      if (!productRows.length) return;
+
+      await this.productsRepo.insertProducts(productRows);
+
+      /* ---------- 3. SKU → PRODUCT ID MAP ---------- */
+      const skus = [...new Set(productRows.map((p) => p.sku))];
+
+      const productIdBySku =
+        await this.productsRepo.getProductIdsBySkusInBatches(
+          store.id,
+          skus,
+          'tiktok',
+        );
+
+      /* ---------- 4. FETCH EXISTING INVENTORY ---------- */
+      const existingInventory = await this.inventoryRepo.getBySkus(
+        skus,
+        store.id,
+      );
+
+      /* ---------- 5. INVENTORY FETCH (≤ 50 IDS) ---------- */
+      const productIds = [...new Set(products.map((p) => p.id!))];
+
+      const inventoryUpserts: Database['public']['Tables']['inventory']['Insert'][] =
+        [];
+
+      for (let i = 0; i < productIds.length; i += 50) {
+        const batch = productIds.slice(i, i + 50);
+
+        const inventories: Product202309InventorySearchResponseDataInventory[] =
+          await service.getProductInventories(store.id, batch);
+
+        for (const inv of inventories) {
+          for (const sku of inv.skus ?? []) {
+            if (!sku.sellerSku) continue;
+
+            const productId = productIdBySku.get(sku.sellerSku);
+            if (!productId) continue;
+
+            const next = mapTiktokInventoryToDB(inv, sku, store.id, productId);
+
+            const existing = existingInventory[sku.sellerSku];
+
+            if (!existing || shouldUpdateTiktokInventory(existing, next)) {
+              inventoryUpserts.push(next);
+            }
+          }
+        }
+      }
+
+      /* ---------- 6. UPSERT INVENTORY ---------- */
+      if (inventoryUpserts.length) {
+        await this.inventoryRepo.updateInventoryBatch(inventoryUpserts);
+
+        this.logger.log(
+          `TikTok inventory synced: ${inventoryUpserts.length} rows`,
+        );
+      } else {
+        this.logger.log('No TikTok inventory changes detected.');
+      }
+    } catch (error) {
+      this.logger.error(
+        `TikTok product sync failed for store ${store.id}`,
+        error.stack,
+      );
+
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `TikTok products sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'products_sync_failure',
+        message: `TikTok products sync failed: ${error.message}`,
+        severity: 'high',
+        platform: 'tiktok',
       });
 
       throw error;

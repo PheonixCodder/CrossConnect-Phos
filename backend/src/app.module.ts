@@ -9,6 +9,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { ConnectorsModule } from './connectors/connectors.module';
 import { CommonModule } from './common/common.module';
+import { WebhooksModule } from './api/webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CommonModule } from './common/common.module';
     SupabaseModule,
     CommonModule,
     ConnectorsModule,
+    WebhooksModule,
     BullModule.forRoot({
       connection: {
         host: process.env.REDIS_HOST || 'localhost',

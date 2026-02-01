@@ -6,58 +6,32 @@ import {
   RawBodyRequest,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { StoresRepository } from '../../../supabase/repositories/stores.repository';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class ShopifyMultiTenantGuard implements CanActivate {
-  constructor(private readonly storesRepo: StoresRepository) {}
+export class ShopifyWebhookGuard implements CanActivate {
+  constructor(private readonly config: ConfigService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<RawBodyRequest<any>>();
-    const { userId, storeId } = request.params;
+  canActivate(context: ExecutionContext): boolean {
+    const req = context.switchToHttp().getRequest<RawBodyRequest<any>>();
 
-    const hmac = request.headers['x-shopify-hmac-sha256'] as string | undefined;
-    const shopDomainHeader = request.headers['x-shopify-shop-domain'] as
-      | string
-      | undefined;
+    const hmac = req.headers['x-shopify-hmac-sha256'] as string;
+    const topic = req.headers['x-shopify-topic'];
+    const shop = req.headers['x-shopify-shop-domain'];
 
-    // Load tenant-specific Shopify credentials
-    const store = await this.storesRepo.getCredentials(storeId as string);
-
-    const creds =
-      typeof store.credentials === 'string'
-        ? JSON.parse(store.credentials)
-        : store.credentials;
-
-    const apiSecret = creds.apiSecret as string | undefined;
-    const storedShopDomain = creds.shopDomain ?? creds.shopDomain;
-
-    if (!apiSecret || !hmac || !request.rawBody) {
-      throw new UnauthorizedException('Security validation failed');
+    if (!hmac || !topic || !shop || !req.rawBody) {
+      throw new UnauthorizedException();
     }
 
-    // Optional: ensure the webhook's shop domain matches the tenant's known shop
-    if (
-      shopDomainHeader &&
-      storedShopDomain &&
-      shopDomainHeader !== storedShopDomain
-    ) {
-      throw new UnauthorizedException('Shop domain mismatch');
-    }
+    const secret = this.config.get<string>('SHOPIFY_CLIENT_SECRET');
 
-    const generatedHash = crypto
-      .createHmac('sha256', apiSecret)
-      .update(request.rawBody)
+    const digest = crypto
+      .createHmac('sha256', secret!)
+      .update(req.rawBody as crypto.BinaryLike)
       .digest('base64');
 
-    const hmacBuffer = Buffer.from(hmac, 'utf8');
-    const generatedBuffer = Buffer.from(generatedHash, 'utf8');
-
-    if (
-      hmacBuffer.length !== generatedBuffer.length ||
-      !crypto.timingSafeEqual(hmacBuffer, generatedBuffer)
-    ) {
-      throw new UnauthorizedException('Invalid Shopify HMAC signature');
+    if (!crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest))) {
+      throw new UnauthorizedException('Invalid HMAC');
     }
 
     return true;

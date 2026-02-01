@@ -1,4 +1,4 @@
-export interface WalmartWebhookBody {
+export interface WalmartWebhookEvent {
   source: {
     eventType:
       | 'INVENTORY_OOS'

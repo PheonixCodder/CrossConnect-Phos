@@ -9,6 +9,10 @@ import { ShopifyService } from './shopify/shopify.service';
 import { WarehanceService } from './warehouse/warehance.service';
 import { Database } from '../supabase/supabase.types';
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
+import { StoresRepository } from '../supabase/repositories/stores.repository';
+import { TikTokService } from './tiktok/tiktok.service';
+import { TikTokOAuthService } from './oauth/tiktok-oauth.service';
+import { WalmartOAuthHook } from '../api/webhooks/connectors/walmart/walmart-oauth.hook';
 
 @Injectable()
 export class PlatformServiceFactory {
@@ -18,6 +22,9 @@ export class PlatformServiceFactory {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly alertsRepo: AlertsRepository,
+    private readonly storeRepo: StoresRepository,
+    private tiktokOAuthService: TikTokOAuthService,
+    private readonly walmartOAuthHook: WalmartOAuthHook,
   ) {}
 
   createService(
@@ -31,15 +38,15 @@ export class PlatformServiceFactory {
       case 'target':
         return this.createTargetService(credentials);
       case 'walmart':
-        return this.createWalmartService(credentials);
+        return this.createWalmartService(credentials, store);
       case 'amazon':
         return this.createAmazonService(credentials);
       case 'shopify':
         return this.createShopifyService(credentials);
       case 'warehance':
         return this.createWarehanceService(credentials);
-      default:
-        throw new Error(`Unsupported platform: ${platform}`);
+      case 'tiktok':
+        return this.createTiktokService(credentials);
     }
   }
 
@@ -55,9 +62,12 @@ export class PlatformServiceFactory {
     return service;
   }
 
-  private createWalmartService(credentials: any): WalmartService {
-    const service = new WalmartService();
-    service.initialize(credentials);
+  private async createWalmartService(
+    credentials: any,
+    store: Database['public']['Tables']['stores']['Row'],
+  ): Promise<WalmartService> {
+    const service = new WalmartService(this.walmartOAuthHook, this.storeRepo);
+    await service.initialize(credentials, store);
     return service;
   }
 
@@ -76,6 +86,15 @@ export class PlatformServiceFactory {
   private createAmazonService(credentials: any): AmazonService {
     const service = new AmazonService();
     service.initialize(credentials);
+    return service;
+  }
+
+  private createTiktokService(credentials: any): TikTokService {
+    const service = new TikTokService(
+      this.configService,
+      this.tiktokOAuthService,
+    );
+    service.initialize();
     return service;
   }
 }

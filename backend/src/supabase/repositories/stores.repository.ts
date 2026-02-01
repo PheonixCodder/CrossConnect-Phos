@@ -43,6 +43,22 @@ export class StoresRepository {
 
     return data;
   }
+  async getOrgById(
+    org_id: string,
+  ): Promise<Database['public']['Tables']['organizations']['Row']> {
+    const { data, error } = await this.supabaseClient
+      .from('organizations')
+      .select('*')
+      .eq('id', org_id)
+      .single();
+
+    if (error) {
+      this.logger.error(`Failed to fetch organization ${org_id}`, error);
+      throw error;
+    }
+
+    return data;
+  }
 
   async updateStoreHealth(
     storeId: string,

@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Controller,
   Get,
-  Param,
   Query,
   Res,
 } from '@nestjs/common';
@@ -18,7 +17,7 @@ export class TikTokOAuthController {
    * Mirrors Amazon / Walmart connect endpoints
    */
   @Get()
-  redirectToTikTok(@Param('storeId') storeId: string, @Res() res: Response) {
+  redirectToTikTok(@Query('storeId') storeId: string, @Res() res: Response) {
     const url = this.oauth.getAuthUrl(storeId);
     return res.redirect(url);
   }

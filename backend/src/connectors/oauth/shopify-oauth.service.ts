@@ -4,6 +4,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../supabase/supabase.types';
+import { ShopifyOAuthHook } from '../../api/webhooks/connectors/shopify/shopify-oauth.hook';
 
 @Injectable()
 export class ShopifyOAuthService {
@@ -17,6 +18,7 @@ export class ShopifyOAuthService {
 
   constructor(
     private readonly http: HttpService,
+    private readonly shopifyHook: ShopifyOAuthHook,
     private readonly supabase: SupabaseClient<Database>,
   ) {}
 
@@ -77,25 +79,40 @@ export class ShopifyOAuthService {
     }
 
     // Persist credentials
-    await this.supabase.from('store_credentials').upsert({
-      store_id: state,
-      credentials: {
-        accessToken: access_token,
-        shopDomain: shop,
-        scopes: scope.split(','),
-      },
-      updated_at: new Date().toISOString(),
-    });
+    const { data } = await this.supabase
+      .from('store_credentials')
+      .upsert({
+        store_id: state,
+        credentials: {
+          accessToken: access_token,
+          shopDomain: shop,
+          scopes: scope.split(','),
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .select('*');
 
     // Update store
-    await this.supabase
+    const { data: storeData } = await this.supabase
       .from('stores')
       .update({
         auth_status: 'active',
         shopDomain: shop,
-        auth_expires_at: null, // offline token
+        auth_expires_at: null,
       })
-      .eq('id', state);
+      .select('org_id')
+      .eq('id', state as string);
+
+    const { data: orgData } = await this.supabase
+      .from('organizations')
+      .select('created_by')
+      .eq('id', storeData![0].org_id);
+
+    await this.shopifyHook.afterOAuth(
+      data![0].credentials,
+      state as string,
+      orgData![0].created_by,
+    );
   }
 
   /**

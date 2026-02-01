@@ -51,6 +51,19 @@ import {
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { InjectSupabaseClient } from 'nestjs-supabase-js';
+import { TikTokService } from '../connectors/tiktok/tiktok.service';
+import {
+  mapTiktokFulfillmentsToDB,
+  mapTiktokOrderItemsToDB,
+  mapTiktokOrderToDB,
+} from '../connectors/tiktok/tiktok.mapper';
+import { ShopifyService } from '../connectors/shopify/shopify.service';
+import { WarehanceService } from '../connectors/warehouse/warehance.service';
+import { AmazonService } from '../connectors/amazon/amazon.service';
+import { WalmartService } from '../connectors/walmart/walmart.service';
+import { TargetService } from '../connectors/target/target.service';
+import { FaireService } from '../connectors/faire/faire.service';
+import { getOrders } from '../connectors/faire/faire.types';
 
 @Processor('orders', { concurrency: 5 })
 export class OrdersProcessor extends WorkerHost {
@@ -75,7 +88,6 @@ export class OrdersProcessor extends WorkerHost {
     const {
       storeId,
       platform,
-      since,
     }: {
       storeId: string;
       platform: Database['public']['Enums']['platform_types'];
@@ -120,32 +132,36 @@ export class OrdersProcessor extends WorkerHost {
 
       switch (platform) {
         case 'faire':
-          await this.processFaireOrders(service, store);
+          await this.processFaireOrders(service as FaireService, store);
           break;
         case 'target':
-          await this.processTargetOrders(service, store);
+          await this.processTargetOrders(service as TargetService, store);
           break;
         case 'walmart':
-          await this.processWalmartOrders(service, store);
+          await this.processWalmartOrders(service as WalmartService, store);
           break;
         case 'amazon':
-          await this.processAmazonOrders(service, store);
+          await this.processAmazonOrders(service as AmazonService, store);
           break;
         case 'shopify':
-          await this.processShopifyOrders(service, store);
+          await this.processShopifyOrders(service as ShopifyService, store);
           break;
         case 'warehance':
-          await this.processWarehanceOrders(service, store);
+          await this.processWarehanceOrders(service as WarehanceService, store);
           break;
-        default:
-          throw new Error(`Unsupported platform: ${platform}`);
+        case 'tiktok':
+          await this.processTiktokOrders(service as TikTokService, store);
+          break;
       }
 
       // Update store health on success
       await this.storeRepo.updateStoreHealth(storeId, 'healthy');
       await this.supabaseClient
         .from('stores')
-        .update({ last_synced_at: new Date().toISOString() })
+        .update({
+          last_synced_at: new Date().toISOString(),
+          last_orders_synced_at: new Date().toISOString(),
+        })
         .eq('id', store.id);
     } catch (error) {
       this.logger.error(`Orders job failed for store ${storeId}`, error.stack);
@@ -166,7 +182,7 @@ export class OrdersProcessor extends WorkerHost {
   }
 
   private async processFaireOrders(
-    service: any,
+    service: FaireService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
@@ -176,7 +192,7 @@ export class OrdersProcessor extends WorkerHost {
       products.forEach((p) => productMap.set(p.external_product_id, p.id));
 
       // 2️⃣ Fetch orders from Faire
-      const { orders }: { orders: FaireOrder[] } = await service.getOrders();
+      const orders: getOrders['orders'] = await service.getAllOrders();
       if (!orders || orders.length === 0) {
         this.logger.warn('No orders fetched from Faire');
         return;
@@ -260,12 +276,12 @@ export class OrdersProcessor extends WorkerHost {
   }
 
   private async processTargetOrders(
-    service: any,
+    service: TargetService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_orders_synced_at
+        ? new Date(store.last_orders_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Fetch all products for this store -> build productMap: external_product_id -> product.id
@@ -276,7 +292,7 @@ export class OrdersProcessor extends WorkerHost {
       });
 
       // 2️⃣ Fetch orders from Target
-      const orders: TargetOrder[] = await service.getAllOrders(since);
+      const orders: TargetOrder[] = await service.getAllOrders({ since });
       if (!orders?.length) {
         this.logger.warn('No orders fetched from Target');
         return;
@@ -422,12 +438,12 @@ export class OrdersProcessor extends WorkerHost {
   }
 
   private async processWalmartOrders(
-    service: any,
+    service: WalmartService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_orders_synced_at
+        ? new Date(store.last_orders_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Products → productId map
@@ -514,13 +530,13 @@ export class OrdersProcessor extends WorkerHost {
   }
 
   private async processAmazonOrders(
-    service: any,
+    service: AmazonService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
       // Get since parameter for incremental sync
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_orders_synced_at
+        ? new Date(store.last_orders_synced_at).toISOString()
         : undefined;
 
       // 1️⃣ Products → productId map
@@ -620,12 +636,12 @@ export class OrdersProcessor extends WorkerHost {
   }
 
   private async processWarehanceOrders(
-    service: any,
+    service: WarehanceService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     const syncStart = new Date();
-    const since = store.last_synced_at
-      ? new Date(store.last_synced_at).toISOString()
+    const since = store.last_orders_synced_at
+      ? new Date(store.last_orders_synced_at).toISOString()
       : undefined;
 
     try {
@@ -642,7 +658,7 @@ export class OrdersProcessor extends WorkerHost {
 
       // Fetch Orders (incremental)
       const ordersResponse: ListOrdersResponse200['data'] =
-        await service.getOrders(store, since);
+        await service.getOrders(since);
       const orders = ordersResponse?.orders ?? [];
 
       if (!orders.length) {
@@ -751,12 +767,12 @@ export class OrdersProcessor extends WorkerHost {
   }
 
   private async processShopifyOrders(
-    service: any,
+    service: ShopifyService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_synced_at
-        ? new Date(store.last_synced_at).toISOString()
+      const since = store.last_orders_synced_at
+        ? new Date(store.last_orders_synced_at).toISOString()
         : undefined;
 
       // 1. Reference Data for Mapping
@@ -837,6 +853,122 @@ export class OrdersProcessor extends WorkerHost {
         message: `${store.platform.toUpperCase()} orders sync failed: ${error.message}`,
         severity: 'high',
         platform: store.platform,
+      });
+
+      throw error;
+    }
+  }
+  private async processTiktokOrders(
+    service: TikTokService,
+    store: Database['public']['Tables']['stores']['Row'],
+  ) {
+    try {
+      /* ---------- 1. Reference products (SKU → product_id) ---------- */
+      const products = await this.productsRepo.getAllProductsByStore(store.id);
+
+      const productIdBySku = new Map<string, string>(
+        products.map((p) => [p.sku, p.id]),
+      );
+
+      /* ---------- 2. Fetch orders ---------- */
+      const orders = await service.getAllOrders(store.id);
+
+      if (!orders?.length) {
+        this.logger.log(`[TikTok] No orders to sync for store ${store.id}`);
+        return;
+      }
+
+      /* ---------- 3. Upsert orders ---------- */
+      const orderInserts = orders.map((o) => mapTiktokOrderToDB(o, store.id));
+
+      const { data: persistedOrders } =
+        await this.ordersRepo.insertOrdersAndReturn(orderInserts);
+
+      if (!persistedOrders?.length) {
+        throw new Error('Orders upsert returned no rows');
+      }
+
+      const orderIdByExternalId = new Map<string, string>(
+        persistedOrders.map((o) => [o.external_order_id, o.id!]),
+      );
+
+      /* ---------- 4. Order items + lineItem → product map ---------- */
+      const orderItemInserts: Database['public']['Tables']['order_items']['Insert'][] =
+        [];
+
+      const lineItemProductMap = new Map<string, string | null>();
+
+      for (const order of orders) {
+        const orderId = orderIdByExternalId.get(order.id!);
+        if (!orderId) continue;
+
+        for (const li of order.lineItems ?? []) {
+          const sku: string =
+            (li.sellerSku as string) ??
+            (li.skuId as string) ??
+            (li.combinedListingSkus?.[0]?.sellerSku as string);
+
+          const productId = sku ? (productIdBySku.get(sku) ?? null) : null;
+
+          if (li.id) {
+            lineItemProductMap.set(li.id, productId);
+          }
+
+          orderItemInserts.push({
+            order_id: orderId,
+            external_line_item_id: li.id ?? null,
+            sku,
+            product_id: productId,
+            quantity: 1,
+            price: Number(li.salePrice ?? li.originalPrice ?? '0'),
+            total: Number(li.salePrice ?? li.originalPrice ?? '0'),
+            fulfilled_quantity: 0,
+            refunded_quantity: 0,
+          });
+        }
+      }
+
+      if (orderItemInserts.length) {
+        await this.orderItemsRepo.bulkUpsertOrderItems(orderItemInserts);
+      }
+
+      /* ---------- 5. Fulfillments ---------- */
+      const packages = await service.getAllFulfillments(store.id);
+
+      if (packages?.length) {
+        const fulfillmentInserts = mapTiktokFulfillmentsToDB(
+          packages,
+          store,
+          orderIdByExternalId,
+          lineItemProductMap,
+        );
+
+        if (fulfillmentInserts.length) {
+          await this.shipmentRepo.insertShipments(fulfillmentInserts);
+        }
+      }
+
+      this.logger.log(
+        `[TikTok] Orders sync complete — ${persistedOrders.length} orders`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `[TikTok] Orders sync failed for store ${store.id}`,
+        error.stack,
+      );
+
+      await this.storeRepo.updateStoreHealth(
+        store.id,
+        'unhealthy',
+        `Orders sync failed: ${error.message}`,
+      );
+
+      await this.alertsRepo.createAlert({
+        store_id: store.id,
+        alert_type: 'order_sync_failure',
+        message: `TikTok orders sync failed: ${error.message}`,
+        severity: 'high',
+        platform: 'tiktok',
       });
 
       throw error;
