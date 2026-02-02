@@ -27,7 +27,8 @@ export class FaireService {
   // INITIALIZATION
   // -----------------------------
   initialize(credentials: any): void {
-    this.baseUrl = credentials.baseUrl || 'https://www.faire.com/external-api/v2';
+    this.baseUrl =
+      credentials.baseUrl || 'https://www.faire.com/external-api/v2';
     this.accessToken = credentials.access_token;
     this.timeout = credentials.timeout || 30000;
 
@@ -75,6 +76,7 @@ export class FaireService {
       const { data } = await firstValueFrom(response$);
       return data;
     } catch (error: any) {
+      console.log(error);
       const status = error?.response?.status;
 
       const shouldRetry =
@@ -111,7 +113,7 @@ export class FaireService {
   async getAllOrders(since?: string): Promise<getOrders['orders']> {
     const allOrders: getOrders['orders'] = [];
     let page = 1;
-    const limit = 250;
+    const limit = 50;
 
     while (true) {
       const query = new URLSearchParams({
@@ -149,7 +151,7 @@ export class FaireService {
   async getAllProducts(since?: string): Promise<getProducts['products']> {
     const allProducts: getProducts['products'] = [];
     let page = 1;
-    const limit = 250;
+    const limit = 50;
 
     while (true) {
       const query = new URLSearchParams({

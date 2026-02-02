@@ -226,6 +226,8 @@ export function StoreList({
                                       store_id: store.id,
                                       credentials: {
                                         TIKTOK_STORE_ID: selectedStore!.id,
+                                        ...(store.store_credentials![0]
+                                          .credentials as object),
                                       },
                                     });
                                   await supabase

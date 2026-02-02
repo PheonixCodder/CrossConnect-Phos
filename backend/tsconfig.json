@@ -20,8 +20,9 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "paths": {
-      "*": ["src/*"],
+      "*": ["src/*"]
     }
   },
+  "ignorePatterns": ["newrelic.js", ".eslintrc.js"],
   "exclude": ["node_modules", "dist", ".api", ".api/**"]
 }
