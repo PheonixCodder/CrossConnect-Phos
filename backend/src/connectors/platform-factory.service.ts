@@ -13,6 +13,7 @@ import { StoresRepository } from '../supabase/repositories/stores.repository';
 import { TikTokService } from './tiktok/tiktok.service';
 import { TikTokOAuthService } from './oauth/tiktok-oauth.service';
 import { WalmartOAuthHook } from '../api/webhooks/connectors/walmart/walmart-oauth.hook';
+import { CryptoService } from '../common/crypto.service';
 
 @Injectable()
 export class PlatformServiceFactory {
@@ -25,6 +26,7 @@ export class PlatformServiceFactory {
     private readonly storeRepo: StoresRepository,
     private tiktokOAuthService: TikTokOAuthService,
     private readonly walmartOAuthHook: WalmartOAuthHook,
+    private crypto: CryptoService,
   ) {}
 
   createService(
@@ -51,13 +53,13 @@ export class PlatformServiceFactory {
   }
 
   private createShopifyService(credentials: any): ShopifyService {
-    const service = new ShopifyService();
+    const service = new ShopifyService(this.crypto);
     service.initialize(credentials);
     return service;
   }
 
   private createWarehanceService(credentials: any): WarehanceService {
-    const service = new WarehanceService(this.alertsRepo);
+    const service = new WarehanceService(this.alertsRepo, this.crypto);
     service.initialize(credentials);
     return service;
   }
@@ -66,25 +68,29 @@ export class PlatformServiceFactory {
     credentials: any,
     store: Database['public']['Tables']['stores']['Row'],
   ): Promise<WalmartService> {
-    const service = new WalmartService(this.walmartOAuthHook, this.storeRepo);
+    const service = new WalmartService(
+      this.walmartOAuthHook,
+      this.storeRepo,
+      this.crypto,
+    );
     await service.initialize(credentials, store);
     return service;
   }
 
   private createTargetService(credentials: any): TargetService {
-    const service = new TargetService(this.httpService);
+    const service = new TargetService(this.httpService, this.crypto);
     service.initialize(credentials);
     return service;
   }
 
   private createFaireService(credentials: any): FaireService {
-    const service = new FaireService(this.httpService);
+    const service = new FaireService(this.httpService, this.crypto);
     service.initialize(credentials);
     return service;
   }
 
   private createAmazonService(credentials: any): AmazonService {
-    const service = new AmazonService();
+    const service = new AmazonService(this.crypto);
     service.initialize(credentials);
     return service;
   }

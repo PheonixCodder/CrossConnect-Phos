@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { CREDENTIALS_CONFIG } from "../../schema/schema";
 import type { Database } from "@/types/supabase.types";
+import { encryptPayload } from "@/app/actions/credentials";
 type PlatformType = Database["public"]["Enums"]["platform_types"];
 
 interface Props {
@@ -85,20 +86,21 @@ export function CredentialDialog({
           toast.success("Failed Fetching Tiktok Stores");
         }
       }
+      const encryptedCredentials = await encryptPayload(formData);
 
       // Standard logic for other platforms (Amazon, Faire, etc.)
       if (isEdit) {
         await supabase
           .from("store_credentials")
           .update({
-            credentials: formData,
+            credentials: encryptedCredentials,
             updated_at: new Date().toISOString(),
           })
           .eq("store_id", storeId);
       } else {
         await supabase.from("store_credentials").insert({
           store_id: storeId,
-          credentials: formData,
+          credentials: encryptedCredentials,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });

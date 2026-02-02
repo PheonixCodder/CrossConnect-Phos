@@ -12,6 +12,7 @@ import {
   TargetProductReturn,
 } from './target.mapper';
 import { TargetProductReturnsResponse } from './target.types';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class TargetService {
@@ -27,16 +28,19 @@ export class TargetService {
   private readonly maxRetries = 5;
   private readonly baseDelayMs = 500;
 
-  constructor(private readonly http: HttpService) {}
+  constructor(
+    private readonly http: HttpService,
+    private readonly crypto: CryptoService,
+  ) {}
 
   // -------------------------------
   // INITIALIZATION
   // -------------------------------
   initialize(credentials: any): void {
     this.baseUrl = credentials.baseUrl || 'https://api.target.com';
-    this.apiKey = credentials.apiKey;
-    this.sellerId = credentials.sellerId;
-    this.sellerToken = credentials.sellerToken;
+    this.apiKey = this.crypto.decrypt(credentials.apiKey);
+    this.sellerId = this.crypto.decrypt(credentials.sellerId);
+    this.sellerToken = this.crypto.decrypt(credentials.sellerToken);
     this.timeout = credentials.timeout || 30000;
 
     if (!this.apiKey || !this.sellerId || !this.sellerToken) {

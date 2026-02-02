@@ -4,6 +4,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { firstValueFrom } from 'rxjs';
 import { Database } from '../../supabase/supabase.types';
 import { ConfigService } from '@nestjs/config';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class TikTokOAuthService {
@@ -11,6 +12,7 @@ export class TikTokOAuthService {
     private readonly supabase: SupabaseClient<Database>,
     private readonly http: HttpService,
     private readonly config: ConfigService,
+    private readonly crypto: CryptoService,
   ) {}
 
   getAuthUrl(storeId: string) {
@@ -47,10 +49,10 @@ export class TikTokOAuthService {
     await this.supabase.from('store_credentials').upsert({
       store_id: storeId,
       credentials: {
-        access_token,
-        refresh_token,
-        shop_cipher,
-        shop_id,
+        access_token: this.crypto.encrypt(access_token),
+        refresh_token: this.crypto.encrypt(refresh_token),
+        shop_cipher: this.crypto.encrypt(shop_cipher),
+        shop_id: this.crypto.encrypt(shop_id),
         expires_at: Date.now() + access_token_expire_in * 1000,
       },
       updated_at: new Date().toISOString(),
@@ -84,7 +86,10 @@ export class TikTokOAuthService {
     const isExpiring = creds.expires_at - Date.now() < 300000; // 5 mins buffer
 
     if (isExpiring) {
-      return this.refreshToken(storeId, creds.refresh_token as string);
+      return this.refreshToken(
+        storeId,
+        this.crypto.decrypt(creds.refresh_token) as string,
+      );
     }
 
     return { shopCipher: creds.shop_cipher, accessToken: creds.access_token };
@@ -118,10 +123,10 @@ export class TikTokOAuthService {
       .from('store_credentials')
       .update({
         credentials: {
-          access_token,
-          refresh_token: new_refresh,
-          shop_cipher,
-          shop_id,
+          access_token: this.crypto.encrypt(access_token),
+          refresh_token: this.crypto.encrypt(new_refresh),
+          shop_cipher: this.crypto.encrypt(shop_cipher),
+          shop_id: this.crypto.encrypt(shop_id),
           expires_at: expiresAt,
         },
         updated_at: new Date().toISOString(),

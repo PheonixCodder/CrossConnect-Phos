@@ -18,6 +18,7 @@ import {
   FetchFulfillmentsQuery,
   FetchReturnsQuery,
 } from './graphql/generated/admin.generated';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class ShopifyService {
@@ -27,12 +28,13 @@ export class ShopifyService {
   private shop: string;
   private accessToken: string;
   private apiVersion = '2026-01';
+  constructor(private crypto: CryptoService) {}
 
   /* -------------------- INIT -------------------- */
 
   initialize(credentials: any): void {
-    this.shop = credentials.shopDomain;
-    this.accessToken = credentials.accessToken;
+    this.shop = this.crypto.decrypt(credentials.shopDomain);
+    this.accessToken = this.crypto.decrypt(credentials.accessToken);
 
     if (!this.shop || !this.accessToken) {
       throw new Error('Critical Shopify Configuration Missing');

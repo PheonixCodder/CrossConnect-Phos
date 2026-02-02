@@ -10,6 +10,7 @@ import { ShopifyModule } from './shopify/shopify.module';
 import { WarehanceModule } from './warehouse/warehance.module';
 import { TikTokModule } from './tiktok/tiktok.module';
 import { JobsModule } from '../jobs/jobs.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
@@ -22,7 +23,8 @@ import { JobsModule } from '../jobs/jobs.module';
     ShopifyModule,
     WarehanceModule,
     JobsModule,
-    TikTokModule,  
+    TikTokModule,
+    CommonModule,
   ],
   providers: [PlatformServiceFactory],
   exports: [PlatformServiceFactory],

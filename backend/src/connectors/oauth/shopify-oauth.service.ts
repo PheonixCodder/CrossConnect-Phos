@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../supabase/supabase.types';
 import { ShopifyOAuthHook } from '../../api/webhooks/connectors/shopify/shopify-oauth.hook';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class ShopifyOAuthService {
@@ -20,6 +21,7 @@ export class ShopifyOAuthService {
     private readonly http: HttpService,
     private readonly shopifyHook: ShopifyOAuthHook,
     private readonly supabase: SupabaseClient<Database>,
+    private readonly crypto: CryptoService,
   ) {}
 
   /**
@@ -84,8 +86,8 @@ export class ShopifyOAuthService {
       .upsert({
         store_id: state,
         credentials: {
-          accessToken: access_token,
-          shopDomain: shop,
+          accessToken: this.crypto.encrypt(access_token),
+          shopDomain: this.crypto.encrypt(shop),
           scopes: scope.split(','),
         },
         updated_at: new Date().toISOString(),
@@ -121,7 +123,7 @@ export class ShopifyOAuthService {
   private verifyHmac(query: any): void {
     const { hmac, ...rest } = query;
 
-    const message = Object.keys(rest)
+    const message = Object.keys(rest as object)
       .sort()
       .map((key) => `${key}=${rest[key]}`)
       .join('&');

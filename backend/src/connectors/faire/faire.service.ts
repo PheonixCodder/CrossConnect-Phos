@@ -8,6 +8,7 @@ import { firstValueFrom } from 'rxjs';
 import { GetInventory, getOrders, getProducts } from './faire.types';
 import { Database } from '../../supabase/supabase.types';
 import { generateInventoryUrl } from './faire.mapper';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class FaireService {
@@ -21,7 +22,10 @@ export class FaireService {
   private readonly maxRetries = 5;
   private readonly baseDelayMs = 500;
 
-  constructor(private readonly http: HttpService) {}
+  constructor(
+    private readonly http: HttpService,
+    private readonly crypto: CryptoService,
+  ) {}
 
   // -----------------------------
   // INITIALIZATION
@@ -29,7 +33,7 @@ export class FaireService {
   initialize(credentials: any): void {
     this.baseUrl =
       credentials.baseUrl || 'https://www.faire.com/external-api/v2';
-    this.accessToken = credentials.access_token;
+    this.accessToken = this.crypto.decrypt(credentials.access_token);
     this.timeout = credentials.timeout || 30000;
 
     if (!this.accessToken) {

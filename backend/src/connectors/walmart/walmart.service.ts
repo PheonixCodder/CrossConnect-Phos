@@ -19,6 +19,7 @@ import { Database } from '../../supabase/supabase.types';
 import * as crypto from 'crypto';
 import { WalmartOAuthHook } from '../../api/webhooks/connectors/walmart/walmart-oauth.hook';
 import { StoresRepository } from '../../supabase/repositories/stores.repository';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class WalmartService {
@@ -33,14 +34,15 @@ export class WalmartService {
   constructor(
     private readonly walmartOAuthHook: WalmartOAuthHook,
     private readonly storeRepo: StoresRepository,
+    private readonly crypto: CryptoService,
   ) {}
 
   async initialize(
     credentials: any,
     store: Database['public']['Tables']['stores']['Row'],
   ): Promise<void> {
-    this.clientId = credentials.WALMART_CLIENT_ID;
-    this.clientSecret = credentials.WALMART_CLIENT_SECRET;
+    this.clientId = this.crypto.decrypt(credentials.WALMART_CLIENT_ID);
+    this.clientSecret = this.crypto.decrypt(credentials.WALMART_CLIENT_SECRET);
     this.url = credentials.url || 'https://marketplace.walmartapis.com';
 
     if (!this.clientId || !this.clientSecret) {

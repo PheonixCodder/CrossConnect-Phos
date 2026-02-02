@@ -9,6 +9,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { AlertsRepository } from '../../supabase/repositories/alerts.repository';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class WarehanceService {
@@ -19,10 +20,11 @@ export class WarehanceService {
   private tiktokStoreId: number;
 
   constructor(
-    private readonly alertsRepo: AlertsRepository, // Inject here
+    private readonly alertsRepo: AlertsRepository,
+    private readonly crypto: CryptoService,
   ) {}
   initialize(credentials: any): void {
-    this.apiKey = credentials.WAREHANCE_API_KEY;
+    this.apiKey = this.crypto.decrypt(credentials.WAREHANCE_API_KEY);
     this.tiktokStoreId = credentials.TIKTOK_STORE_ID;
 
     if (!this.apiKey) {

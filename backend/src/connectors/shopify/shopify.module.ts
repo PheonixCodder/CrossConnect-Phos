@@ -9,7 +9,12 @@ import { ShopifyAuthController } from './shopify.controller';
 import { SupabaseModule } from 'nestjs-supabase-js';
 
 @Module({
-  imports: [ConfigModule, HttpModule, SupabaseModule.injectClient(), ShopifyWebhookModule],
+  imports: [
+    ConfigModule,
+    HttpModule,
+    SupabaseModule.injectClient(),
+    ShopifyWebhookModule,
+  ],
   providers: [ShopifyService, ShopifyOAuthService, ShopifyOAuthHook],
   controllers: [ShopifyAuthController],
   exports: [ShopifyService],

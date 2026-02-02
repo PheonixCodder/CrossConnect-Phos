@@ -3,12 +3,14 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { firstValueFrom } from 'rxjs';
 import { Database } from '../../supabase/supabase.types';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class AmazonOAuthService {
   constructor(
     private readonly supabase: SupabaseClient<Database>,
     private readonly http: HttpService,
+    private readonly crypto: CryptoService,
   ) {}
 
   /**
@@ -62,10 +64,12 @@ export class AmazonOAuthService {
     await this.supabase.from('store_credentials').upsert({
       store_id: storeId,
       credentials: {
-        refresh_token,
-        sellerId,
-        lwa_client_id: process.env.AMAZON_LWA_CLIENT_ID!,
-        lwa_client_secret: process.env.AMAZON_LWA_CLIENT_SECRET!,
+        refresh_token: this.crypto.encrypt(refresh_token),
+        sellerId: this.crypto.encrypt(sellerId),
+        lwa_client_id: this.crypto.encrypt(process.env.AMAZON_LWA_CLIENT_ID!),
+        lwa_client_secret: this.crypto.encrypt(
+          process.env.AMAZON_LWA_CLIENT_SECRET!,
+        ),
       },
       updated_at: new Date().toISOString(),
     });

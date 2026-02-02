@@ -3,12 +3,14 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { firstValueFrom } from 'rxjs';
 import { Database } from '../../supabase/supabase.types';
-// /api/auth/faire/callback?state=8f42a956-a93e-4a3a-8c83-b44b041a5b92&authorization_code=oac_dbvrq9j5j7qt0f910ywl9a8uh6aegilhgvzhfs71jn32l3wcxob70pp68gmzpmoto4xn9rbierx9hodp59mtso447354wcs8
+import { CryptoService } from '../../common/crypto.service';
+
 @Injectable()
 export class FaireOAuthService {
   constructor(
     private readonly supabase: SupabaseClient<Database>,
     private readonly http: HttpService,
+    private readonly crypto: CryptoService,
   ) {}
 
   getAuthUrl(storeId: string): string {
@@ -55,8 +57,8 @@ export class FaireOAuthService {
     await this.supabase.from('store_credentials').upsert({
       store_id: storeId,
       credentials: {
-        access_token,
-        token_type,
+        access_token: this.crypto.encrypt(access_token),
+        token_type: this.crypto.encrypt(token_type),
         scope: ['READ_PRODUCTS', 'READ_ORDERS', 'READ_INVENTORIES'],
         issued_at: new Date().toISOString(),
       },

@@ -15,6 +15,7 @@ import {
 } from './amazon.types';
 import { Database } from '../../supabase/supabase.types';
 import { SellingPartnerRegion } from '@sp-api-sdk/common';
+import { CryptoService } from '../../common/crypto.service';
 
 @Injectable()
 export class AmazonService {
@@ -26,12 +27,14 @@ export class AmazonService {
   private refreshToken: string;
   private region = 'us-east-1';
 
+  constructor(private readonly crypto: CryptoService) {}
+
   /* -------------------- INIT -------------------- */
 
   initialize(credentials: any): void {
-    this.clientId = credentials.lwa_client_id;
-    this.clientSecret = credentials.lwa_client_secret;
-    this.refreshToken = credentials.refresh_token;
+    this.clientId = this.crypto.decrypt(credentials.lwa_client_id);
+    this.clientSecret = this.crypto.decrypt(credentials.lwa_client_secret);
+    this.refreshToken = this.crypto.decrypt(credentials.refresh_token);
 
     if (!this.clientId || !this.clientSecret || !this.refreshToken) {
       throw new Error('Amazon OAuth credentials missing');
