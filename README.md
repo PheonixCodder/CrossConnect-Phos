@@ -149,14 +149,6 @@ BullMQ related configuration can extend each job with queue names, concurrency, 
 
 ---
 
-## Contributing
-
-We welcome contributions from the community! To contribute:
-
-- Fork the repository and create your branch from `main`.
-- Add your feature or fix, ensuring code style and tests are maintained.
-- Submit a pull request with a clear description and reference related issues.
-
 ### Development Workflow
 
 1. Run tests locally with `npm test`.
