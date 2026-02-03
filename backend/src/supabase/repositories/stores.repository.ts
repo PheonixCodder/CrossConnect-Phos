@@ -87,6 +87,32 @@ export class StoresRepository {
       );
     }
   }
+  async updateWebhookStatus(
+    storeId: string,
+    status: boolean
+  ): Promise<void> {
+    const { error } = await this.supabaseClient
+      .from('stores')
+      .update({
+        webhook_status: status,
+        auth_status: status ? 'active' : 'inactive',
+      })
+      .eq('id', storeId);
+
+    if (error) {
+      this.logger.error(`Failed to update store webhook status for ${storeId}`, error);
+    }
+
+    // Log alert if unhealthy
+    if (!status) {
+      await this.createAlert(
+        storeId,
+        'webhook_status',
+        'Store Webhook Connection failed',
+        'high',
+      );
+    }
+  }
 
   private async createAlert(
     storeId: string,

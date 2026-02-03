@@ -108,7 +108,7 @@ export class ProductsProcessor extends WorkerHost {
       // Create platform-specific service with credentials
       let service;
       try {
-        service = this.platformFactory.createService(
+        service = await this.platformFactory.createService(
           platform,
           credentials,
           store,

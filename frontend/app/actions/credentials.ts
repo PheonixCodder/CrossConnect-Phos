@@ -1,3 +1,4 @@
+"use server"
 import { encrypt } from "@/lib/crypto";
 
 export async function encryptPayload(data: Record<string, string>) {

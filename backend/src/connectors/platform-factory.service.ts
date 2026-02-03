@@ -29,7 +29,7 @@ export class PlatformServiceFactory {
     private crypto: CryptoService,
   ) {}
 
-  createService(
+  async createService(
     platform: Database['public']['Enums']['platform_types'],
     credentials: any,
     store: Database['public']['Tables']['stores']['Row'],

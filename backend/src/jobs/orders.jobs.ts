@@ -105,7 +105,7 @@ export class OrdersProcessor extends WorkerHost {
 
       let service;
       try {
-        service = this.platformFactory.createService(
+        service = await this.platformFactory.createService(
           platform,
           credentials,
           store,

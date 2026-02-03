@@ -5,16 +5,18 @@ const ALGORITHM = "aes-256-gcm";
 // Load key once outside the class/functions
 const getKey = () => {
   const keyHex = process.env.CREDENTIALS_ENCRYPTION_KEY;
+
   if (!keyHex) {
-    throw new Error(
-      "CREDENTIALS_ENCRYPTION_KEY environment variable is required",
-    );
+    // This error will now show up in your SERVER logs, not the browser console
+    throw new Error("CREDENTIALS_ENCRYPTION_KEY environment variable is required");
   }
-  const key = Buffer.from(keyHex, "hex");
+
+  // Ensure we handle the "key" prefix if it exists in your string
+  const cleanHex = keyHex.startsWith('key') ? keyHex.slice(3) : keyHex;
+  const key = Buffer.from(cleanHex, "hex");
+
   if (key.length !== 32) {
-    throw new Error(
-      "CREDENTIALS_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)",
-    );
+    throw new Error(`Invalid key length: ${key.length}. Need 64 hex chars.`);
   }
   return key;
 };

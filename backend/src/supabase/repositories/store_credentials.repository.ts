@@ -76,7 +76,6 @@ export class StoreCredentialsService {
       .from('store_credentials')
       .select('credentials')
       .eq('store_id', storeId)
-      .single();
 
     if (error) {
       throw new Error(
@@ -84,7 +83,7 @@ export class StoreCredentialsService {
       );
     }
 
-    return data.credentials;
+    return data[0].credentials;
   }
 
   async updateCredentials(storeId: string, credentials: any): Promise<void> {

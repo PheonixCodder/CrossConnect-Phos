@@ -61,23 +61,6 @@ export class WalmartService {
       this.logger.error('Failed to init Walmart client', error);
       throw error;
     }
-
-    const { access_token } = await this.walmart.authentication.getAccessToken();
-
-    const { created_by } = await this.storeRepo.getOrgById(store.org_id);
-
-    if (
-      !store.last_synced_at &&
-      !store.last_orders_synced_at &&
-      !store.last_returns_synced_at &&
-      !store.last_products_synced_at
-    ) {
-      await this.walmartOAuthHook.afterOAuth(
-        access_token as string,
-        store.id,
-        created_by,
-      );
-    }
   }
 
   // ────────────────────────────────────────────────
@@ -131,12 +114,12 @@ export class WalmartService {
 
     try {
       const params: any = {
-        limit: 200, // Max allowed by Walmart
+        limit: 200,
         autoPagination: true,
       };
 
       // Handle incremental vs full sync
-      if (!since) {
+      if (since) {
         // Incremental sync: use lastModifiedStartDate to get updated orders
         params.lastModifiedStartDate = since;
         this.logger.debug(`Incremental orders sync since: ${since}`);

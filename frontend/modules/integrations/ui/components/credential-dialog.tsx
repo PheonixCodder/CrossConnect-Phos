@@ -114,9 +114,15 @@ export function CredentialDialog({
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       if (platform !== "shopify") {
         toast.success("Credentials saved");
+        if (platform === "walmart") {
+          await fetch(
+              `${process.env.NEXT_PUBLIC_API_URL}/api/webhooks/walmart/connect/${storeId}`,
+              { method: "POST" }
+          );
+        }
         queryClient.invalidateQueries({ queryKey: ["stores"] });
         onOpenChange(false);
       }

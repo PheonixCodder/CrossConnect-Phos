@@ -7,10 +7,14 @@ import {
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { StoresRepository } from '../../../supabase/repositories/stores.repository';
+import { CryptoService } from '../../../common/crypto.service';
 
 @Injectable()
 export class WalmartWebhookGuard implements CanActivate {
-  constructor(private readonly storesRepo: StoresRepository) {}
+  constructor(
+    private readonly storesRepo: StoresRepository,
+    private crypto: CryptoService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<RawBodyRequest<any>>();
@@ -29,7 +33,7 @@ export class WalmartWebhookGuard implements CanActivate {
         : store.credentials;
 
     const expected = crypto
-      .createHmac('sha256', creds.clientSecret as string)
+      .createHmac('sha256', this.crypto.decrypt(creds.clientSecret) as string)
       .update(req.rawBody as crypto.BinaryLike)
       .digest('base64');
 
