@@ -5,7 +5,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { useDashboardStore } from "@/store/useStore";
 import { Bell } from "lucide-react";
-import { NotificationsPopover } from "@/modules/dashboard/ui/components/NotificationsPopover";
+import NotificationsPopover from "@/modules/dashboard/ui/components/NotificationsPopover";
 import { SettingsPopover } from "@/modules/dashboard/ui/components/SettingsPopover";
 import { TimeRange } from "../../hooks/use-dashboard-data";
 

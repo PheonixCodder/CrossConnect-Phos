@@ -130,20 +130,49 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
   }, [stores, orders, orderItems]);
 
   const salesTrend = useMemo(() => {
-    const dataMap = new Map<string, Record<string, number>>();
-    const allDates = new Set<string>();
+    type DayBucket = {
+      date: string;
+      [platform: string]: number | string;
+    };
+
+    const bucket = new Map<string, DayBucket>();
+
+    // 1. Aggregate VALID orders
     orders.forEach((order) => {
+      if (!order.total) return;
+      if (!["paid", "completed"].includes(order.status)) return;
+
       const date = new Date(
-        order.ordered_at || order.created_at,
-      ).toLocaleDateString("en-US", { weekday: "short" });
-      allDates.add(date);
-      if (!dataMap.has(date)) dataMap.set(date, {});
-      const dayData = dataMap.get(date)!;
-      const platform = order.platform;
-      dayData[platform] = (dayData[platform] || 0) + (order.total || 0);
+          order.ordered_at ?? order.created_at,
+      ).toISOString().slice(0, 10); // YYYY-MM-DD
+
+      if (!bucket.has(date)) bucket.set(date, { date });
+
+      const day = bucket.get(date)!;
+      day[order.platform] =
+          (day[order.platform] as number || 0) + order.total;
     });
-    return Array.from(allDates).map((date) => ({ date, ...dataMap.get(date) }));
-  }, [orders]);
+
+    // 2. Subtract refunds
+    returns.forEach((ret) => {
+      if (!ret.refund_amount) return;
+
+      const date = new Date(ret.created_at)
+          .toISOString()
+          .slice(0, 10);
+
+      if (!bucket.has(date)) bucket.set(date, { date });
+
+      const day = bucket.get(date)!;
+      day[ret.platform] =
+          (day[ret.platform] as number || 0) - ret.refund_amount;
+    });
+
+    // 3. Sort chronologically
+    return Array.from(bucket.values()).sort((a, b) =>
+        a.date.localeCompare(b.date),
+    );
+  }, [orders, returns]);
 
   const successChannels = stores.filter(
     (s) => s.auth_status === "active",
