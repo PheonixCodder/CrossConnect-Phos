@@ -74,15 +74,14 @@ export class StoreCredentialsService {
   async getCredentialsByStoreId(storeId: string): Promise<any> {
     const { data, error } = await this.supabaseClient
       .from('store_credentials')
-      .select('credentials')
-      .eq('store_id', storeId)
+      .select('*')
+      .eq('store_id', storeId);
 
     if (error) {
       throw new Error(
         `Failed to fetch credentials for store ${storeId}: ${error.message}`,
       );
     }
-
     return data[0].credentials;
   }
 

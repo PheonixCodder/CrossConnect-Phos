@@ -110,11 +110,11 @@ export class ShopifyOAuthService {
       .select('created_by')
       .eq('id', storeData![0].org_id);
 
-    await this.shopifyHook.afterOAuth(
-      data![0].credentials,
-      state as string,
-      orgData![0].created_by,
-    );
+    // await this.shopifyHook.afterOAuth(
+    //   data![0].credentials,
+    //   state as string,
+    //   orgData![0].created_by,
+    // );
   }
 
   /**

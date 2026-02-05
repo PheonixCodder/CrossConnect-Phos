@@ -33,15 +33,14 @@ export class StoresRepository {
     const { data, error } = await this.supabaseClient
       .from('stores')
       .select('*')
-      .eq('id', storeId)
-      .single();
+      .eq('id', storeId);
 
     if (error) {
       this.logger.error(`Failed to fetch store ${storeId}`, error);
       throw error;
     }
 
-    return data;
+    return data[0];
   }
   async getOrgById(
     org_id: string,

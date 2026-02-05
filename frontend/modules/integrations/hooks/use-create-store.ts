@@ -32,8 +32,8 @@ export function useCreateStore() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["stores"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["stores"] });
     },
   });
 }
