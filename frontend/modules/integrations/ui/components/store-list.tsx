@@ -37,6 +37,8 @@ import {createClient} from "@/lib/supabase/client";
 import { Trash2 } from "lucide-react";
 import { useDeleteStore } from "../../hooks/use-delete-store";
 import {ResponsiveDialog} from "@/components/layout/responsive-dialog";
+import {toast} from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface StoreListProps {
     platform: Database["public"]["Enums"]["platform_types"];
@@ -82,6 +84,8 @@ export function StoreList({
     const deleteStore = useDeleteStore();
     const [storeToDelete, setStoreToDelete] =
         useState<StoreWithCredentials | null>(null);
+    const queryClient = useQueryClient();
+
 
 
     const handleManageCredentials = (store: StoreWithCredentials) => {
@@ -100,12 +104,20 @@ export function StoreList({
     };
 
     const submitRename = async (storeId: string) => {
-        await renameStore.mutateAsync({
-            storeId,
-            name: storeName.trim(),
-        });
-        cancelRename();
+        try {
+            await renameStore.mutateAsync({
+                storeId,
+                name: storeName,
+            });
+            toast.success('Store renamed Successfully');
+        } catch (error) {
+            console.error(error);
+            toast.error(`Failed to rename: ${error}`);
+        } finally {
+            cancelRename();
+        }
     };
+
 
 
     if (isLoading) {
@@ -313,6 +325,9 @@ export function StoreList({
                                                                             auth_status: "active",
                                                                         })
                                                                         .eq("id", store.id);
+                                                                    await queryClient.invalidateQueries({
+                                                                        queryKey: ["stores"],
+                                                                    });
                                                                 }}
                                                             >
                                                                 {item}
@@ -358,10 +373,16 @@ export function StoreList({
                             variant="destructive"
                             disabled={deleteStore.isPending}
                             onClick={async () => {
-                                await deleteStore.mutateAsync({
-                                    storeId: storeToDelete.id,
-                                });
-                                setStoreToDelete(null);
+                                try {
+                                    await deleteStore.mutateAsync({
+                                        storeId: storeToDelete.id,
+                                    });
+                                } catch (error) {
+                                    console.error(error);
+                                    toast.error(('Failed to delete store'));
+                                } finally {
+                                    setStoreToDelete(null);
+                                }
                             }}
                         >
                             Delete

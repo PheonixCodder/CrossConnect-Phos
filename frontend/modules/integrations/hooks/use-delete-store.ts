@@ -19,7 +19,6 @@ export function useDeleteStore() {
             const { error } = await supabase
                 .from("stores")
                 .delete()
-                .select('*')
                 .eq("id", storeId)
 
             if (error) throw error;

@@ -16,9 +16,15 @@ export function useRenameStore() {
 
     return useMutation({
         mutationFn: async ({ storeId, name }: RenameStoreInput) => {
+            const trimmedName = name.trim();
+
+            if (!trimmedName) {
+                throw new Error("Store name cannot be empty");
+            }
+
             const { error } = await supabase
                 .from("stores")
-                .update({ name })
+                .update({ name: trimmedName })
                 .eq("id", storeId);
 
             if (error) throw error;
