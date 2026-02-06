@@ -12,7 +12,21 @@ export const CREDENTIALS_CONFIG: Record<
 > = {
   amazon: {
     label: "Amazon",
-    fields: [],
+    fields: [{
+      key: "lwa_client_id",
+      label: "Client ID",
+      type: "text",
+    },
+      {
+      key: "lwa_client_secret",
+      label: "Client Secret",
+      type: "text",
+    },
+      {
+      key: "refresh_token",
+      label: "Refresh Token",
+      type: "text",
+    },],
   },
   faire: {
     label: "Faire",
