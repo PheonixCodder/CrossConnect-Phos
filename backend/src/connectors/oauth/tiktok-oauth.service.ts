@@ -17,17 +17,17 @@ export class TikTokOAuthService {
 
   getAuthUrl(storeId: string) {
     const params = new URLSearchParams({
-      app_key: this.config.get('TIKTOK_APP_KEY')!,
-      redirect_uri: this.config.get('TIKTOK_REDIRECT_URI')!,
+      service_id: this.config.get('TIKTOK_SERVICE_ID')!,
       state: storeId,
-      response_type: 'code',
     });
-    return `https://auth.tiktok-shops.com/oauth/authorize?${params}`;
+
+    const baseUrl = 'https://services.us.tiktokshop.com/open/authorize';
+    return `${baseUrl}?${params.toString()}`;
   }
 
   async handleCallback(code: string, storeId: string) {
     const resp = await firstValueFrom(
-      this.http.get('https://auth.tiktok-shops.com', {
+      this.http.get('https://auth.tiktok-shops.com/api/v2/token/get', {
         params: {
           app_key: this.config.get('TIKTOK_APP_KEY'),
           app_secret: this.config.get('TIKTOK_APP_SECRET'),
@@ -41,8 +41,8 @@ export class TikTokOAuthService {
       access_token,
       refresh_token,
       access_token_expire_in,
-      shop_cipher,
-      shop_id,
+      open_id,
+      seller_name,
     } = resp.data.data;
 
     // Enterprise strategy: store distinct fields for query performance
@@ -51,8 +51,8 @@ export class TikTokOAuthService {
       credentials: {
         access_token: this.crypto.encrypt(access_token),
         refresh_token: this.crypto.encrypt(refresh_token),
-        shop_cipher: this.crypto.encrypt(shop_cipher),
-        shop_id: this.crypto.encrypt(shop_id),
+        open_id: this.crypto.encrypt(open_id),
+        seller_name: this.crypto.encrypt(seller_name),
         expires_at: Date.now() + access_token_expire_in * 1000,
       },
       updated_at: new Date().toISOString(),
@@ -62,7 +62,7 @@ export class TikTokOAuthService {
       .from('stores')
       .update({
         auth_status: 'active',
-        shopDomain: shop_id,
+        shopDomain: open_id,
         auth_expires_at: new Date(
           Date.now() + access_token_expire_in * 1000,
         ).toISOString(),
@@ -70,9 +70,7 @@ export class TikTokOAuthService {
       .eq('id', storeId);
   }
 
-  async getValidToken(
-    storeId: string,
-  ): Promise<{ accessToken: string; shopCipher: string }> {
+  async getValidToken(storeId: string): Promise<{ accessToken: string }> {
     const { data: credRecord, error } = await this.supabase
       .from('store_credentials')
       .select('*')
@@ -92,15 +90,15 @@ export class TikTokOAuthService {
       );
     }
 
-    return { shopCipher: creds.shop_cipher, accessToken: creds.access_token };
+    return { accessToken: creds.access_token };
   }
 
   private async refreshToken(
     storeId: string,
     refreshToken: string,
-  ): Promise<{ accessToken: string; shopCipher: string }> {
+  ): Promise<{ accessToken: string }> {
     const resp = await firstValueFrom(
-      this.http.get('https://auth.tiktok-shops.com', {
+      this.http.get('https://auth.tiktok-shops.com/api/v2/token/refresh', {
         params: {
           app_key: this.config.get('TIKTOK_APP_KEY'),
           app_secret: this.config.get('TIKTOK_APP_SECRET'),
@@ -114,8 +112,7 @@ export class TikTokOAuthService {
       access_token,
       refresh_token: new_refresh,
       access_token_expire_in,
-      shop_cipher,
-      shop_id,
+      open_id,
     } = resp.data.data;
     const expiresAt = Date.now() + access_token_expire_in * 1000;
 
@@ -125,14 +122,13 @@ export class TikTokOAuthService {
         credentials: {
           access_token: this.crypto.encrypt(access_token),
           refresh_token: this.crypto.encrypt(new_refresh),
-          shop_cipher: this.crypto.encrypt(shop_cipher),
-          shop_id: this.crypto.encrypt(shop_id),
+          open_id: this.crypto.encrypt(open_id),
           expires_at: expiresAt,
         },
         updated_at: new Date().toISOString(),
       })
       .eq('store_id', storeId);
 
-    return { shopCipher: shop_cipher, accessToken: access_token };
+    return { accessToken: access_token };
   }
 }
