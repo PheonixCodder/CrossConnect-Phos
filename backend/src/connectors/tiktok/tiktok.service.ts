@@ -34,7 +34,7 @@ export class TikTokService {
   async getAllOrders(
     storeId: string,
   ): Promise<Order202309GetOrderListResponseDataOrders[]> {
-    const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
+    const { accessToken } = await this.oauth.getValidToken(storeId);
     const allOrders: Order202309GetOrderListResponseDataOrders[] = [];
     let pageToken = '';
 
@@ -46,7 +46,6 @@ export class TikTokService {
         undefined,
         pageToken,
         undefined,
-        shopCipher,
       );
 
       const data = res.body.data;
@@ -60,7 +59,7 @@ export class TikTokService {
   async getAllProducts(
     storeId: string,
   ): Promise<Product202502SearchProductsResponseDataProducts[] | []> {
-    const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
+    const { accessToken } = await this.oauth.getValidToken(storeId);
     const allProducts: Product202502SearchProductsResponseDataProducts[] = [];
     let pageToken = '';
 
@@ -70,7 +69,6 @@ export class TikTokService {
         accessToken,
         'application/json',
         pageToken || undefined,
-        shopCipher,
       );
 
       const data = res.body.data;
@@ -85,11 +83,11 @@ export class TikTokService {
     storeId: string,
     orderIds: string[],
   ): Promise<Product202309InventorySearchResponseDataInventory[]> {
-    const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
+    const { accessToken } = await this.oauth.getValidToken(storeId);
     const res = await this.client.api.ProductV202309Api.InventorySearchPost(
       accessToken,
       'application/json',
-      shopCipher,
+      undefined,
       { productIds: orderIds },
     );
     return res.body.data?.inventory || [];
@@ -98,7 +96,7 @@ export class TikTokService {
   async getAllReturns(
     storeId: string,
   ): Promise<ReturnRefund202309SearchReturnsResponseDataReturnOrders[]> {
-    const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
+    const { accessToken } = await this.oauth.getValidToken(storeId);
     const allReturns: ReturnRefund202309SearchReturnsResponseDataReturnOrders[] =
       [];
     let pageToken = '';
@@ -112,7 +110,6 @@ export class TikTokService {
           undefined,
           '50',
           pageToken || undefined,
-          shopCipher,
         );
 
       const data = res.body.data;
@@ -132,7 +129,7 @@ export class TikTokService {
   async getAllFulfillments(
     storeId: string,
   ): Promise<Fulfillment202309SearchPackageResponseDataPackages[]> {
-    const { accessToken, shopCipher } = await this.oauth.getValidToken(storeId);
+    const { accessToken } = await this.oauth.getValidToken(storeId);
 
     const allPackages: Fulfillment202309SearchPackageResponseDataPackages[] =
       [];
@@ -147,7 +144,6 @@ export class TikTokService {
           undefined,
           undefined,
           pageToken,
-          shopCipher,
         );
 
       const data = res.body.data;
