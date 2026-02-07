@@ -61,18 +61,21 @@ export class AmazonOAuthService {
     }
 
     // 3. Persist credentials
-    await this.supabase.from('store_credentials').upsert({
-      store_id: storeId,
-      credentials: {
-        refresh_token: this.crypto.encrypt(refresh_token),
-        sellerId: this.crypto.encrypt(sellerId),
-        lwa_client_id: this.crypto.encrypt(process.env.AMAZON_LWA_CLIENT_ID!),
-        lwa_client_secret: this.crypto.encrypt(
-          process.env.AMAZON_LWA_CLIENT_SECRET!,
-        ),
+    await this.supabase.from('store_credentials').upsert(
+      {
+        store_id: storeId,
+        credentials: {
+          refresh_token: this.crypto.encrypt(refresh_token),
+          sellerId: this.crypto.encrypt(sellerId),
+          lwa_client_id: this.crypto.encrypt(process.env.AMAZON_LWA_CLIENT_ID!),
+          lwa_client_secret: this.crypto.encrypt(
+            process.env.AMAZON_LWA_CLIENT_SECRET!,
+          ),
+        },
+        updated_at: new Date().toISOString(),
       },
-      updated_at: new Date().toISOString(),
-    });
+      { onConflict: 'store_id' },
+    );
 
     // 4. Activate store
     await this.supabase

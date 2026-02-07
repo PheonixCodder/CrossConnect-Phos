@@ -57,17 +57,20 @@ export class TikTokOAuthService {
     } = resp.data.data;
 
     // Enterprise strategy: store distinct fields for query performance
-    await this.supabase.from('store_credentials').upsert({
-      store_id: storeId,
-      credentials: {
-        access_token: this.crypto.encrypt(access_token),
-        refresh_token: this.crypto.encrypt(refresh_token),
-        open_id: this.crypto.encrypt(open_id),
-        seller_name: this.crypto.encrypt(seller_name),
-        expires_at: Date.now() + access_token_expire_in * 1000,
+    await this.supabase.from('store_credentials').upsert(
+      {
+        store_id: storeId,
+        credentials: {
+          access_token: this.crypto.encrypt(access_token),
+          refresh_token: this.crypto.encrypt(refresh_token),
+          open_id: this.crypto.encrypt(open_id),
+          seller_name: this.crypto.encrypt(seller_name),
+          expires_at: Date.now() + access_token_expire_in * 1000,
+        },
+        updated_at: new Date().toISOString(),
       },
-      updated_at: new Date().toISOString(),
-    });
+      { onConflict: 'store_id' },
+    );
 
     await this.supabase
       .from('stores')
