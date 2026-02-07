@@ -324,7 +324,7 @@ export function StoreList({
                                                 store.stores && (
                                                     <Combobox
                                                         // Casting once at the top for cleaner code
-                                                        items={((store.stores as unknown) as TikTokShopsState).shops.map((s) => s.name)}
+                                                        items={(((store.stores as unknown) as TikTokShopsState)?.shops ?? []).map((s) => s.name)}
                                                     >
                                                         <ComboboxInput placeholder="Select a Tiktok Store" />
                                                         <ComboboxContent>

@@ -2,6 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import {
   BadRequestException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -16,6 +17,8 @@ import {
 
 @Injectable()
 export class TikTokOAuthService {
+  private readonly logger = new Logger(TikTokOAuthService.name);
+
   constructor(
     private readonly supabase: SupabaseClient<Database>,
     private readonly http: HttpService,
@@ -53,8 +56,6 @@ export class TikTokOAuthService {
       seller_name,
     } = resp.data.data;
 
-    await this.getAuthorizedShops(access_token as string, storeId);
-
     // Enterprise strategy: store distinct fields for query performance
     await this.supabase.from('store_credentials').upsert({
       store_id: storeId,
@@ -77,6 +78,15 @@ export class TikTokOAuthService {
         ).toISOString(),
       })
       .eq('id', storeId);
+
+    try {
+      await this.getAuthorizedShops(access_token as string, storeId);
+    } catch (err) {
+      this.logger.warn?.(
+        `Failed to fetch authorized shops for ${storeId}`,
+        err,
+      );
+    }
   }
 
   private async getAuthorizedShops(accessToken: string, storeId: string) {
@@ -96,7 +106,7 @@ export class TikTokOAuthService {
     await this.supabase
       .from('stores')
       .update({
-        stores: { shops: shops.body.data?.shops as unknown as Json },
+        stores: { shops: (shops.body.data?.shops ?? []) as unknown as Json },
       })
       .eq('id', storeId);
   }

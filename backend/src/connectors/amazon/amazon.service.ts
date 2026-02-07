@@ -290,11 +290,18 @@ export class AmazonService {
       );
 
       if (report.data.processingStatus === 'DONE') break;
-      if (['CANCELLED', 'FATAL'].includes(report.data.processingStatus)) {
+      if (
+        ['CANCELLED', 'FATAL'].includes(report.data.processingStatus as string)
+      ) {
         throw new Error(
           `FBA Report ${reportId} failed: ${report.data.processingStatus}`,
         );
       }
+    }
+    if (report.data.processingStatus !== 'DONE') {
+      throw new Error(
+        `FBA Returns report timed out (status: ${report.data.processingStatus})`,
+      );
     }
 
     const doc = await this.withRetry(
@@ -312,7 +319,6 @@ export class AmazonService {
     if (doc.data.compressionAlgorithm === 'GZIP')
       buffer = zlib.gunzipSync(buffer);
 
-    console.log(this.parseFbaReturnsFlatFile(buffer.toString('utf8')));
     return this.parseFbaReturnsFlatFile(buffer.toString('utf8'));
   }
 

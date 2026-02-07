@@ -79,17 +79,17 @@ export function CredentialDialog({
 
       // Shopify OAuth redirect
       if (platform === "shopify") {
-        const shopDomain = formData["SHOPDOMAIN"];
-        const clientId = formData["SHOPIFY_CLIENT_ID"];
-        const clientSecret = formData["SHOPIFY_CLIENT_SECRET"];
+        const shopDomain = formData["shopDomain"];
+        const clientId = formData["shopifyClientId"];
+        const clientSecret = formData["shopifyClientSecret"];
 
         const cleanDomain = shopDomain
             .replace(/^https?:\/\//, "")
             .replace(/\/$/, "");
         const encryptedCredentials = await encryptPayload({
-          SHOPIFY_CLIENT_ID: clientId,
-          SHOPIFY_CLIENT_SECRET: clientSecret,
-          SHOPDOMAIN: cleanDomain,
+          shopifyClientId: clientId,
+          shopifyClientSecret: clientSecret,
+          shopDomain: cleanDomain,
         });
 
         // Upsert credentials BEFORE redirect
@@ -121,20 +121,22 @@ export function CredentialDialog({
       const encryptedCredentials = await encryptPayload(formData);
 
       if (isEdit) {
-        await supabase
+        const { error } = await supabase
             .from("store_credentials")
             .update({
               credentials: encryptedCredentials,
               updated_at: new Date().toISOString(),
             })
             .eq("store_id", storeId);
+        if (error) toast.error(`Failed to update credentials: ${error.message}`);
       } else {
-        await supabase.from("store_credentials").insert({
+        const { error } = await supabase.from("store_credentials").insert({
           store_id: storeId,
           credentials: encryptedCredentials,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
+        if (error) toast.error(`Failed to insert credentials: ${error.message}`);
 
         if (platform !== "warehance") {
           await supabase

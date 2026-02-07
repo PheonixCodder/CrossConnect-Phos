@@ -79,9 +79,16 @@ export class ShopifyOAuthService {
     const { data: creds } = await this.supabase
       .from('store_credentials')
       .select('credentials')
-      .eq('store_id', state as string);
+      .eq('store_id', state as string)
+      .single();
 
-    const storedCreds = creds?.[0]?.credentials as Record<string, string>;
+    if (!creds?.credentials) {
+      throw new BadRequestException(
+        'Shopify credentials not found for this store',
+      );
+    }
+
+    const storedCreds = creds.credentials as Record<string, string>;
 
     const clientId: string = this.crypto.decrypt(storedCreds.shopifyClientId);
     const clientSecret: string = this.crypto.decrypt(
