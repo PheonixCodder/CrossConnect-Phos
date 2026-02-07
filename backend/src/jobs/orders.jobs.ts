@@ -541,9 +541,11 @@ export class OrdersProcessor extends WorkerHost {
 
       // 1️⃣ Products → productId map
       const products = await this.productsRepo.getAllProductsByStore(store.id);
-      const productMap = new Map(
-        products.map((p) => [p.external_product_id, p.id]),
-      );
+      const productMap = new Map();
+      products.forEach((p) => {
+        if (p.external_product_id) productMap.set(p.external_product_id, p.id);
+        if (p.sku) productMap.set(p.sku, p.id); // Also map by SKU
+      });
 
       // 2️⃣ Orders with incremental sync
       const orders: AmazonOrder[] = await service.getOrders(store, since);
@@ -576,6 +578,7 @@ export class OrdersProcessor extends WorkerHost {
       for (const order of orders) {
         const orderId = orderIdByExternal.get(order.AmazonOrderId);
         if (!orderId) continue;
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
         // Fetch order items
         const items: AmazonOrderItem[] = await service.getOrderItems(
@@ -583,12 +586,14 @@ export class OrdersProcessor extends WorkerHost {
         );
 
         for (const item of items) {
-          const productId =
-            productMap.get(item.ASIN) ||
-            productMap.get(item.SellerSKU!) ||
-            undefined;
-
+          const productId: string =
+            productMap.get(item.ASIN) || productMap.get(item.SellerSKU);
           orderItems.push(mapAmazonOrderItemToDB(item, orderId, productId));
+          if (!productId) {
+            this.logger.warn(
+              `No product match for ASIN: ${item.ASIN} or SKU: ${item.SellerSKU}`,
+            );
+          }
 
           const fulfillment = mapAmazonShipmentToDB(
             order,

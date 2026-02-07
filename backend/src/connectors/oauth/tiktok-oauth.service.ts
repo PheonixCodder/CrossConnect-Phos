@@ -1,10 +1,18 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { firstValueFrom } from 'rxjs';
-import { Database } from '../../supabase/supabase.types';
+import { Database, Json } from '../../supabase/supabase.types';
 import { ConfigService } from '@nestjs/config';
 import { CryptoService } from '../../common/crypto.service';
+import {
+  ClientConfiguration,
+  TikTokShopNodeApiClient,
+} from '../../libs/tiktok';
 
 @Injectable()
 export class TikTokOAuthService {
@@ -45,6 +53,8 @@ export class TikTokOAuthService {
       seller_name,
     } = resp.data.data;
 
+    await this.getAuthorizedShops(access_token as string, storeId);
+
     // Enterprise strategy: store distinct fields for query performance
     await this.supabase.from('store_credentials').upsert({
       store_id: storeId,
@@ -61,7 +71,6 @@ export class TikTokOAuthService {
     await this.supabase
       .from('stores')
       .update({
-        auth_status: 'active',
         shopDomain: open_id,
         auth_expires_at: new Date(
           Date.now() + access_token_expire_in * 1000,
@@ -70,7 +79,31 @@ export class TikTokOAuthService {
       .eq('id', storeId);
   }
 
-  async getValidToken(storeId: string): Promise<{ accessToken: string }> {
+  private async getAuthorizedShops(accessToken: string, storeId: string) {
+    ClientConfiguration.globalConfig.app_key =
+      this.config.get('TIKTOK_APP_KEY');
+    ClientConfiguration.globalConfig.app_secret =
+      this.config.get('TIKTOK_APP_SECRET');
+
+    const tiktok = new TikTokShopNodeApiClient({
+      config: ClientConfiguration.createConfig().build(),
+    });
+
+    const shops = await tiktok.api.AuthorizationV202309Api.ShopsGet(
+      accessToken,
+      'application/json',
+    );
+    await this.supabase
+      .from('stores')
+      .update({
+        stores: { shops: shops.body.data?.shops as unknown as Json },
+      })
+      .eq('id', storeId);
+  }
+
+  async getValidToken(
+    storeId: string,
+  ): Promise<{ accessToken: string; shop_cipher: string }> {
     const { data: credRecord, error } = await this.supabase
       .from('store_credentials')
       .select('*')
@@ -87,16 +120,29 @@ export class TikTokOAuthService {
       return this.refreshToken(
         storeId,
         this.crypto.decrypt(creds.refresh_token) as string,
+        creds.shop_cipher as string,
+      );
+    }
+    // Inside getValidToken
+    const cipher = (creds.shop_cipher as string) ?? null;
+
+    if (!cipher) {
+      throw new BadRequestException(
+        'Store not activated. Please select a shop from the dashboard.',
       );
     }
 
-    return { accessToken: creds.access_token };
+    return {
+      accessToken: this.crypto.decrypt(creds.access_token),
+      shop_cipher: cipher,
+    };
   }
 
   private async refreshToken(
     storeId: string,
     refreshToken: string,
-  ): Promise<{ accessToken: string }> {
+    shop_cipher: string,
+  ): Promise<{ accessToken: string; shop_cipher: string }> {
     const resp = await firstValueFrom(
       this.http.get('https://auth.tiktok-shops.com/api/v2/token/refresh', {
         params: {
@@ -123,12 +169,13 @@ export class TikTokOAuthService {
           access_token: this.crypto.encrypt(access_token),
           refresh_token: this.crypto.encrypt(new_refresh),
           open_id: this.crypto.encrypt(open_id),
+          shop_cipher: shop_cipher,
           expires_at: expiresAt,
         },
         updated_at: new Date().toISOString(),
       })
       .eq('store_id', storeId);
 
-    return { accessToken: access_token };
+    return { accessToken: access_token, shop_cipher };
   }
 }

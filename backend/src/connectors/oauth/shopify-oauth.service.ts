@@ -36,9 +36,22 @@ export class ShopifyOAuthService {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(cleanShop)) {
       throw new BadRequestException('Invalid Shopify domain');
     }
+    const { data: creds } = await this.supabase
+      .from('store_credentials')
+      .select('credentials')
+      .eq('store_id', storeId)
+      .single();
+
+    if (!creds?.credentials) {
+      throw new BadRequestException('Shopify credentials not found');
+    }
+
+    const stored = creds.credentials as Record<string, string>;
+
+    const clientId = this.crypto.decrypt(stored.shopifyClientId);
 
     const params = new URLSearchParams({
-      client_id: process.env.SHOPIFY_CLIENT_ID!,
+      client_id: clientId!,
       scope: this.scopes.join(','),
       redirect_uri: process.env.SHOPIFY_REDIRECT_URI!,
       state: storeId,
@@ -63,13 +76,24 @@ export class ShopifyOAuthService {
       throw new BadRequestException('Invalid Shopify OAuth callback');
     }
 
-    this.verifyHmac(query);
+    const { data: creds } = await this.supabase
+      .from('store_credentials')
+      .select('credentials')
+      .eq('store_id', state as string);
+
+    const storedCreds = creds?.[0]?.credentials as Record<string, string>;
+
+    const clientId: string = this.crypto.decrypt(storedCreds.shopifyClientId);
+    const clientSecret: string = this.crypto.decrypt(
+      storedCreds.shopifyClientSecret,
+    );
+    this.verifyHmac(query, clientSecret);
 
     // Exchange code → offline access token
     const tokenResponse = await firstValueFrom(
       this.http.post(`https://${shop}/admin/oauth/access_token`, {
-        client_id: process.env.SHOPIFY_CLIENT_ID!,
-        client_secret: process.env.SHOPIFY_CLIENT_SECRET!,
+        client_id: clientId,
+        client_secret: clientSecret,
         code,
       }),
     );
@@ -81,18 +105,16 @@ export class ShopifyOAuthService {
     }
 
     // Persist credentials
-    const { data } = await this.supabase
-      .from('store_credentials')
-      .upsert({
-        store_id: state,
-        credentials: {
-          accessToken: this.crypto.encrypt(access_token),
-          shopDomain: this.crypto.encrypt(shop),
-          scopes: scope.split(','),
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .select('*');
+    await this.supabase.from('store_credentials').upsert({
+      store_id: state,
+      credentials: {
+        ...storedCreds,
+        accessToken: this.crypto.encrypt(access_token),
+        shopDomain: this.crypto.encrypt(shop),
+        scopes: scope.split(','),
+      },
+      updated_at: new Date().toISOString(),
+    });
 
     // Update store
     const { data: storeData } = await this.supabase
@@ -120,7 +142,7 @@ export class ShopifyOAuthService {
   /**
    * Shopify HMAC verification (MANDATORY)
    */
-  private verifyHmac(query: any): void {
+  private verifyHmac(query: any, clientSecret: string): void {
     const { hmac, ...rest } = query;
 
     const message = Object.keys(rest as object)
@@ -128,7 +150,7 @@ export class ShopifyOAuthService {
       .map((key) => `${key}=${rest[key]}`)
       .join('&');
 
-    const generated = createHmac('sha256', process.env.SHOPIFY_CLIENT_SECRET!)
+    const generated = createHmac('sha256', clientSecret)
       .update(message)
       .digest('hex');
 

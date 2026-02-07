@@ -93,39 +93,27 @@ export interface AmazonMerchantListingRow {
 }
 
 export interface AmazonReturnReportItem {
-  item_details?: string;
-  item_name?: string;
-  asin?: string;
-  merchant_sku?: string;
+  // --- FBA Report Specific Fields ---
+  return_date: string; // Mapping from 'return-date'
+  order_id: string; // Mapping from 'order-id'
+  sku: string; // Mapping from 'sku'
+  asin: string; // Mapping from 'asin'
+  fnsku?: string; // Mapping from 'fnsku'
+  product_name?: string; // Mapping from 'product-name'
+  quantity: number; // Mapping from 'quantity'
+  fulfillment_center_id?: string; // Mapping from 'fulfillment-center-id'
+  detailed_disposition?: string; // Mapping from 'detailed-disposition'
+  reason?: string; // Mapping from 'reason'
+  status?: string; // Mapping from 'status'
+  license_plate_number?: string; // Mapping from 'license-plate-number'
+  customer_comments?: string; // Mapping from 'customer-comments'
 
-  order_id: string;
-  order_date?: string;
-
-  amazon_rma_id: string;
-  return_request_date: string;
-  return_request_status: string;
-
-  return_reason_code?: string;
-  return_quantity?: number;
-  resolution?: string;
-
-  refund_amount?: number;
+  // --- Legacy / Derived Fields (Optional for backward compatibility) ---
+  merchant_sku?: string; // Usually same as sku
+  item_name?: string; // Usually same as product_name
+  amazon_rma_id?: string;
+  return_request_date?: string; // Usually same as return_date
+  return_request_status?: string; // Usually same as status
+  return_type?: string; // 'FBA'
   currency_code?: string;
-
-  in_policy?: boolean;
-  a_to_z_claim?: boolean;
-  is_prime?: boolean;
-
-  return_type?: string;
-
-  label_details?: {
-    tracking_id?: string;
-    return_carrier?: string;
-    label_cost?: number;
-    label_type?: string;
-    label_to_be_paid_by?: string;
-  };
-
-  order_amount?: number;
-  order_quantity?: number;
 }

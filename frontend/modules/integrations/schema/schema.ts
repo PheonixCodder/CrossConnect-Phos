@@ -36,8 +36,18 @@ export const CREDENTIALS_CONFIG: Record<
     label: "Shopify",
     fields: [
       {
-        key: "SHOPDOMAIN",
+        key: "shopDomain",
         label: "Shop Domain (e.g. my-store.myshopify.com)",
+        type: "text",
+      },
+      {
+        key: "shopifyClientId",
+        label: "Shop Client ID",
+        type: "text",
+      },
+      {
+        key: "shopifyClientSecret",
+        label: "Shop Client Secret",
         type: "text",
       },
     ],
