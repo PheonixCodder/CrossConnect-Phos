@@ -128,7 +128,7 @@ export function CredentialDialog({
               updated_at: new Date().toISOString(),
             })
             .eq("store_id", storeId);
-        if (error) toast.error(`Failed to update credentials: ${error.message}`);
+        if (error) throw new Error(`Failed to update credentials: ${error.message}`);
       } else {
         const { error } = await supabase.from("store_credentials").insert({
           store_id: storeId,
@@ -136,7 +136,7 @@ export function CredentialDialog({
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
-        if (error) toast.error(`Failed to insert credentials: ${error.message}`);
+        if (error) throw new Error(`Failed to update credentials: ${error.message}`);
 
         if (platform !== "warehance") {
           await supabase

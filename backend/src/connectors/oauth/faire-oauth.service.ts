@@ -54,16 +54,19 @@ export class FaireOAuthService {
     }
 
     // 2. Persist credentials
-    await this.supabase.from('store_credentials').upsert({
-      store_id: storeId,
-      credentials: {
-        access_token: this.crypto.encrypt(access_token),
-        token_type: this.crypto.encrypt(token_type),
-        scope: ['READ_PRODUCTS', 'READ_ORDERS', 'READ_INVENTORIES'],
-        issued_at: new Date().toISOString(),
+    await this.supabase.from('store_credentials').upsert(
+      {
+        store_id: storeId,
+        credentials: {
+          access_token: this.crypto.encrypt(access_token),
+          token_type: this.crypto.encrypt(token_type),
+          scope: ['READ_PRODUCTS', 'READ_ORDERS', 'READ_INVENTORIES'],
+          issued_at: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
       },
-      updated_at: new Date().toISOString(),
-    });
+      { onConflict: 'store_id' },
+    );
 
     // 3. Mark store active but expiring
     await this.supabase
