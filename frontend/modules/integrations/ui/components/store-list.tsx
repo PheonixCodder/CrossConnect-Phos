@@ -39,6 +39,7 @@ import { useDeleteStore } from "../../hooks/use-delete-store";
 import {ResponsiveDialog} from "@/components/layout/responsive-dialog";
 import {toast} from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import {ListStore, TikTokShopsState} from "@/types/types";
 
 interface StoreListProps {
     platform: Database["public"]["Enums"]["platform_types"];
@@ -46,27 +47,6 @@ interface StoreListProps {
     isLoading: boolean;
     onBack: () => void;
 }
-
-export type ListStore = {
-    [x: string]: unknown;
-    id?: number | undefined;
-    name?: string | undefined;
-    marketplace?:
-        | {
-        [x: string]: unknown;
-        id?: number | undefined;
-        name?: string | undefined;
-        thumbnail_url?: string | undefined;
-    }
-        | undefined;
-    client?:
-        | {
-        [x: string]: unknown;
-        id?: number | undefined;
-        name?: string | undefined;
-    }
-        | undefined;
-};
 
 export function StoreList({
                               platform,
@@ -183,12 +163,13 @@ export function StoreList({
                                     : "text-red-600";
 
                         return (
-                            <Card key={store.id} className="flex flex-col justify-between">
-                                <CardHeader>
-                                    <div
-                                        className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-4">
-                                        <div className="min-w-0">
-                                            <CardTitle className="truncate flex items-center gap-2">
+                            <Card key={store.id} className="flex flex-col">
+                                {/* HEADER */}
+                                <CardHeader className="pb-3">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                        {/* Left: Name + ID */}
+                                        <div className="min-w-0 space-y-1">
+                                            <CardTitle className="flex items-center gap-2 truncate">
                                                 {editingStoreId === store.id ? (
                                                     <div className="flex items-center gap-2 w-full">
                                                         <Input
@@ -205,11 +186,7 @@ export function StoreList({
                                                         >
                                                             <Check className="h-4 w-4 text-green-600" />
                                                         </Button>
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            onClick={cancelRename}
-                                                        >
+                                                        <Button size="icon" variant="ghost" onClick={cancelRename}>
                                                             <X className="h-4 w-4 text-muted-foreground" />
                                                         </Button>
                                                     </div>
@@ -226,117 +203,178 @@ export function StoreList({
                                                     </>
                                                 )}
                                             </CardTitle>
+
                                             <CardDescription className="truncate">
                                                 ID: {store.id}
                                             </CardDescription>
                                         </div>
-                                            <div className={"flex gap-2"}>
-                                        {store.auth_status === "active" ? (
-                                            <Badge className="bg-green-600 mt-2 md:mt-0 flex items-center gap-1">
-                                                <ShieldCheck className="h-3 w-3"/>
-                                                Configured
-                                            </Badge>
-                                        ) : (
-                                            <Badge
-                                                variant="outline"
-                                                className="text-orange-600 mt-2 md:mt-0 flex items-center gap-1"
-                                            >
-                                                <Key className="h-3 w-3"/>
-                                                Missing Credentials
-                                            </Badge>
-                                        )}
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    onClick={() => setStoreToDelete(store)}
+
+                                        {/* Right: Status badge + delete */}
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {store.auth_status === "active" ? (
+                                                <Badge className="bg-green-600 flex items-center gap-1">
+                                                    <ShieldCheck className="h-3 w-3" />
+                                                    Configured
+                                                </Badge>
+                                            ) : (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="text-orange-600 flex items-center gap-1"
                                                 >
-                                                    <Trash2 className="h-4 w-4 text-red-600" />
-                                                </Button>
-                                            </div>
+                                                    <Key className="h-3 w-3" />
+                                                    Missing Credentials
+                                                </Badge>
+                                            )}
+
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={() => setStoreToDelete(store)}
+                                            >
+                                                <Trash2 className="h-4 w-4 text-red-600" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 </CardHeader>
 
-                                <CardContent
-                                    className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-4">
-                  <span
-                      className={cn(
-                          "capitalize font-semibold truncate",
-                          statusColor,
-                      )}
-                  >
-                    {store.auth_status ?? "unknown"}
-                  </span>
+                                {/* BODY */}
+                                <CardContent className="pt-0">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <span
+          className={cn(
+              "capitalize font-semibold truncate",
+              statusColor,
+          )}
+      >
+        {store.auth_status ?? "unknown"}
+      </span>
 
-                                    <Button
-                                        size="sm"
-                                        className="whitespace-nowrap"
-                                        onClick={() => {
-                                            if (store.platform === "faire") {
-                                                window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/faire?storeId=${store.id}`;
-                                            } else if (store.platform === "tiktok") {
-                                                window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/tiktok?storeId=${store.id}`;
-                                            } else {
-                                                handleManageCredentials(store);
-                                            }
-                                        }}
-                                    >
-                                        {["faire", "shopify", "tiktok"].includes(
-                                            store.platform,
-                                        )
-                                            ? store.auth_status === "active"
-                                                ? `Reconnect ${store.platform}`
-                                                : `Connect ${store.platform}`
-                                            : store.auth_status === "active"
-                                                ? "Edit Credentials"
-                                                : "Add Credentials"}
-                                    </Button>
-                                    {platform === "warehance" &&
-                                        store.auth_status === "inactive" &&
-                                        store.stores && (
-                                            <Combobox
-                                                items={(store.stores as ListStore[]).map((s) => s.name)}
+                                        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                                            <Button
+                                                size="sm"
+                                                className="whitespace-nowrap"
+                                                onClick={() => {
+                                                    if (store.platform === "faire") {
+                                                        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/faire?storeId=${store.id}`;
+                                                    } else if (store.platform === "tiktok") {
+                                                        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/tiktok?storeId=${store.id}`;
+                                                    } else {
+                                                        handleManageCredentials(store);
+                                                    }
+                                                }}
                                             >
-                                                <ComboboxInput placeholder="Select a Warehance Store"/>
-                                                <ComboboxContent>
-                                                    <ComboboxEmpty>No stores found</ComboboxEmpty>
-                                                    <ComboboxList>
-                                                        {(item) => (
-                                                            <ComboboxItem
-                                                                key={item}
-                                                                value={item}
-                                                                onClick={async () => {
-                                                                    const selectedStore = (
-                                                                        store.stores as ListStore[]
-                                                                    ).find((s: ListStore) => s.name === item);
-                                                                    const supabase = createClient();
-                                                                    await supabase
-                                                                        .from("store_credentials")
-                                                                        .upsert({
-                                                                            store_id: store.id,
-                                                                            credentials: {
-                                                                                TIKTOK_STORE_ID: selectedStore!.id,
-                                                                                ...(store.store_credentials![0]
-                                                                                    .credentials as object),
-                                                                            },
-                                                                        });
-                                                                    await supabase
-                                                                        .from("stores")
-                                                                        .update({
-                                                                            auth_status: "active",
-                                                                        })
-                                                                        .eq("id", store.id);
-                                                                    await queryClient.invalidateQueries({
-                                                                        queryKey: ["stores"],
-                                                                    });
-                                                                }}
-                                                            >
-                                                                {item}
-                                                            </ComboboxItem>
-                                                        )}
-                                                    </ComboboxList>
-                                                </ComboboxContent>
-                                            </Combobox>
-                                        )}
+                                                {["faire", "shopify", "tiktok"].includes(store.platform)
+                                                    ? store.auth_status === "active"
+                                                        ? `Reconnect ${store.platform}`
+                                                        : `Connect ${store.platform}`
+                                                    : store.auth_status === "active"
+                                                        ? "Edit Credentials"
+                                                        : "Add Credentials"}
+                                            </Button>
+
+                                            {platform === "warehance" &&
+                                                store.auth_status === "inactive" &&
+                                                store.stores && (
+                                                    <Combobox
+                                                        items={(store.stores as ListStore[]).map((s) => s.name)}
+                                                    >
+                                                        <ComboboxInput placeholder="Select a Warehance Store"/>
+                                                        <ComboboxContent>
+                                                            <ComboboxEmpty>No stores found</ComboboxEmpty>
+                                                            <ComboboxList>
+                                                                {(item) => (
+                                                                    <ComboboxItem
+                                                                        key={item}
+                                                                        value={item}
+                                                                        onClick={async () => {
+                                                                            const selectedStore = (
+                                                                                store.stores as ListStore[]
+                                                                            ).find((s: ListStore) => s.name === item);
+                                                                            const supabase = createClient();
+                                                                            await supabase
+                                                                                .from("store_credentials")
+                                                                                .upsert({
+                                                                                    store_id: store.id,
+                                                                                    credentials: {
+                                                                                        TIKTOK_STORE_ID: selectedStore!.id,
+                                                                                        ...(store.store_credentials![0]
+                                                                                            .credentials as object),
+                                                                                    },
+                                                                                });
+                                                                            await supabase
+                                                                                .from("stores")
+                                                                                .update({
+                                                                                    auth_status: "active",
+                                                                                })
+                                                                                .eq("id", store.id);
+                                                                            await queryClient.invalidateQueries({
+                                                                                queryKey: ["stores"],
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        {item}
+                                                                    </ComboboxItem>
+                                                                )}
+                                                            </ComboboxList>
+                                                        </ComboboxContent>
+                                                    </Combobox>
+                                                )}
+                                            {platform === "tiktok" &&
+                                                store.auth_status === "inactive" &&
+                                                store.stores && (
+                                                    <Combobox
+                                                        // Casting once at the top for cleaner code
+                                                        items={(((store.stores as unknown) as TikTokShopsState)?.shops ?? []).map((s) => s.name)}
+                                                    >
+                                                        <ComboboxInput placeholder="Select a Tiktok Store" />
+                                                        <ComboboxContent>
+                                                            <ComboboxEmpty>No stores found</ComboboxEmpty>
+                                                            <ComboboxList>
+                                                                {(item) => (
+                                                                    <ComboboxItem
+                                                                        key={item}
+                                                                        value={item}
+                                                                        onClick={async () => {
+                                                                            const shops = ((store.stores as unknown) as TikTokShopsState).shops;
+                                                                            const selectedStore = shops.find((s) => s.name === item);
+
+                                                                            if (!selectedStore) return;
+
+                                                                            const supabase = createClient();
+
+                                                                            // 1. Update credentials with BOTH ID and the mandatory Shop Cipher
+                                                                            await supabase
+                                                                                .from("store_credentials")
+                                                                                .upsert({
+                                                                                    store_id: store.id,
+                                                                                    credentials: {
+                                                                                        ...((store.store_credentials?.[0]?.credentials as object) || {}),
+                                                                                        shop_cipher: selectedStore.cipher,
+                                                                                    },
+                                                                                });
+
+                                                                            // 2. Mark the store as active
+                                                                            await supabase
+                                                                                .from("stores")
+                                                                                .update({
+                                                                                    auth_status: "active",
+                                                                                })
+                                                                                .eq("id", store.id);
+
+                                                                            // 3. Refresh the UI
+                                                                            await queryClient.invalidateQueries({
+                                                                                queryKey: ["stores"],
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        {item}
+                                                                    </ComboboxItem>
+                                                                )}
+                                                            </ComboboxList>
+                                                        </ComboboxContent>
+                                                    </Combobox>
+                                                )}                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
                         );

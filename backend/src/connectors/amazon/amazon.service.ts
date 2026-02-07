@@ -25,7 +25,7 @@ export class AmazonService {
   private clientId: string;
   private clientSecret: string;
   private refreshToken: string;
-  private region = 'us-east-1';
+  private region = 'na';
 
   constructor(private readonly crypto: CryptoService) {}
 
@@ -203,13 +203,18 @@ export class AmazonService {
     const orders: Order[] = [];
     let nextToken: string | undefined;
 
+    // FIX: If 'since' is undefined, default to 24 hours ago (ISO String)
+    // Amazon will NOT accept the request without this start date.
+    const lastUpdatedAfter =
+      since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
     do {
       const { data } = await this.withRetry(
         () =>
           client.getOrders({
             marketplaceIds: [store.marketplaceId!],
-            lastUpdatedAfter: since,
-            nextToken,
+            // IMPORTANT: If nextToken exists, you MUST NOT send lastUpdatedAfter
+            ...(nextToken ? { nextToken } : { lastUpdatedAfter }),
           }),
         'getOrders',
       );
@@ -254,36 +259,49 @@ export class AmazonService {
       region: this.region as SellingPartnerRegion,
     });
 
+    // Calculate 1 year ago as fallback
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const startTime = since || oneYearAgo.toISOString();
+
+    this.logger.log(`Requesting FBA Returns Report since: ${startTime}`);
+
     const { data } = await this.withRetry(
       () =>
         client.createReport({
           body: {
-            reportType: 'GET_XML_RETURNS_DATA_BY_RETURN_DATE',
+            reportType: 'GET_FBA_FULFILLMENT_CUSTOMER_RETURNS_DATA',
             marketplaceIds: [store.marketplaceId!],
+            dataStartTime: startTime,
           },
         }),
-      'createReturnsReport',
+      'createFbaReturnsReport',
     );
 
     const reportId = data.reportId;
     let report;
 
-    for (let i = 0; i < 15; i++) {
-      await this.sleep(30_000);
-
+    // Poll for completion (FBA reports can take several minutes)
+    for (let i = 0; i < 20; i++) {
+      await this.sleep(45_000);
       report = await this.withRetry(
         () => client.getReport({ reportId }),
-        'getReturnsReportStatus',
+        'getFbaStatus',
       );
 
       if (report.data.processingStatus === 'DONE') break;
-      if (report.data.processingStatus === 'CANCELLED') {
-        throw new Error('Returns report cancelled');
+      if (
+        ['CANCELLED', 'FATAL'].includes(report.data.processingStatus as string)
+      ) {
+        throw new Error(
+          `FBA Report ${reportId} failed: ${report.data.processingStatus}`,
+        );
       }
     }
-
     if (report.data.processingStatus !== 'DONE') {
-      throw new Error('Returns report timeout');
+      throw new Error(
+        `FBA Returns report timed out (status: ${report.data.processingStatus})`,
+      );
     }
 
     const doc = await this.withRetry(
@@ -291,25 +309,17 @@ export class AmazonService {
         client.getReportDocument({
           reportDocumentId: report.data.reportDocumentId!,
         }),
-      'getReturnsReportDocument',
+      'getFbaDoc',
     );
 
     const raw = await axios.get(doc.data.url as string, {
       responseType: 'arraybuffer',
     });
-
     let buffer = Buffer.from(raw.data);
-    if (doc.data.compressionAlgorithm === 'GZIP') {
+    if (doc.data.compressionAlgorithm === 'GZIP')
       buffer = zlib.gunzipSync(buffer);
-    }
 
-    const parsed = await this.parseReturnsXml(buffer.toString('utf8'));
-
-    if (!since) return parsed;
-
-    return parsed.filter(
-      (r) => new Date(r.return_request_date) > new Date(since),
-    );
+    return this.parseFbaReturnsFlatFile(buffer.toString('utf8'));
   }
 
   /* -------------------- HELPERS -------------------- */
@@ -326,39 +336,29 @@ export class AmazonService {
     });
   }
 
-  private async parseReturnsXml(
-    xml: string,
-  ): Promise<AmazonReturnReportItem[]> {
-    const parsed = await parseStringPromise(xml, {
-      explicitArray: false,
-      ignoreAttrs: true,
-    });
+  private parseFbaReturnsFlatFile(data: string): AmazonReturnReportItem[] {
+    const rows = this.parseTSV(data);
 
-    const rows =
-      parsed?.AmazonEnvelope?.Message?.ReturnDetails ??
-      parsed?.AmazonEnvelope?.Message ??
-      [];
+    return rows.map((r) => ({
+      return_date: r['return-date'],
+      order_id: r['order-id'],
+      sku: r['sku'],
+      asin: r['asin'],
+      fnsku: r['fnsku'],
+      product_name: r['product-name'],
+      quantity: Number(r['quantity'] ?? 0),
+      fulfillment_center_id: r['fulfillment-center-id'],
+      detailed_disposition: r['detailed-disposition'],
+      reason: r['reason'],
+      status: r['status'],
+      license_plate_number: r['license-plate-number'],
+      customer_comments: r['customer-comments'],
 
-    const normalized = Array.isArray(rows) ? rows : [rows];
-
-    return normalized.map((r) => ({
-      item_name: r.ItemName,
-      asin: r.ASIN,
-      merchant_sku: r.MerchantSKU,
-      order_id: r.OrderID,
-      order_date: r.OrderDate,
-      amazon_rma_id: r.AmazonRMAID,
-      return_request_date: r.ReturnRequestDate,
-      return_request_status: r.ReturnRequestStatus,
-      return_reason_code: r.ReturnReasonCode,
-      return_quantity: Number(r.ReturnQuantity ?? 0),
-      resolution: r.Resolution,
-      refund_amount: Number(r.RefundAmount ?? 0),
-      currency_code: r.CurrencyCode,
-      in_policy: r.InPolicy === 'true',
-      a_to_z_claim: r.AToZClaim === 'true',
-      is_prime: r.IsPrime === 'true',
-      return_type: r.ReturnType,
+      // Maintain compatibility with your DB mappers
+      item_name: r['product-name'],
+      merchant_sku: r['sku'],
+      return_request_date: r['return-date'],
+      return_type: 'FBA',
     }));
   }
 

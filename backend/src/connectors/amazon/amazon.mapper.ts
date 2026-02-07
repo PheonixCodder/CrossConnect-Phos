@@ -209,14 +209,28 @@ export function mapAmazonReturnToDB(
   storeId: string,
   orderId: string,
 ): Database['public']['Tables']['returns']['Insert'] {
+  /**
+   * FBA reports don't provide a unique 'Return ID' like MFN does.
+   * We use the License Plate Number (LPN) or a composite of Order+SKU
+   * to satisfy the 'external_return_id' constraint.
+   */
+  const externalReturnId = r.license_plate_number || `${r.order_id}_${r.sku}`;
+
   return {
-    external_return_id: r.amazon_rma_id,
+    // Required Fields per your Schema
+    external_return_id: externalReturnId,
     order_id: orderId,
     store_id: storeId,
     platform: 'amazon',
 
-    status: r.return_request_status,
-    refund_amount: r.refund_amount ?? null,
-    currency: r.currency_code ?? null,
+    // Status mapping: FBA reports use 'status' (e.g., 'Unit returned to inventory')
+    status: r.status || 'Returned',
+
+    // FBA Returns reports do not contain financial data
+    refund_amount: null,
+    currency: 'USD', // Standard default, or null if preferred
+
+    // Timestamps (Database handles created_at, but we set updated_at if needed)
+    updated_at: new Date().toISOString(),
   };
 }

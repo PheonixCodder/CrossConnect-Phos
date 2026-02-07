@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { ListStore } from "@/modules/integrations/ui/components/store-list";
 import { Json } from "@/types/supabase.types";
+import {ListStore} from "@/types/types";
 
 export async function POST(request: Request) {
   try {
