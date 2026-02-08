@@ -51,22 +51,14 @@ export function mapAmazonProductToSupabaseProduct(
   return {
     store_id: storeId,
     platform: 'amazon',
-
-    // Core identifiers
     sku: row['seller-sku'],
-    external_product_id:
-      row['product-id'] ?? row['listing-id'] ?? row['seller-sku'],
-
-    // Descriptive
+    external_product_id: row['seller-sku'],
     title: row['item-name'] ?? null,
     description: row['item-description'] ?? null,
-
-    // Commercial
     price: Number.isFinite(price) ? price : null,
-    currency: 'EUR', // marketplace-derived later if needed
-
-    // Lifecycle
+    currency: 'USD',
     status: row.status ?? null,
+    asin: row.asin1 ?? row.asin2 ?? row.asin3,
   };
 }
 
@@ -111,13 +103,7 @@ export function shouldUpdateAmazonInventory(
   }
 
   // Compare string fields directly
-  if (existing.inventory_status !== incoming.inventory_status) {
-    return true;
-  }
-
-  return false;
-
-  return false;
+  return existing.inventory_status !== incoming.inventory_status;
 }
 export function mapAmazonOrderToDB(
   order: Order,
@@ -164,24 +150,35 @@ function mapOrderStatus(
 export function mapAmazonOrderItemToDB(
   item: OrderItem,
   orderId: string,
-  productId?: string,
+  productId?: string | null,
 ): Database['public']['Tables']['order_items']['Insert'] {
-  const price = item.ItemPrice?.Amount ? Number(item.ItemPrice.Amount) : 0;
+  // 1️⃣ Unit price (Amazon ItemPrice is TOTAL, not per-unit)
+  const totalItemPrice =
+    item.ItemPrice?.Amount !== undefined ? Number(item.ItemPrice.Amount) : 0;
 
-  const total = price * item.QuantityOrdered;
+  // 2️⃣ Quantity safety
+  const quantityOrdered = item.QuantityOrdered ?? 0;
+
+  // 3️⃣ Per-unit price (Amazon returns TOTAL for the line)
+  const unitPrice = quantityOrdered > 0 ? totalItemPrice / quantityOrdered : 0;
 
   return {
     external_line_item_id: item.OrderItemId,
     order_id: orderId,
     product_id: productId ?? null,
+
+    // ASIN is canonical, SKU is secondary
     sku: item.SellerSKU ?? item.ASIN,
-    quantity: item.QuantityOrdered,
+
+    quantity: quantityOrdered,
     fulfilled_quantity: item.QuantityShipped ?? 0,
-    refunded_quantity: 0, // Amazon returns could be handled separately
-    price,
-    total,
+    refunded_quantity: 0,
+
+    price: unitPrice,
+    total: totalItemPrice,
   };
 }
+
 export function mapAmazonShipmentToDB(
   order: Order,
   item: OrderItem,
@@ -233,4 +230,113 @@ export function mapAmazonReturnToDB(
     // Timestamps (Database handles created_at, but we set updated_at if needed)
     updated_at: new Date().toISOString(),
   };
+}
+
+export interface AmazonOrderReportRow {
+  'amazon-order-id': string;
+  'merchant-order-id': string;
+  'purchase-date': string;
+  'last-updated-date': string;
+  'order-status': string;
+  'fulfillment-channel': string;
+  'sales-channel': string;
+  'order-channel': string;
+  'ship-service-level': string;
+  'product-name': string;
+  sku: string;
+  asin: string;
+  'item-status': string;
+  quantity: string;
+  currency: string;
+  'item-price': string;
+  'item-tax': string;
+  'shipping-price': string;
+  'shipping-tax': string;
+  'gift-wrap-price': string;
+  'gift-wrap-tax': string;
+  'item-promotion-discount': string;
+  'ship-promotion-discount': string;
+  'ship-city': string;
+  'ship-state': string;
+  'ship-postal-code': string;
+  'ship-country': string;
+  'promotion-ids': string;
+  'is-business-order': string;
+  'purchase-order-number': string;
+  'price-designation': string;
+}
+
+export function mapReportOrderToDB(
+  row: AmazonOrderReportRow,
+  storeId: string,
+): Database['public']['Tables']['orders']['Insert'] {
+  const price = parseFloat(row['item-price'] || '0');
+  const tax = parseFloat(row['item-tax'] || '0');
+  const shipping = parseFloat(row['shipping-price'] || '0');
+
+  return {
+    store_id: storeId,
+    platform: 'amazon',
+    external_order_id: row['amazon-order-id'],
+    ordered_at: row['purchase-date'],
+    updated_at: row['last-updated-date'],
+    status: mapReportStatus(row['order-status']),
+    fulfillment_status: row['fulfillment-channel'],
+    currency: row['currency'] || 'USD',
+    subtotal: price,
+    tax: tax,
+    shipping: shipping,
+    total: price + tax + shipping,
+    payment_status: row['order-status'] === 'Pending' ? 'pending' : 'paid',
+  };
+}
+
+export function mapReportOrderItemToDB(
+  row: AmazonOrderReportRow,
+  orderId: string,
+  productId?: string | null,
+): Database['public']['Tables']['order_items']['Insert'] {
+  const qty = parseInt(row['quantity'] || '0', 10);
+  const total = parseFloat(row['item-price'] || '0');
+
+  return {
+    order_id: orderId,
+    external_line_item_id: `${row['amazon-order-id']}-${row['sku']}`,
+    product_id: productId ?? null,
+    sku: row['sku'],
+    quantity: qty,
+    fulfilled_quantity: row['order-status'] === 'Shipped' ? qty : 0,
+    price: qty > 0 ? total / qty : 0,
+    total: total,
+    refunded_quantity: 0,
+  };
+}
+
+export function mapReportFulfillmentToDB(
+  row: AmazonOrderReportRow,
+  storeId: string,
+  orderId: string,
+  productId?: string | null,
+): Database['public']['Tables']['fulfillments']['Insert'] {
+  return {
+    store_id: storeId,
+    order_id: orderId,
+    product_id: productId ?? null,
+    platform: 'amazon',
+    external_fulfillment_id: `f-${row['amazon-order-id']}-${row['sku']}`,
+    external_fulfillment_line_item_id: `${row['amazon-order-id']}-${row['sku']}`,
+    status: row['order-status'],
+    carrier: row['fulfillment-channel'] === 'AFN' ? 'Amazon' : null,
+    tracking_number: null,
+  };
+}
+
+function mapReportStatus(
+  status: string,
+): Database['public']['Enums']['order_status'] {
+  const s = status.toLowerCase();
+  if (s.includes('pending')) return 'pending';
+  if (s.includes('shipped') || s === 'unshipped') return 'pending';
+  if (s === 'cancelled') return 'cancelled';
+  return 'pending';
 }

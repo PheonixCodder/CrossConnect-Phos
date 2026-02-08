@@ -457,26 +457,22 @@ export class ProductsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_products_synced_at
-        ? new Date(store.last_products_synced_at).toISOString()
-        : undefined;
-
-      // 1️⃣ Fetch Products (Listings Report)
-      const listings: AmazonMerchantListingRow[] =
-        await service.getAllProducts(store);
+      // ❗ Products are SNAPSHOT – no since filtering
+      const listings = await service.getAllProducts(store);
 
       if (!listings.length) {
         this.logger.warn('No Amazon listings returned');
         return;
       }
 
-      // 2️⃣ Upsert Products
-      const productInserts: Database['public']['Tables']['products']['Insert'][] =
-        listings.map((row) => mapAmazonProductToSupabaseProduct(row, store.id));
+      // 1️⃣ Upsert products
+      const productInserts = listings.map((row) =>
+        mapAmazonProductToSupabaseProduct(row, store.id),
+      );
 
       await this.productsRepo.insertProducts(productInserts);
 
-      // 3️⃣ Resolve product_id by SKU
+      // 2️⃣ Resolve product IDs
       const skus = productInserts.map((p) => p.sku);
 
       const productIdRows =
@@ -486,32 +482,31 @@ export class ProductsProcessor extends WorkerHost {
           'amazon',
         );
 
-      // 4️⃣ Fetch existing inventory for delta comparison
+      // 3️⃣ Existing inventory
       const existingInventory = await this.inventoryRepo.getBySkus(
         skus,
         store.id,
       );
 
-      // 5️⃣ Fetch FBA Inventory & Delta Mapping
-      const inventorySummaries: InventorySummary[] =
-        await service.getInventorySummaries(store, since);
-
-      if (!inventorySummaries.length) {
-        this.logger.warn('No Amazon inventory summaries returned');
-        return;
-      }
+      // 4️⃣ Inventory delta (uses last sync correctly)
+      const inventorySummaries = await service.getInventorySummaries(
+        store,
+        store.last_products_synced_at
+          ? new Date(store.last_products_synced_at).toISOString()
+          : undefined,
+      );
 
       const inventoryInserts: Database['public']['Tables']['inventory']['Insert'][] =
         [];
 
       for (const summary of inventorySummaries) {
-        const sku: string = summary.sellerSku!;
+        const sku = summary.sellerSku;
         if (!sku) continue;
 
         const productId = productIdRows.get(sku);
         if (!productId) continue;
 
-        const mappedInventory = mapAmazonInventoryFromFbaSummary(
+        const mapped = mapAmazonInventoryFromFbaSummary(
           summary,
           store.id,
           productId,
@@ -519,45 +514,28 @@ export class ProductsProcessor extends WorkerHost {
 
         const existing = existingInventory[sku];
 
-        if (
-          !existing ||
-          shouldUpdateAmazonInventory(existing, mappedInventory)
-        ) {
-          inventoryInserts.push(mappedInventory);
+        if (!existing || shouldUpdateAmazonInventory(existing, mapped)) {
+          inventoryInserts.push(mapped);
         }
       }
 
-      if (!inventoryInserts.length) {
-        this.logger.log('No inventory changes detected for Amazon');
-        return;
+      if (inventoryInserts.length) {
+        await this.inventoryRepo.updateInventoryBatch(inventoryInserts);
       }
 
-      // 6️⃣ Upsert inventory changes
-      await this.inventoryRepo.updateInventoryBatch(inventoryInserts);
+      // ✅ CURSOR UPDATE (CRITICAL)
+      await this.storeRepo.update(store.id, 'products', {
+        last_synced_at: new Date().toISOString(),
+      });
 
       this.logger.log(
-        `Amazon sync complete: ${productInserts.length} products, ${inventoryInserts.length} inventory updates`,
+        `Amazon products synced: ${productInserts.length} products, ${inventoryInserts.length} inventory updates`,
       );
     } catch (error) {
       this.logger.error(
-        `${store.platform.toUpperCase()} products failed for store ${store.id}`,
+        `AMAZON products failed for store ${store.id}`,
         error.stack,
       );
-
-      await this.storeRepo.updateStoreHealth(
-        store.id,
-        'unhealthy',
-        `Products sync failed: ${error.message}`,
-      );
-
-      await this.alertsRepo.createAlert({
-        store_id: store.id,
-        alert_type: 'product_sync_failure',
-        message: `${store.platform.toUpperCase()} products sync failed: ${error.message}`,
-        severity: 'high',
-        platform: store.platform,
-      });
-
       throw error;
     }
   }

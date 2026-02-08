@@ -87,10 +87,6 @@ export function SalesChart({ data, loading }: SalesChartProps) {
               Net revenue by platform
             </p>
           </div>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-1" />
-            Export
-          </Button>
         </div>
 
         <div className="mb-6 p-4 rounded-lg bg-primary/5">
@@ -103,10 +99,13 @@ export function SalesChart({ data, loading }: SalesChartProps) {
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={normalizedData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid  strokeDasharray="3 3" vertical={false}
+                              className={'bg-black'}
+              />
               <XAxis dataKey="date" />
               <YAxis tickFormatter={(v) => formatCurrency(v)} />
               <Tooltip
+                  wrapperClassName={'border-10'}
                   formatter={(v: number) => formatCurrency(v)}
                   labelFormatter={(l) => `Date: ${l}`}
               />

@@ -87,6 +87,8 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     products,
     returns,
     isLoading,
+    isFetching,
+    refetch
   } = useDashboardData(timeRange);
 
   const metrics = useMemo(() => {
@@ -180,7 +182,17 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
 
   return (
     <PageContainer maxWidth="2xl" padding="lg" className="py-8 space-y-8">
-      <DashboardHeader timeRange={timeRange} setTimeRange={setTimeRange} />
+      <DashboardHeader actions={
+        <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+        >
+          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+        </Button>
+      }
+                         timeRange={timeRange} setTimeRange={setTimeRange} />
 
       <section className="card-base p-6 rounded-xl shadow-sm bg-linear-to-r from-primary/5 to-transparent">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -220,7 +232,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           value={formatCurrency(metrics.grossSales)}
           trend={14.2}
           icon={DollarSign}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           description="+12.4% vs last period"
         />
         <MetricCard
@@ -228,7 +240,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           value={formatNumber(metrics.totalOrders)}
           trend={8.7}
           icon={ShoppingCart}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           description="Placed orders"
         />
         <MetricCard
@@ -236,7 +248,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           value={formatNumber(metrics.unitsSold)}
           trend={11.3}
           icon={Package}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           description={
             formatNumber(metrics.unitsSold / metrics.totalOrders || 0) +
             " avg per order"
@@ -247,7 +259,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           value={formatCurrency(metrics.avgOrderValue)}
           trend={5.4}
           icon={TrendingUp}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           description="AOV"
         />
       </section>
@@ -286,7 +298,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
                   <ChannelCard
                     key={store.id}
                     channel={channelData}
-                    loading={isLoading}
+                    loading={isLoading || isFetching}
                     onClick={onChannelClick}
                     store={store}
                   />
@@ -304,25 +316,25 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           </div>
         )}
         <div className={cn("lg:col-span-4", activeStore && "lg:col-span-12")}>
-          <AlertsPanel alerts={alerts} loading={isLoading} />
+          <AlertsPanel alerts={alerts} loading={isLoading || isFetching} />
         </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-1">
-        <SalesChart data={salesTrend} loading={isLoading} />
+        <SalesChart data={salesTrend} loading={isLoading || isFetching} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <InventoryTable inventory={inventory} loading={isLoading} />
+        <InventoryTable inventory={inventory} loading={isLoading || isFetching} />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <OrdersTable orders={orders} loading={isLoading} />
+        <OrdersTable orders={orders} loading={isLoading || isFetching} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <ProductsTable products={products} loading={isLoading} />
+        <ProductsTable products={products} loading={isLoading || isFetching} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <ReturnsTable returns={returns} loading={isLoading} />
+        <ReturnsTable returns={returns} loading={isLoading || isFetching} />
       </section>
 
       {orderId && (

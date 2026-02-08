@@ -9,11 +9,7 @@ import { StoresRepository } from '../supabase/repositories/stores.repository';
 import { ProductsRepository } from '../supabase/repositories/products.repository';
 import { StoreCredentialsService } from '../supabase/repositories/store_credentials.repository';
 import { Database } from '../supabase/supabase.types';
-import {
-  Order as AmazonOrder,
-  OrderItem as AmazonOrderItem,
-} from '@sp-api-sdk/orders-api-v0';
-import { FaireOrder, mapOrdersToDB } from '../connectors/faire/faire.mapper';
+import { mapOrdersToDB } from '../connectors/faire/faire.mapper';
 import {
   mapFulfillmentToDB,
   mapOrderLinesToDB,
@@ -27,9 +23,13 @@ import {
   mapWalmartOrderToDB,
 } from '../connectors/walmart/walmart.mapper';
 import {
+  AmazonOrderReportRow,
   mapAmazonOrderItemToDB,
   mapAmazonOrderToDB,
   mapAmazonShipmentToDB,
+  mapReportFulfillmentToDB,
+  mapReportOrderItemToDB,
+  mapReportOrderToDB,
 } from '../connectors/amazon/amazon.mapper';
 import {
   mapWarehanceOrderItemsToDB,
@@ -534,66 +534,79 @@ export class OrdersProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      // Get since parameter for incremental sync
+      /**
+       * 1️⃣ Determine cursor
+       * - Full sync: undefined → AmazonService starts from Jan 1, 2026
+       * - Delta sync: last_orders_synced_at
+       */
       const since = store.last_orders_synced_at
         ? new Date(store.last_orders_synced_at).toISOString()
         : undefined;
 
-      // 1️⃣ Products → productId map
+      /**
+       * 2️⃣ Load products (ASIN + SKU safety)
+       */
       const products = await this.productsRepo.getAllProductsByStore(store.id);
-      const productMap = new Map();
-      products.forEach((p) => {
-        if (p.external_product_id) productMap.set(p.external_product_id, p.id);
-        if (p.sku) productMap.set(p.sku, p.id); // Also map by SKU
-      });
 
-      // 2️⃣ Orders with incremental sync
-      const orders: AmazonOrder[] = await service.getOrders(store, since);
+      const productMap = new Map<string, string>();
+      for (const p of products) {
+        if (p.external_product_id) productMap.set(p.external_product_id, p.id);
+        if (p.sku) productMap.set(p.sku, p.id);
+        if (p.asin) productMap.set(p.asin, p.id);
+      }
+
+      /**
+       * 3️⃣ Fetch orders (chunked internally by AmazonService)
+       */
+      const orders = await service.getOrders(store, since);
+
       if (!orders.length) {
-        this.logger.log('No new Amazon orders to sync');
+        this.logger.log('No Amazon orders returned');
         return;
       }
 
-      // 3️⃣ Orders → DB
+      /**
+       * 4️⃣ Insert orders
+       */
       const dbOrders = orders.map((o) =>
         mapAmazonOrderToDB(o, store.id, store.platform),
       );
+
       const { data: insertedOrders } =
         await this.ordersRepo.insertOrdersAndReturn(dbOrders);
 
-      if (!insertedOrders || !insertedOrders.length) {
-        throw new Error('Failed to insert Amazon orders or no rows returned');
+      if (!insertedOrders?.length) {
+        throw new Error('Amazon order insert failed');
       }
 
       const orderIdByExternal = new Map(
         insertedOrders.map((o) => [o.external_order_id, o.id]),
       );
 
+      /**
+       * 5️⃣ Fetch items + build fulfillments
+       */
       const orderItems: Database['public']['Tables']['order_items']['Insert'][] =
         [];
       const fulfillments: Database['public']['Tables']['fulfillments']['Insert'][] =
         [];
 
-      // 4️⃣ Items + Fulfillments
       for (const order of orders) {
         const orderId = orderIdByExternal.get(order.AmazonOrderId);
         if (!orderId) continue;
-        await new Promise((resolve) => setTimeout(resolve, 3000));
 
-        // Fetch order items
-        const items: AmazonOrderItem[] = await service.getOrderItems(
-          order.AmazonOrderId,
-        );
+        // Amazon rate-limit safety (critical)
+        await new Promise((r) => setTimeout(r, 2000));
+
+        const items = await service.getOrderItems(order.AmazonOrderId);
 
         for (const item of items) {
-          const productId: string =
-            productMap.get(item.ASIN) || productMap.get(item.SellerSKU);
+          const productId =
+            productMap.get(item.ASIN) ||
+            productMap.get(item.SellerSKU!) ||
+            undefined;
+
           orderItems.push(mapAmazonOrderItemToDB(item, orderId, productId));
-          if (!productId) {
-            this.logger.warn(
-              `No product match for ASIN: ${item.ASIN} or SKU: ${item.SellerSKU}`,
-            );
-          }
 
           const fulfillment = mapAmazonShipmentToDB(
             order,
@@ -602,40 +615,37 @@ export class OrdersProcessor extends WorkerHost {
             orderId,
             productId,
           );
+
           if (fulfillment) fulfillments.push(fulfillment);
         }
       }
 
-      // 5️⃣ Persist children
-      if (orderItems.length)
+      /**
+       * 6️⃣ Persist items + fulfillments
+       */
+      if (orderItems.length) {
         await this.orderItemsRepo.bulkUpsertOrderItems(orderItems);
+      }
 
-      if (fulfillments.length)
+      if (fulfillments.length) {
         await this.shipmentRepo.insertShipments(fulfillments);
+      }
+
+      /**
+       * 7️⃣ Update cursor
+       */
+      await this.storeRepo.update(store.id, 'orders', {
+        last_synced_at: new Date().toISOString(),
+      });
 
       this.logger.log(
-        `Amazon orders synced: ${insertedOrders.length} orders, ${orderItems.length} items, ${fulfillments.length} fulfillments`,
+        `Amazon orders sync completed: ${insertedOrders.length} orders, ${orderItems.length} items`,
       );
     } catch (error) {
       this.logger.error(
-        `${store.platform.toUpperCase()} orders failed for store ${store.id}`,
+        `AMAZON orders failed for store ${store.id}`,
         error.stack,
       );
-
-      await this.storeRepo.updateStoreHealth(
-        store.id,
-        'unhealthy',
-        `Orders sync failed: ${error.message}`,
-      );
-
-      await this.alertsRepo.createAlert({
-        store_id: store.id,
-        alert_type: 'order_sync_failure',
-        message: `${store.platform.toUpperCase()} orders sync failed: ${error.message}`,
-        severity: 'high',
-        platform: store.platform,
-      });
-
       throw error;
     }
   }
