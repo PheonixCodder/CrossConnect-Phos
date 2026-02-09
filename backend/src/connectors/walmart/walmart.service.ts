@@ -29,7 +29,7 @@ export class WalmartService {
   private clientId: string;
   private clientSecret: string;
   private url: string;
-  private readonly HISTORICAL_YEARS_BACK = 5;
+  private readonly HISTORICAL_YEARS_BACK = 1;
 
   constructor(
     private readonly walmartOAuthHook: WalmartOAuthHook,

@@ -46,6 +46,7 @@ interface DataTableProps<TData, TValue> {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyImage?: string;
+  defaultSorting?: SortingState
 }
 
 export function DataTable<TData, TValue>({
@@ -59,8 +60,9 @@ export function DataTable<TData, TValue>({
   emptyTitle = "No data found",
   emptyDescription = "There are no records to display.",
   emptyImage = "/images/empty.svg",
+                                           defaultSorting = []
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>(defaultSorting);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );

@@ -2,7 +2,12 @@ import { parseStringPromise } from 'xml2js';
 import { Injectable, Logger } from '@nestjs/common';
 import { SellingPartnerApiAuth } from '@sp-api-sdk/auth';
 import { ReportsApiClient } from '@sp-api-sdk/reports-api-2021-06-30';
-import { Order, OrderItem, OrdersApiClient } from '@sp-api-sdk/orders-api-v0';
+import {
+  Order,
+  OrderItem,
+  OrdersApiClient,
+  OrdersApiGetOrdersRequest,
+} from '@sp-api-sdk/orders-api-v0';
 import {
   FbaInventoryApiClient,
   InventorySummary,
@@ -16,6 +21,7 @@ import {
 import { Database } from '../../supabase/supabase.types';
 import { SellingPartnerRegion } from '@sp-api-sdk/common';
 import { CryptoService } from '../../common/crypto.service';
+import { AmazonOrderReportRow } from 'connectors/amazon/amazon.mapper';
 
 @Injectable()
 export class AmazonService {
@@ -26,6 +32,11 @@ export class AmazonService {
   private clientSecret: string;
   private refreshToken: string;
   private region = 'na';
+  private readonly AMAZON_PAGE_SIZE = 100;
+  private readonly AMAZON_CHUNK_DAYS = 30;
+  private readonly AMAZON_FULL_SYNC_START = new Date(
+    '2026-01-01T00:00:00.000Z',
+  );
 
   constructor(private readonly crypto: CryptoService) {}
 
@@ -52,8 +63,8 @@ export class AmazonService {
   private async withRetry<T>(
     fn: () => Promise<T>,
     context: string,
-    maxRetries = 5,
-    baseDelayMs = 1000,
+    maxRetries = 7,
+    baseDelayMs = 6000,
   ): Promise<T> {
     let attempt = 0;
 
@@ -189,9 +200,7 @@ export class AmazonService {
     return results;
   }
 
-  /* -------------------- ORDERS (DELTA) -------------------- */
-
-  async getOrders(
+  public async getOrders(
     store: Database['public']['Tables']['stores']['Row'],
     since?: string,
   ): Promise<Order[]> {
@@ -200,23 +209,93 @@ export class AmazonService {
       region: this.region as SellingPartnerRegion,
     });
 
+    // 🔒 Normalize cursor: always fallback to AMAZON_FULL_SYNC_START
+    const normalizedSince =
+      since && since.trim().length > 0
+        ? since
+        : this.AMAZON_FULL_SYNC_START.toISOString();
+
+    let orders: Order[];
+
+    if (!since) {
+      // FULL SYNC → use chunked by created date
+      orders = await this.getOrdersChunked(client, store);
+    } else {
+      // DELTA SYNC → last updated
+      orders = await this.getOrdersDelta(client, store, normalizedSince);
+    }
+
+    return this.deduplicateOrders(orders);
+  }
+
+  private async getOrdersDelta(
+    client: OrdersApiClient,
+    store: Database['public']['Tables']['stores']['Row'],
+    since: string,
+  ): Promise<Order[]> {
+    return this.getOrdersPaged(client, store, 'updated', since);
+  }
+
+  private async getOrdersChunked(
+    client: OrdersApiClient,
+    store: Database['public']['Tables']['stores']['Row'],
+  ): Promise<Order[]> {
+    const all: Order[] = [];
+    const now = new Date(Date.now() - 2 * 60 * 1000); // safety 2 min
+
+    let cursor = new Date(this.AMAZON_FULL_SYNC_START);
+
+    while (cursor < now) {
+      const end = new Date(cursor);
+      end.setDate(end.getDate() + this.AMAZON_CHUNK_DAYS);
+      if (end > now) end.setTime(now.getTime());
+
+      const chunk = await this.getOrdersPaged(
+        client,
+        store,
+        'created',
+        cursor.toISOString(),
+        end.toISOString(),
+      );
+
+      all.push(...chunk);
+
+      cursor = new Date(end.getTime() + 1000); // +1s overlap protection
+      await this.sleep(1500); // avoid throttling
+    }
+
+    return this.deduplicateOrders(all);
+  }
+
+  private async getOrdersPaged(
+    client: OrdersApiClient,
+    store: Database['public']['Tables']['stores']['Row'],
+    mode: 'created' | 'updated',
+    startISO: string,
+    endISO?: string,
+  ): Promise<Order[]> {
     const orders: Order[] = [];
     let nextToken: string | undefined;
 
-    // FIX: If 'since' is undefined, default to 24 hours ago (ISO String)
-    // Amazon will NOT accept the request without this start date.
-    const lastUpdatedAfter =
-      since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
     do {
+      const params: any = {
+        marketplaceIds: [store.marketplaceId!],
+        maxResultsPerPage: this.AMAZON_PAGE_SIZE,
+      };
+
+      if (nextToken) {
+        params.nextToken = nextToken; // Ensure camelCase
+      } else if (mode === 'created') {
+        params.createdAfter = startISO; // lowercase 'c'
+        if (endISO) params.createdBefore = endISO; // lowercase 'c'
+      } else {
+        params.lastUpdatedAfter = startISO; // lowercase 'l'
+        if (endISO) params.lastUpdatedBefore = endISO; // lowercase 'l'
+      }
+
       const { data } = await this.withRetry(
-        () =>
-          client.getOrders({
-            marketplaceIds: [store.marketplaceId!],
-            // IMPORTANT: If nextToken exists, you MUST NOT send lastUpdatedAfter
-            ...(nextToken ? { nextToken } : { lastUpdatedAfter }),
-          }),
-        'getOrders',
+        () => client.getOrders(params),
+        'getOrdersPaged',
       );
 
       orders.push(...((data.payload?.Orders as Order[]) ?? []));
@@ -224,6 +303,13 @@ export class AmazonService {
     } while (nextToken);
 
     return orders;
+  }
+  private deduplicateOrders(orders: Order[]): Order[] {
+    const map = new Map<string, Order>();
+    for (const o of orders) {
+      if (o.AmazonOrderId) map.set(o.AmazonOrderId, o);
+    }
+    return [...map.values()];
   }
 
   async getOrderItems(orderId: string): Promise<OrderItem[]> {

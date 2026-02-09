@@ -87,6 +87,8 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     products,
     returns,
     isLoading,
+    isFetching,
+    refetch
   } = useDashboardData(timeRange);
 
   const metrics = useMemo(() => {
@@ -129,50 +131,58 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     return Array.from(map.values());
   }, [stores, orders, orderItems]);
 
+
   const salesTrend = useMemo(() => {
     type DayBucket = {
       date: string;
       [platform: string]: number | string;
     };
 
+    const rangeDaysMap = {
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "1y": 365,
+    };
+
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - rangeDaysMap[timeRange]);
+
+    const buildDateRange = (s: Date, e: Date) => {
+      const dates: string[] = [];
+      const d = new Date(s);
+      while (d <= e) {
+        dates.push(d.toISOString().slice(0, 10));
+        d.setDate(d.getDate() + 1);
+      }
+      return dates;
+    };
+
+    const allDates = buildDateRange(start, end);
     const bucket = new Map<string, DayBucket>();
 
-    // 1. Aggregate VALID orders
+    // 1️⃣ Initialize all days
+    allDates.forEach((date) => {
+      bucket.set(date, { date });
+    });
+
+    // 2️⃣ ALL ORDERS = GROSS SALES
     orders.forEach((order) => {
       if (!order.total) return;
-      if (!["paid", "completed"].includes(order.status)) return;
 
-      const date = new Date(
-          order.ordered_at ?? order.created_at,
-      ).toISOString().slice(0, 10); // YYYY-MM-DD
+      const date = (order.ordered_at ?? order.created_at).slice(0, 10);
+      const day = bucket.get(date);
+      if (!day) return;
 
-      if (!bucket.has(date)) bucket.set(date, { date });
+      const platform = order.platform ?? "unknown";
 
-      const day = bucket.get(date)!;
-      day[order.platform] =
-          (day[order.platform] as number || 0) + order.total;
+      day[platform] =
+          ((day[platform] as number) || 0) + order.total;
     });
 
-    // 2. Subtract refunds
-    returns.forEach((ret) => {
-      if (!ret.refund_amount) return;
-
-      const date = new Date(ret.created_at)
-          .toISOString()
-          .slice(0, 10);
-
-      if (!bucket.has(date)) bucket.set(date, { date });
-
-      const day = bucket.get(date)!;
-      day[ret.platform] =
-          (day[ret.platform] as number || 0) - ret.refund_amount;
-    });
-
-    // 3. Sort chronologically
-    return Array.from(bucket.values()).sort((a, b) =>
-        a.date.localeCompare(b.date),
-    );
-  }, [orders, returns]);
+    return Array.from(bucket.values());
+  }, [orders, timeRange]);
 
   const successChannels = stores.filter(
     (s) => s.auth_status === "active",
@@ -180,7 +190,17 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
 
   return (
     <PageContainer maxWidth="2xl" padding="lg" className="py-8 space-y-8">
-      <DashboardHeader timeRange={timeRange} setTimeRange={setTimeRange} />
+      <DashboardHeader actions={
+        <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+        >
+          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+        </Button>
+      }
+                         timeRange={timeRange} setTimeRange={setTimeRange} />
 
       <section className="card-base p-6 rounded-xl shadow-sm bg-linear-to-r from-primary/5 to-transparent">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -220,7 +240,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           value={formatCurrency(metrics.grossSales)}
           trend={14.2}
           icon={DollarSign}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           description="+12.4% vs last period"
         />
         <MetricCard
@@ -228,7 +248,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           value={formatNumber(metrics.totalOrders)}
           trend={8.7}
           icon={ShoppingCart}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           description="Placed orders"
         />
         <MetricCard
@@ -236,7 +256,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           value={formatNumber(metrics.unitsSold)}
           trend={11.3}
           icon={Package}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           description={
             formatNumber(metrics.unitsSold / metrics.totalOrders || 0) +
             " avg per order"
@@ -247,7 +267,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           value={formatCurrency(metrics.avgOrderValue)}
           trend={5.4}
           icon={TrendingUp}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           description="AOV"
         />
       </section>
@@ -286,7 +306,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
                   <ChannelCard
                     key={store.id}
                     channel={channelData}
-                    loading={isLoading}
+                    loading={isLoading || isFetching}
                     onClick={onChannelClick}
                     store={store}
                   />
@@ -304,25 +324,25 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           </div>
         )}
         <div className={cn("lg:col-span-4", activeStore && "lg:col-span-12")}>
-          <AlertsPanel alerts={alerts} loading={isLoading} />
+          <AlertsPanel alerts={alerts} loading={isLoading || isFetching} />
         </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-1">
-        <SalesChart data={salesTrend} loading={isLoading} />
+        <SalesChart data={salesTrend} loading={isLoading || isFetching} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <InventoryTable inventory={inventory} loading={isLoading} />
+        <InventoryTable inventory={inventory} loading={isLoading || isFetching} />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <OrdersTable orders={orders} loading={isLoading} />
+        <OrdersTable orders={orders} loading={isLoading || isFetching} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <ProductsTable products={products} loading={isLoading} />
+        <ProductsTable products={products} loading={isLoading || isFetching} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <ReturnsTable returns={returns} loading={isLoading} />
+        <ReturnsTable returns={returns} loading={isLoading || isFetching} />
       </section>
 
       {orderId && (

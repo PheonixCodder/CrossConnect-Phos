@@ -86,10 +86,7 @@ export class StoresRepository {
       );
     }
   }
-  async updateWebhookStatus(
-    storeId: string,
-    status: boolean
-  ): Promise<void> {
+  async updateWebhookStatus(storeId: string, status: boolean): Promise<void> {
     const { error } = await this.supabaseClient
       .from('stores')
       .update({
@@ -99,7 +96,10 @@ export class StoresRepository {
       .eq('id', storeId);
 
     if (error) {
-      this.logger.error(`Failed to update store webhook status for ${storeId}`, error);
+      this.logger.error(
+        `Failed to update store webhook status for ${storeId}`,
+        error,
+      );
     }
 
     // Log alert if unhealthy
@@ -167,7 +167,7 @@ export class StoresRepository {
   async storesAsQueued(storeIds: string[]) {
     const now = new Date().toISOString();
 
-    return await this.supabaseClient
+    return this.supabaseClient
       .from('stores')
       .update({
         last_health_check: now,
@@ -189,5 +189,34 @@ export class StoresRepository {
       throw error;
     }
     return data[0];
+  }
+
+  async update(
+    id: string,
+    type: 'orders' | 'products' | 'returns',
+    param2: { last_synced_at: string },
+  ) {
+    // Map the type to the corresponding column name
+    const columnMap = {
+      products: 'last_products_synced_at',
+      orders: 'last_orders_synced_at',
+      returns: 'last_returns_synced_at',
+    };
+
+    const columnName = columnMap[type];
+    const dateValue = new Date(param2.last_synced_at).toISOString();
+
+    // Dynamically set the key using [columnName]
+    const { error } = await this.supabaseClient
+      .from('stores')
+      .update({ [columnName]: dateValue })
+      .eq('id', id);
+    if (error) {
+      this.logger.error(
+        `Failed to update ${columnName} for store ${id}`,
+        error,
+      );
+      throw error;
+    }
   }
 }

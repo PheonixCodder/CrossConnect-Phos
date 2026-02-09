@@ -8,6 +8,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-display/data-table";
+import {formatDistanceToNow} from "date-fns";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
 
@@ -62,9 +63,17 @@ const columns: ColumnDef<Order>[] = [
   },
   {
     accessorKey: "ordered_at",
-    header: "Date",
+    header: ({ column }) => (
+        <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Date
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+    ),
     cell: ({ row }) =>
-      formatDateTime(row.original.ordered_at ?? row.original.created_at),
+        formatDistanceToNow(row.original.ordered_at ?? row.original.created_at),
   },
   {
     accessorKey: "platform",
@@ -100,6 +109,7 @@ export function OrdersTable({ orders, loading }: OrdersTableProps) {
           data={orders}
           isLoading={loading}
           searchKey="external_order_id"
+          defaultSorting={[{ id: "ordered_at", desc: true }]}
           placeholder="Search by Order ID..."
           onRowClick={(row) => setOrderId(row.id)}
           emptyImage="/images/empty.svg"

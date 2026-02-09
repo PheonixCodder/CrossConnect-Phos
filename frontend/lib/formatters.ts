@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, parseISO, format } from "date-fns";
 
 // lib/formatters.ts
 export function formatCurrency(value: number, currency = "USD"): string {
@@ -16,8 +16,16 @@ export function formatNumber(value: number): string {
 
 export function formatDateTime(dateString: string | null): string {
   if (!dateString) return "N/A";
-  return formatDistanceToNow(new Date(dateString), { addSuffix: true });
+
+  try {
+    const date = parseISO(dateString);
+    // Returns: "Oct 24, 2023, 2:30 PM"
+    return format(date, "MMM d, yyyy, h:mm a");
+  } catch (error) {
+    return "Invalid Date";
+  }
 }
+
 
 export function formatDate(dateString: string | null): string {
   if (!dateString) return "N/A";

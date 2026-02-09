@@ -99,7 +99,7 @@ export class ProductsRepository {
   async getAllProductsByStore(storeId: string) {
     const { data, error } = await this.supabaseClient
       .from('products')
-      .select('id, external_product_id, title, sku')
+      .select('id, external_product_id, title, sku, asin')
       .eq('store_id', storeId);
 
     if (error) {
