@@ -116,7 +116,8 @@ export class ShopifyOAuthService {
       {
         store_id: state,
         credentials: {
-          ...storedCreds,
+          shopifyClientId: storedCreds.shopifyClientId,
+          shopifyClientSecret: storedCreds.shopifyClientSecret,
           accessToken: this.crypto.encrypt(access_token),
           shopDomain: this.crypto.encrypt(shop),
           scopes: scope.split(','),

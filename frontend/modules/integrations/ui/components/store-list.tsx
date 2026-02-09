@@ -341,6 +341,8 @@ export function StoreList({
                                                                             if (!selectedStore) return;
 
                                                                             const supabase = createClient();
+                                                                            const storedCreds = store.store_credentials![0].credentials as Record<string, string>;
+
 
                                                                             // 1. Update credentials with BOTH ID and the mandatory Shop Cipher
                                                                             await supabase
@@ -348,8 +350,13 @@ export function StoreList({
                                                                                 .upsert({
                                                                                     store_id: store.id,
                                                                                     credentials: {
-                                                                                        ...((store.store_credentials?.[0]?.credentials as object) || {}),
                                                                                         shop_cipher: selectedStore.cipher,
+                                                                                        shopifyClientId: storedCreds.shopifyClientId,
+                                                                                        shopifyClientSecret: storedCreds.shopifyClientSecret,
+                                                                                        accessToken: storedCreds.accessToken,
+                                                                                        shopDomain: storedCreds.shopDomain,
+                                                                                        scopes: storedCreds.scopes,
+
                                                                                     },
                                                                                 });
 

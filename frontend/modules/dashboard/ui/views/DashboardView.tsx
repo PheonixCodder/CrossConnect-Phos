@@ -131,50 +131,58 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     return Array.from(map.values());
   }, [stores, orders, orderItems]);
 
+
   const salesTrend = useMemo(() => {
     type DayBucket = {
       date: string;
       [platform: string]: number | string;
     };
 
+    const rangeDaysMap = {
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "1y": 365,
+    };
+
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - rangeDaysMap[timeRange]);
+
+    const buildDateRange = (s: Date, e: Date) => {
+      const dates: string[] = [];
+      const d = new Date(s);
+      while (d <= e) {
+        dates.push(d.toISOString().slice(0, 10));
+        d.setDate(d.getDate() + 1);
+      }
+      return dates;
+    };
+
+    const allDates = buildDateRange(start, end);
     const bucket = new Map<string, DayBucket>();
 
-    // 1. Aggregate VALID orders
+    // 1️⃣ Initialize all days
+    allDates.forEach((date) => {
+      bucket.set(date, { date });
+    });
+
+    // 2️⃣ ALL ORDERS = GROSS SALES
     orders.forEach((order) => {
       if (!order.total) return;
-      if (!["paid", "completed"].includes(order.status)) return;
 
-      const date = new Date(
-          order.ordered_at ?? order.created_at,
-      ).toISOString().slice(0, 10); // YYYY-MM-DD
+      const date = (order.ordered_at ?? order.created_at).slice(0, 10);
+      const day = bucket.get(date);
+      if (!day) return;
 
-      if (!bucket.has(date)) bucket.set(date, { date });
+      const platform = order.platform ?? "unknown";
 
-      const day = bucket.get(date)!;
-      day[order.platform] =
-          (day[order.platform] as number || 0) + order.total;
+      day[platform] =
+          ((day[platform] as number) || 0) + order.total;
     });
 
-    // 2. Subtract refunds
-    returns.forEach((ret) => {
-      if (!ret.refund_amount) return;
-
-      const date = new Date(ret.created_at)
-          .toISOString()
-          .slice(0, 10);
-
-      if (!bucket.has(date)) bucket.set(date, { date });
-
-      const day = bucket.get(date)!;
-      day[ret.platform] =
-          (day[ret.platform] as number || 0) - ret.refund_amount;
-    });
-
-    // 3. Sort chronologically
-    return Array.from(bucket.values()).sort((a, b) =>
-        a.date.localeCompare(b.date),
-    );
-  }, [orders, returns]);
+    return Array.from(bucket.values());
+  }, [orders, timeRange]);
 
   const successChannels = stores.filter(
     (s) => s.auth_status === "active",

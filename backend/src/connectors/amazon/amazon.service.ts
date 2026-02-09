@@ -278,7 +278,7 @@ export class AmazonService {
     let nextToken: string | undefined;
 
     do {
-      const params: OrdersApiGetOrdersRequest = {
+      const params: any = {
         marketplaceIds: [store.marketplaceId!],
         maxResultsPerPage: this.AMAZON_PAGE_SIZE,
       };

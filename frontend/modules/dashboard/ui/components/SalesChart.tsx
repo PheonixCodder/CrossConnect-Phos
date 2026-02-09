@@ -10,8 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useMemo } from "react";
-import { TrendingUp, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { TrendingUp } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { Enums } from "@/types/supabase.types";
@@ -41,11 +40,11 @@ const COLORS = [
 export function SalesChart({ data, loading }: SalesChartProps) {
   const platforms = useMemo<Platform[]>(() => {
     const set = new Set<Platform>();
-    data.forEach((row) =>
-        Object.keys(row).forEach((k) => {
-          if (k !== "date") set.add(k as Platform);
-        }),
-    );
+    data.forEach((row) => {
+      Object.keys(row).forEach((k) => {
+        if (k !== "date") set.add(k as Platform);
+      });
+    });
     return Array.from(set);
   }, [data]);
 
@@ -59,7 +58,8 @@ export function SalesChart({ data, loading }: SalesChartProps) {
     });
   }, [data, platforms]);
 
-  const totalSales = useMemo(() => {
+  // ✅ GROSS SALES TOTAL (NO REFUNDS)
+  const totalGrossSales = useMemo(() => {
     return normalizedData.reduce((sum, day) => {
       return (
           sum +
@@ -81,34 +81,48 @@ export function SalesChart({ data, loading }: SalesChartProps) {
           <div>
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
-              Sales Trend
+              Gross Sales Trend
             </h2>
             <p className="text-sm text-muted-foreground">
-              Net revenue by platform
+              Gross revenue by platform
             </p>
           </div>
         </div>
 
         <div className="mb-6 p-4 rounded-lg bg-primary/5">
-          <p className="text-sm text-muted-foreground">Total Net Sales</p>
+          <p className="text-sm text-muted-foreground">
+            Total Gross Sales
+          </p>
           <p className="text-2xl font-bold">
-            {formatCurrency(totalSales)}
+            {formatCurrency(totalGrossSales)}
           </p>
         </div>
 
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={normalizedData}>
-              <CartesianGrid  strokeDasharray="3 3" vertical={false}
-                              className={'bg-black'}
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+
+              <XAxis
+                  dataKey="date"
+                  interval="preserveStartEnd"
+                  tickFormatter={(v) =>
+                      new Date(v).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })
+                  }
               />
-              <XAxis dataKey="date" />
+
               <YAxis tickFormatter={(v) => formatCurrency(v)} />
+
               <Tooltip
-                  wrapperClassName={'border-10'}
                   formatter={(v: number) => formatCurrency(v)}
-                  labelFormatter={(l) => `Date: ${l}`}
+                  labelFormatter={(l) =>
+                      new Date(l).toLocaleDateString()
+                  }
               />
+
               {platforms.map((p, i) => (
                   <Area
                       key={p}
