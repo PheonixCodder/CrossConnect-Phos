@@ -207,9 +207,16 @@ export class StoresRepository {
     const dateValue = new Date(param2.last_synced_at).toISOString();
 
     // Dynamically set the key using [columnName]
-    await this.supabaseClient
+    const { error } = await this.supabaseClient
       .from('stores')
       .update({ [columnName]: dateValue })
       .eq('id', id);
+    if (error) {
+      this.logger.error(
+        `Failed to update ${columnName} for store ${id}`,
+        error,
+      );
+      throw error;
+    }
   }
 }

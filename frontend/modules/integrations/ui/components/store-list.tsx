@@ -351,11 +351,11 @@ export function StoreList({
                                                                                     store_id: store.id,
                                                                                     credentials: {
                                                                                         shop_cipher: selectedStore.cipher,
-                                                                                        shopifyClientId: storedCreds.shopifyClientId,
-                                                                                        shopifyClientSecret: storedCreds.shopifyClientSecret,
-                                                                                        accessToken: storedCreds.accessToken,
-                                                                                        shopDomain: storedCreds.shopDomain,
-                                                                                        scopes: storedCreds.scopes,
+                                                                                        access_token: storedCreds.access_token,
+                                                                                        refresh_token: storedCreds.refresh_token,
+                                                                                        open_id: storedCreds.open_id,
+                                                                                        seller_name: storedCreds.seller_name,
+                                                                                        expires_at: storedCreds.expires_at,
 
                                                                                     },
                                                                                 });

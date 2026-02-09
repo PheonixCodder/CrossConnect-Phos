@@ -109,7 +109,7 @@ export function OrdersTable({ orders, loading }: OrdersTableProps) {
           data={orders}
           isLoading={loading}
           searchKey="external_order_id"
-          defaultSorting={[{ id: "ordered_at", desc: false }]}
+          defaultSorting={[{ id: "ordered_at", desc: true }]}
           placeholder="Search by Order ID..."
           onRowClick={(row) => setOrderId(row.id)}
           emptyImage="/images/empty.svg"
