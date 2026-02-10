@@ -58,7 +58,7 @@ export class TikTokOAuthService {
     console.log(resp.data.data);
 
     // Enterprise strategy: store distinct fields for query performance
-    await this.supabase.from('store_credentials').upsert(
+    const { error } = await this.supabase.from('store_credentials').upsert(
       {
         store_id: storeId,
         credentials: {
@@ -73,6 +73,7 @@ export class TikTokOAuthService {
       { onConflict: 'store_id' },
     );
 
+    console.log(error);
     await this.supabase
       .from('stores')
       .update({
