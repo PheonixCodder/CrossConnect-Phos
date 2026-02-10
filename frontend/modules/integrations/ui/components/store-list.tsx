@@ -351,14 +351,10 @@ export function StoreList({
                                                                                     store_id: store.id,
                                                                                     credentials: {
                                                                                         shop_cipher: selectedStore.cipher,
-                                                                                        access_token: storedCreds.access_token,
-                                                                                        refresh_token: storedCreds.refresh_token,
-                                                                                        open_id: storedCreds.open_id,
-                                                                                        seller_name: storedCreds.seller_name,
-                                                                                        expires_at: storedCreds.expires_at,
-
+                                                                                        ...storedCreds
                                                                                     },
-                                                                                });
+                                                                                }, { onConflict: 'store_id' },
+                                                                                );
 
                                                                             // 2. Mark the store as active
                                                                             await supabase
