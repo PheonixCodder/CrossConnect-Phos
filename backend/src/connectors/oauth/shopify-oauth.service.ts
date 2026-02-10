@@ -111,20 +111,23 @@ export class ShopifyOAuthService {
     }
 
     // Persist credentials
-    await this.supabase.from('store_credentials').upsert(
-      {
-        store_id: state,
-        credentials: {
-          shopifyClientId: storedCreds.shopifyClientId,
-          shopifyClientSecret: storedCreds.shopifyClientSecret,
-          accessToken: this.crypto.encrypt(access_token),
-          shopDomain: this.crypto.encrypt(shop),
-          scopes: scope.split(','),
+    await this.supabase
+      .from('store_credentials')
+      .upsert(
+        {
+          store_id: state,
+          credentials: {
+            shopifyClientId: storedCreds.shopifyClientId,
+            shopifyClientSecret: storedCreds.shopifyClientSecret,
+            accessToken: this.crypto.encrypt(access_token),
+            shopDomain: this.crypto.encrypt(shop),
+            scopes: scope.split(','),
+          },
+          updated_at: new Date().toISOString(),
         },
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'store_id' },
-    );
+        { onConflict: 'store_id' },
+      )
+      .eq('store_id', state as string);
 
     // Update store
     const { data: storeData } = await this.supabase
