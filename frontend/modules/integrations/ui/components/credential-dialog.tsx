@@ -48,21 +48,6 @@ export function CredentialDialog({
 
   const [formData, setFormData] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!open) return;
-
-    queueMicrotask(() => {
-      if (isEdit && existingCredentials?.credentials) {
-        const raw = existingCredentials.credentials;
-        const parsed =
-            typeof raw === "string" ? JSON.parse(raw) : raw ?? {};
-        setFormData(parsed as Record<string, string>);
-      } else {
-        setFormData({});
-      }
-    });
-  }, [open, isEdit, existingCredentials]);
-
   const missingFields = getMissingFields(config.fields, formData);
   const isFormInvalid = missingFields.length > 0;
 
@@ -95,7 +80,10 @@ export function CredentialDialog({
         // Upsert credentials BEFORE redirect
         await supabase.from("store_credentials").upsert({
           store_id: storeId,
-          credentials: encryptedCredentials,
+          credentials: {
+            ...(existingCredentials ?? {}),
+            ...encryptedCredentials,
+          },
           updated_at: new Date().toISOString(),
         });
 
