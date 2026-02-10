@@ -106,28 +106,26 @@ export class ShopifyOAuthService {
 
     const { access_token, scope } = tokenResponse.data;
 
+    console.log(access_token, scope);
     if (!access_token) {
       throw new Error('Shopify did not return access token');
     }
 
     // Persist credentials
-    await this.supabase
-      .from('store_credentials')
-      .upsert(
-        {
-          store_id: state,
-          credentials: {
-            shopifyClientId: storedCreds.shopifyClientId,
-            shopifyClientSecret: storedCreds.shopifyClientSecret,
-            accessToken: this.crypto.encrypt(access_token),
-            shopDomain: this.crypto.encrypt(shop),
-            scopes: scope.split(','),
-          },
-          updated_at: new Date().toISOString(),
+    await this.supabase.from('store_credentials').upsert(
+      {
+        store_id: state,
+        credentials: {
+          shopifyClientId: storedCreds.shopifyClientId,
+          shopifyClientSecret: storedCreds.shopifyClientSecret,
+          accessToken: this.crypto.encrypt(access_token),
+          shopDomain: this.crypto.encrypt(shop),
+          scopes: scope.split(','),
         },
-        { onConflict: 'store_id' },
-      )
-      .eq('store_id', state as string);
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'store_id' },
+    );
 
     // Update store
     const { data: storeData } = await this.supabase
