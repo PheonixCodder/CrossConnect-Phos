@@ -396,7 +396,7 @@ export function StoreList({
                     isEdit={selectedStore.auth_status === "active"}
                     storeId={selectedStore.id}
                     platform={platform}
-                    existingCredentials={null}
+                    existingCredentials={selectedStore?.store_credentials?.[0] ?? null}
                 />
             )}
             {storeToDelete && (
