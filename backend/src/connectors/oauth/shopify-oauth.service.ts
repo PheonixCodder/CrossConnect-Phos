@@ -94,7 +94,6 @@ export class ShopifyOAuthService {
     const clientSecret: string = this.crypto.decrypt(
       storedCreds.shopifyClientSecret,
     );
-    this.verifyHmac(query, clientSecret);
 
     // Exchange code → offline access token
     const tokenResponse = await firstValueFrom(
