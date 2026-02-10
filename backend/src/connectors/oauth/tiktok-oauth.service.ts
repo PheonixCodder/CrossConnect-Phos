@@ -55,6 +55,7 @@ export class TikTokOAuthService {
       open_id,
       seller_name,
     } = resp.data.data;
+    console.log(resp.data.data);
 
     // Enterprise strategy: store distinct fields for query performance
     await this.supabase.from('store_credentials').upsert(
