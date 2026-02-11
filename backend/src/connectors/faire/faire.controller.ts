@@ -29,8 +29,6 @@ export class FaireAuthController {
     @Res() res: Response,
     @Req() req: Request,
   ) {
-    console.log('FAIRE CALLBACK HIT', req.url);
-
     // respond immediately
     res.redirect(`${process.env.FRONTEND_URL}/integrations?platform=faire`);
 

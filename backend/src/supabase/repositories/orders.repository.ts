@@ -30,7 +30,7 @@ export class OrdersRepository {
       const { data, error, count } = await this.supabaseClient
         .from('orders')
         .upsert(batch, {
-          onConflict: 'external_order_id',
+          onConflict: 'external_order_id,store_id',
         })
         .select('*');
 
@@ -42,6 +42,23 @@ export class OrdersRepository {
     }
 
     return { data: allData }; // This will contain 'id' (internal UUID) and 'external_order_id'
+  }
+
+  async syncOrderData(ordersPayload, itemsPayload, shipmentsPayload) {
+    const { data, error } = await this.supabaseClient.rpc(
+      'sync_orders_items_shipments',
+      {
+        items: itemsPayload,
+        orders: ordersPayload,
+        shipments: shipmentsPayload,
+      },
+    );
+
+    if (error) {
+      throw new Error(`RPC Sync Error: ${error.message}`);
+    }
+
+    return data;
   }
 
   async syncOrdersItemsAndShipments(

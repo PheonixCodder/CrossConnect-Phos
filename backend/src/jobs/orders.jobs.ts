@@ -1,3 +1,4 @@
+import { chunk } from 'lodash';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
@@ -27,6 +28,8 @@ import {
   mapAmazonOrderItemToDB,
   mapAmazonOrderToDB,
   mapAmazonShipmentToDB,
+  mapFlatFileRowsToOrders,
+  mapFlatFileRowToOrderItem,
   mapReportFulfillmentToDB,
   mapReportOrderItemToDB,
   mapReportOrderToDB,
@@ -528,24 +531,13 @@ export class OrdersProcessor extends WorkerHost {
       throw error;
     }
   }
-
   private async processAmazonOrders(
     service: AmazonService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      /**
-       * 1️⃣ Determine cursor
-       * - Full sync: undefined → AmazonService starts from Jan 1, 2026
-       * - Delta sync: last_orders_synced_at
-       */
-      const since = store.last_orders_synced_at
-        ? new Date(store.last_orders_synced_at).toISOString()
-        : undefined;
+      const isFirstSync = !store.last_orders_synced_at;
 
-      /**
-       * 2️⃣ Load products (ASIN + SKU safety)
-       */
       const products = await this.productsRepo.getAllProductsByStore(store.id);
 
       const productMap = new Map<string, string>();
@@ -555,93 +547,134 @@ export class OrdersProcessor extends WorkerHost {
         if (p.asin) productMap.set(p.asin, p.id);
       }
 
-      /**
-       * 3️⃣ Fetch orders (chunked internally by AmazonService)
-       */
-      const orders = await service.getOrders(store, since);
+      let ordersPayload: any[] = [];
+      let itemsPayload: any[] = [];
+      let shipmentsPayload: any[] = [];
 
-      if (!orders.length) {
-        this.logger.log('No Amazon orders returned');
-        return;
-      }
+      // ============================================================
+      // 1️⃣ FULL SYNC (REPORT)
+      // ============================================================
+      if (isFirstSync) {
+        const rows = await service.getOrdersFlatFileReport(store);
 
-      /**
-       * 4️⃣ Insert orders
-       */
-      const dbOrders = orders.map((o) =>
-        mapAmazonOrderToDB(o, store.id, store.platform),
-      );
+        ordersPayload = mapFlatFileRowsToOrders(rows, store.id);
 
-      const { data: insertedOrders } =
-        await this.ordersRepo.insertOrdersAndReturn(dbOrders);
-
-      if (!insertedOrders?.length) {
-        throw new Error('Amazon order insert failed');
-      }
-
-      const orderIdByExternal = new Map(
-        insertedOrders.map((o) => [o.external_order_id, o.id]),
-      );
-
-      /**
-       * 5️⃣ Fetch items + build fulfillments
-       */
-      const orderItems: Database['public']['Tables']['order_items']['Insert'][] =
-        [];
-      const fulfillments: Database['public']['Tables']['fulfillments']['Insert'][] =
-        [];
-
-      for (const order of orders) {
-        const orderId = orderIdByExternal.get(order.AmazonOrderId);
-        if (!orderId) continue;
-
-        // Amazon rate-limit safety (critical)
-        await new Promise((r) => setTimeout(r, 2000));
-
-        const items = await service.getOrderItems(order.AmazonOrderId);
-
-        for (const item of items) {
+        for (const row of rows) {
           const productId =
-            productMap.get(item.ASIN) ||
-            productMap.get(item.SellerSKU!) ||
-            undefined;
+            productMap.get(row['asin']) || productMap.get(row['sku']) || null;
 
-          orderItems.push(mapAmazonOrderItemToDB(item, orderId, productId));
-
-          const fulfillment = mapAmazonShipmentToDB(
-            order,
-            item,
-            store.id,
-            orderId,
-            productId,
-          );
-
-          if (fulfillment) fulfillments.push(fulfillment);
+          itemsPayload.push({
+            ...mapFlatFileRowToOrderItem(
+              row,
+              row['amazon-order-id'],
+              productId,
+            ),
+            external_order_id: row['amazon-order-id'], // REQUIRED FOR FK JOIN
+          });
         }
       }
 
-      /**
-       * 6️⃣ Persist items + fulfillments
-       */
-      if (orderItems.length) {
-        await this.orderItemsRepo.bulkUpsertOrderItems(orderItems);
+      // ============================================================
+      // 2️⃣ INCREMENTAL SYNC (API)
+      // ============================================================
+      else {
+        const since = new Date(store.last_orders_synced_at!).toISOString();
+
+        const orders = await service.getOrders(store, since);
+
+        if (!orders.length) {
+          this.logger.log('No Amazon orders returned');
+          return;
+        }
+
+        const orderWithItems = await Promise.all(
+          orders.map(async (order) => {
+            await new Promise((r) => setTimeout(r, 2500));
+            const items = await service.getOrderItems(order.AmazonOrderId);
+            return { order, items };
+          }),
+        );
+
+        for (const { order, items } of orderWithItems) {
+          const dbOrder = mapAmazonOrderToDB(
+            order,
+            store.id,
+            store.platform,
+            items,
+          );
+
+          ordersPayload.push(dbOrder);
+
+          for (const item of items) {
+            const productId =
+              productMap.get(item.ASIN) ||
+              productMap.get(item.SellerSKU!) ||
+              null;
+
+            itemsPayload.push({
+              ...mapAmazonOrderItemToDB(item, order.AmazonOrderId, productId),
+              external_order_id: order.AmazonOrderId, // REQUIRED
+            });
+
+            const fulfillment = mapAmazonShipmentToDB(
+              order,
+              item,
+              store.id,
+              order.AmazonOrderId,
+              productId ?? undefined,
+            );
+
+            if (fulfillment) {
+              shipmentsPayload.push({
+                ...fulfillment,
+                external_order_id: order.AmazonOrderId, // REQUIRED
+                store_id: store.id, // REQUIRED BY RPC
+                platform: store.platform, // REQUIRED BY RPC
+              });
+            }
+          }
+        }
+
+        this.logger.log(
+          `Amazon orders fetched: ${ordersPayload.length} orders`,
+        );
       }
 
-      if (fulfillments.length) {
-        await this.shipmentRepo.insertShipments(fulfillments);
+      // ============================================================
+      // 3️⃣ CHUNKED RPC SYNC
+      // ============================================================
+      const ORDER_CHUNK = 500;
+      const orderChunks = chunk(ordersPayload, ORDER_CHUNK);
+
+      for (const orderChunk of orderChunks) {
+        const orderIds = new Set(orderChunk.map((o) => o.external_order_id));
+
+        const filteredItems = itemsPayload.filter((i) =>
+          orderIds.has(i.external_order_id),
+        );
+
+        const filteredShipments = shipmentsPayload.filter((s) =>
+          orderIds.has(s.external_order_id),
+        );
+
+        await this.ordersRepo.syncOrderData(
+          orderChunk,
+          filteredItems,
+          filteredShipments,
+        );
       }
 
-      /**
-       * 7️⃣ Update cursor
-       */
+      // ============================================================
+      // 4️⃣ UPDATE CURSOR
+      // ============================================================
       await this.storeRepo.update(store.id, 'orders', {
         last_synced_at: new Date().toISOString(),
       });
 
       this.logger.log(
-        `Amazon orders sync completed: ${insertedOrders.length} orders, ${orderItems.length} items`,
+        `Amazon orders sync completed: ${ordersPayload.length} orders`,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `AMAZON orders failed for store ${store.id}`,
         error.stack,
