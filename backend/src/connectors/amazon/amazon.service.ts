@@ -37,6 +37,7 @@ export class AmazonService {
   private readonly AMAZON_FULL_SYNC_START = new Date(
     '2026-01-01T00:00:00.000Z',
   );
+  private readonly MARKETPLACE_ID = 'ATVPDKIKX0DER';
 
   constructor(private readonly crypto: CryptoService) {}
 
@@ -115,7 +116,7 @@ export class AmazonService {
         client.createReport({
           body: {
             reportType: 'GET_MERCHANT_LISTINGS_ALL_DATA',
-            marketplaceIds: [store.marketplaceId!],
+            marketplaceIds: [this.MARKETPLACE_ID],
           },
         }),
       'createListingsReport',
@@ -181,9 +182,9 @@ export class AmazonService {
       const { data } = await this.withRetry(
         () =>
           client.getInventorySummaries({
-            marketplaceIds: [store.marketplaceId!],
+            marketplaceIds: [this.MARKETPLACE_ID],
             granularityType: 'Marketplace',
-            granularityId: store.marketplaceId!,
+            granularityId: this.MARKETPLACE_ID,
             startDateTime: since,
             nextToken,
           }),
@@ -233,7 +234,7 @@ export class AmazonService {
           client.createReport({
             body: {
               reportType: 'GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL',
-              marketplaceIds: [store.marketplaceId!],
+              marketplaceIds: [this.MARKETPLACE_ID],
               dataStartTime: currentStart.toISOString(),
               dataEndTime: currentEnd.toISOString(),
             },
@@ -380,7 +381,7 @@ export class AmazonService {
 
     do {
       const params: any = {
-        marketplaceIds: [store.marketplaceId!],
+        marketplaceIds: [this.MARKETPLACE_ID],
         maxResultsPerPage: this.AMAZON_PAGE_SIZE,
       };
 
@@ -458,7 +459,7 @@ export class AmazonService {
         client.createReport({
           body: {
             reportType: 'GET_FBA_FULFILLMENT_CUSTOMER_RETURNS_DATA',
-            marketplaceIds: [store.marketplaceId!],
+            marketplaceIds: [this.MARKETPLACE_ID],
             dataStartTime: startTime,
           },
         }),
