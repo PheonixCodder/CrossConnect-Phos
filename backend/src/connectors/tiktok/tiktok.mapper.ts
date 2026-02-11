@@ -26,7 +26,11 @@ export function mapTiktokProductToDB(
       title: product.title ?? null,
       description: null,
       currency: 'USD',
-      price: sku.price?.salePrice ? Number(sku.price.salePrice) : null,
+      price: sku.price?.taxExclusivePrice
+        ? Number(sku.price.taxExclusivePrice)
+        : sku.price?.salePrice
+          ? Number(sku.price.salePrice)
+          : null,
       status: product.status ?? null,
     }));
 }

@@ -109,7 +109,16 @@ export function mapAmazonOrderToDB(
   order: Order,
   storeId: string,
   platform: string,
+  items: OrderItem[] = [],
 ): Database['public']['Tables']['orders']['Insert'] {
+  const computedSubtotal = items.reduce((sum, item) => {
+    const lineTotal =
+      item.ItemPrice?.Amount !== undefined ? Number(item.ItemPrice.Amount) : 0;
+    return sum + lineTotal;
+  }, 0);
+
+  const hasOrderTotal = order.OrderTotal?.Amount;
+
   return {
     store_id: storeId,
     platform,
@@ -118,14 +127,27 @@ export function mapAmazonOrderToDB(
     updated_at: order.LastUpdateDate,
     status: mapOrderStatus(order.OrderStatus),
     fulfillment_status: order.FulfillmentChannel ?? null,
-    currency: order.OrderTotal?.CurrencyCode ?? 'USD',
-    subtotal: order.OrderTotal?.Amount ? Number(order.OrderTotal.Amount) : null,
-    total: order.OrderTotal?.Amount ? Number(order.OrderTotal.Amount) : null,
-    tax: null, // Can be mapped if Amazon provides tax breakdown
-    shipping: order.ShipmentServiceLevelCategory ? 0 : null, // Placeholder
+
+    currency:
+      order.OrderTotal?.CurrencyCode ??
+      items[0]?.ItemPrice?.CurrencyCode ??
+      'USD',
+
+    subtotal: hasOrderTotal
+      ? Number(order.OrderTotal?.Amount)
+      : computedSubtotal || null,
+
+    total: hasOrderTotal
+      ? Number(order.OrderTotal?.Amount)
+      : computedSubtotal || null,
+
+    tax: null, // can be derived later from OrderItem.Tax
+    shipping: null, // derive from ShippingPrice if needed
+
     payment_status: order.OrderStatus === 'Pending' ? 'pending' : 'paid',
   };
 }
+
 function mapOrderStatus(
   status: string,
 ): Database['public']['Enums']['order_status'] {
@@ -147,6 +169,24 @@ function mapOrderStatus(
       return 'pending';
   }
 }
+
+function computeOrderTotalsFromItems(items: OrderItem[]) {
+  let subtotal = 0;
+
+  for (const item of items) {
+    const itemTotal =
+      item.ItemPrice?.Amount !== undefined ? Number(item.ItemPrice.Amount) : 0;
+
+    subtotal += itemTotal;
+  }
+
+  return {
+    subtotal: subtotal > 0 ? subtotal : null,
+    total: subtotal > 0 ? subtotal : null,
+    currency: items[0]?.ItemPrice?.CurrencyCode ?? 'USD',
+  };
+}
+
 export function mapAmazonOrderItemToDB(
   item: OrderItem,
   orderId: string,
@@ -339,4 +379,91 @@ function mapReportStatus(
   if (s.includes('shipped') || s === 'unshipped') return 'pending';
   if (s === 'cancelled') return 'cancelled';
   return 'pending';
+}
+
+function mapAmazonOrderStatus(
+  status: string,
+): Database['public']['Enums']['order_status'] {
+  switch (status?.toLowerCase()) {
+    case 'pending':
+      return 'pending';
+    case 'shipped':
+      return 'completed';
+    case 'canceled':
+      return 'cancelled';
+    case 'unshipped':
+      return 'paid';
+    default:
+      return 'paid';
+  }
+}
+
+export function mapFlatFileRowsToOrders(
+  rows: any[],
+  storeId: string,
+): Database['public']['Tables']['orders']['Insert'][] {
+  const orderMap = new Map<string, any[]>();
+
+  for (const row of rows) {
+    const orderId = row['amazon-order-id'];
+    if (!orderMap.has(orderId)) orderMap.set(orderId, []);
+    orderMap.get(orderId)!.push(row);
+  }
+
+  const orders: Database['public']['Tables']['orders']['Insert'][] = [];
+
+  for (const [externalId, items] of orderMap.entries()) {
+    const first = items[0];
+
+    const subtotal = items.reduce(
+      (sum, r) => sum + Number(r['item-price'] ?? 0),
+      0,
+    );
+
+    const tax = items.reduce((sum, r) => sum + Number(r['item-tax'] ?? 0), 0);
+
+    const shipping = items.reduce(
+      (sum, r) => sum + Number(r['shipping-price'] ?? 0),
+      0,
+    );
+
+    const total = subtotal + tax + shipping;
+
+    orders.push({
+      store_id: storeId,
+      platform: 'amazon',
+      external_order_id: externalId,
+      ordered_at: first['purchase-date'],
+      currency: first['currency'] ?? 'USD',
+      subtotal,
+      tax,
+      shipping,
+      total,
+      status: mapAmazonOrderStatus(first['order-status']),
+      payment_status: 'paid',
+      fulfillment_status: first['order-status'],
+    });
+  }
+
+  return orders;
+}
+
+export function mapFlatFileRowToOrderItem(
+  row: any,
+  orderId: string,
+  productId: string | null,
+): Database['public']['Tables']['order_items']['Insert'] {
+  const price = Number(row['item-price'] ?? 0);
+  const quantity = Number(row['quantity'] ?? 1);
+
+  return {
+    order_id: orderId,
+    external_line_item_id: row['amazon-order-id'] + '-' + row['sku'],
+    sku: row['sku'],
+    product_id: productId,
+    quantity,
+    price,
+    total: price * quantity,
+    fulfilled_quantity: row['item-status'] === 'Shipped' ? quantity : 0,
+  };
 }

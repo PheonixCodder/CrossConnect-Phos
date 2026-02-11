@@ -376,7 +376,8 @@ export function StoreList({
                                                             </ComboboxList>
                                                         </ComboboxContent>
                                                     </Combobox>
-                                                )}                                        </div>
+                                                )}
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>

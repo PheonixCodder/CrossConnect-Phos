@@ -37,6 +37,7 @@ export class AmazonService {
   private readonly AMAZON_FULL_SYNC_START = new Date(
     '2026-01-01T00:00:00.000Z',
   );
+  private readonly MARKETPLACE_ID = 'ATVPDKIKX0DER';
 
   constructor(private readonly crypto: CryptoService) {}
 
@@ -63,8 +64,8 @@ export class AmazonService {
   private async withRetry<T>(
     fn: () => Promise<T>,
     context: string,
-    maxRetries = 7,
-    baseDelayMs = 6000,
+    maxRetries = 8,
+    baseDelayMs = 7000,
   ): Promise<T> {
     let attempt = 0;
 
@@ -115,7 +116,7 @@ export class AmazonService {
         client.createReport({
           body: {
             reportType: 'GET_MERCHANT_LISTINGS_ALL_DATA',
-            marketplaceIds: [store.marketplaceId!],
+            marketplaceIds: [this.MARKETPLACE_ID],
           },
         }),
       'createListingsReport',
@@ -181,9 +182,9 @@ export class AmazonService {
       const { data } = await this.withRetry(
         () =>
           client.getInventorySummaries({
-            marketplaceIds: [store.marketplaceId!],
+            marketplaceIds: [this.MARKETPLACE_ID],
             granularityType: 'Marketplace',
-            granularityId: store.marketplaceId!,
+            granularityId: this.MARKETPLACE_ID,
             startDateTime: since,
             nextToken,
           }),
@@ -198,6 +199,107 @@ export class AmazonService {
     } while (nextToken);
 
     return results;
+  }
+
+  async getOrdersFlatFileReport(
+    store: Database['public']['Tables']['stores']['Row'],
+  ): Promise<any[]> {
+    const client = new ReportsApiClient({
+      auth: this.auth,
+      region: this.region as SellingPartnerRegion,
+    });
+
+    const allOrders: any[] = [];
+    const CHUNK_SIZE_DAYS = 30;
+    let currentStart = new Date(this.AMAZON_FULL_SYNC_START);
+    const finalEnd = new Date(); // Current time
+
+    // Loop through time in 30-day increments
+    while (currentStart < finalEnd) {
+      let currentEnd = new Date(
+        currentStart.getTime() + CHUNK_SIZE_DAYS * 24 * 60 * 60 * 1000,
+      );
+
+      // Ensure we don't request a future date
+      if (currentEnd > finalEnd) {
+        currentEnd = finalEnd;
+      }
+
+      this.logger.log(
+        `Fetching Amazon orders from ${currentStart.toISOString()} to ${currentEnd.toISOString()}`,
+      );
+
+      const { data } = await this.withRetry(
+        () =>
+          client.createReport({
+            body: {
+              reportType: 'GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL',
+              marketplaceIds: [this.MARKETPLACE_ID],
+              dataStartTime: currentStart.toISOString(),
+              dataEndTime: currentEnd.toISOString(),
+            },
+          }),
+        'createOrdersFlatFileReport',
+      );
+
+      const reportId = data.reportId;
+      let report;
+
+      // Wait for the specific chunk to process
+      for (let i = 0; i < 20; i++) {
+        await this.sleep(30_000);
+        report = await this.withRetry(
+          () => client.getReport({ reportId }),
+          'getOrdersFlatFileReportStatus',
+        );
+
+        if (report.data.processingStatus === 'DONE') break;
+        if (
+          ['CANCELLED', 'FATAL'].includes(
+            report.data.processingStatus as string,
+          )
+        ) {
+          this.logger.error(
+            `Report failed for range ${currentStart.toISOString()}`,
+          );
+          break;
+        }
+      }
+
+      if (report?.data?.processingStatus === 'DONE') {
+        const doc = await this.withRetry(
+          () =>
+            client.getReportDocument({
+              reportDocumentId: report.data.reportDocumentId!,
+            }),
+          'getOrdersFlatFileReportDoc',
+        );
+
+        const raw = await axios.get(doc.data.url as string, {
+          responseType: 'arraybuffer',
+        });
+        let buffer = Buffer.from(raw.data);
+
+        if (doc.data.compressionAlgorithm === 'GZIP') {
+          buffer = zlib.gunzipSync(buffer);
+        }
+
+        const parsedChunk = this.parseTSV(buffer.toString('utf8'));
+        allOrders.push(...parsedChunk);
+      }
+
+      // Move start date forward for next iteration (add 1ms to avoid overlap)
+      currentStart = new Date(currentEnd.getTime() + 1);
+
+      // Rate limiting: Amazon throttles report creation.
+      // Small delay between chunks helps avoid 429 errors.
+      await this.sleep(2000);
+    }
+
+    this.logger.log(
+      `Amazon orders sync completed: ${allOrders.length} total orders found.`,
+    );
+    return allOrders;
   }
 
   public async getOrders(
@@ -279,7 +381,7 @@ export class AmazonService {
 
     do {
       const params: any = {
-        marketplaceIds: [store.marketplaceId!],
+        marketplaceIds: [this.MARKETPLACE_ID],
         maxResultsPerPage: this.AMAZON_PAGE_SIZE,
       };
 
@@ -357,7 +459,7 @@ export class AmazonService {
         client.createReport({
           body: {
             reportType: 'GET_FBA_FULFILLMENT_CUSTOMER_RETURNS_DATA',
-            marketplaceIds: [store.marketplaceId!],
+            marketplaceIds: [this.MARKETPLACE_ID],
             dataStartTime: startTime,
           },
         }),

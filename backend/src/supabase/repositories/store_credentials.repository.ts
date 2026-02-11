@@ -21,14 +21,13 @@ export class StoreCredentialsService {
     }>
   > {
     try {
-      // Get all active stores with their credentials
       const { data, error } = await this.supabaseClient
         .from('stores')
         .select(
           `
-          *,
-          store_credentials(credentials)
-        `,
+        *,
+        store_credentials(credentials)
+      `,
         )
         .eq('auth_status', 'active');
 
@@ -41,30 +40,12 @@ export class StoreCredentialsService {
         return [];
       }
 
-      // Decrypt credentials and return combined data
       return data
-        .filter(
-          (store) =>
-            store.store_credentials && store.store_credentials.length > 0,
-        )
-        .map((store) => {
-          try {
-            const encryptedCredentials = store.store_credentials[0].credentials;
-            const credentials = encryptedCredentials;
-
-            return {
-              store,
-              credentials,
-            };
-          } catch (err) {
-            this.logger.error(
-              `Failed to decrypt credentials for store ${store.id}`,
-              err,
-            );
-            return null;
-          }
-        })
-        .filter((item): item is NonNullable<typeof item> => item !== null);
+        .filter((store) => store.store_credentials?.credentials)
+        .map((store) => ({
+          store,
+          credentials: store.store_credentials!.credentials,
+        }));
     } catch (error) {
       this.logger.error('Error fetching active stores with credentials', error);
       throw error;

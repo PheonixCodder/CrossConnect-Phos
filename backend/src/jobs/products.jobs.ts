@@ -815,17 +815,18 @@ export class ProductsProcessor extends WorkerHost {
         store.id,
       );
 
-      /* ---------- 5. INVENTORY FETCH (≤ 50 IDS) ---------- */
       const productIds = [...new Set(products.map((p) => p.id!))];
-
-      const inventoryUpserts: Database['public']['Tables']['inventory']['Insert'][] =
-        [];
+      const inventoryMap = new Map<
+        string,
+        Database['public']['Tables']['inventory']['Insert']
+      >();
 
       for (let i = 0; i < productIds.length; i += 50) {
         const batch = productIds.slice(i, i + 50);
-
-        const inventories: Product202309InventorySearchResponseDataInventory[] =
-          await service.getProductInventories(store.id, batch);
+        const inventories = await service.getProductInventories(
+          store.id,
+          batch,
+        );
 
         for (const inv of inventories) {
           for (const sku of inv.skus ?? []) {
@@ -835,15 +836,18 @@ export class ProductsProcessor extends WorkerHost {
             if (!productId) continue;
 
             const next = mapTiktokInventoryToDB(inv, sku, store.id, productId);
-
             const existing = existingInventory[sku.sellerSku];
 
             if (!existing || shouldUpdateTiktokInventory(existing, next)) {
-              inventoryUpserts.push(next);
+              // Use Map to ensure only one entry per SKU exists
+              inventoryMap.set(sku.sellerSku, next);
             }
           }
         }
       }
+
+      // Convert Map back to array
+      const inventoryUpserts = Array.from(inventoryMap.values());
 
       /* ---------- 6. UPSERT INVENTORY ---------- */
       if (inventoryUpserts.length) {
