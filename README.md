@@ -5,7 +5,6 @@ CrossConnect-Phos is a modular integration platform for collecting and synchroni
 - A Next.js frontend (frontend/) that provides a multi-channel dashboard and management UI.
 
 This README focuses on developer documentation so you can get the app running locally and understand the core structure.
-
 ---
 
 Table of contents
