@@ -11,7 +11,6 @@ import { useDashboardStore } from "@/store/useStore";
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { Building2, Check, Store, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Database } from "@/types/supabase.types";
 
 // --- Types ---
@@ -140,30 +139,46 @@ export const SearchCommand = ({ open, setOpen }: SearchCommandProps) => {
                 Loading stores...
               </div>
             ) : Object.keys(storesByPlatform).length > 0 ? (
-              Object.entries(storesByPlatform).map(
-                ([platform, platformStores]) => (
-                  <CommandGroup
-                    key={platform}
-                    heading={
-                      PLATFORM_NAMES[platform as PlatformType] || "Other"
-                    }
-                  >
-                    {platformStores.map((store: Store) => (
-                      <CommandItem
-                        key={store.id}
-                        value={`${store.name} ${PLATFORM_NAMES[platform as PlatformType]}`}
-                        onSelect={() => handleStoreSelect(store.id)}
-                      >
-                        <Store className="mr-2 h-4 w-4 opacity-70" />
-                        <span className="flex-1 truncate">{store.name}</span>
-                        {activeStore?.id === store.id && (
-                          <Check className="h-4 w-4 text-primary" />
-                        )}
-                      </CommandItem>
-                    ))}
+                <>
+                  <CommandGroup heading="All Stores">
+                    <CommandItem
+                        onSelect={() => {
+                          setActiveStore(null);
+                          setOpen(false);
+                        }}
+                    >
+                      <Store className="mr-2 h-4 w-4 opacity-70" />
+                      <span className="flex-1">All Stores</span>
+                      {!activeStore && (
+                          <Check className="h-4 w-4" />
+                      )}
+                    </CommandItem>
                   </CommandGroup>
-                ),
-              )
+                  {Object.entries(storesByPlatform).map(
+                      ([platform, platformStores]) => (
+                          <CommandGroup
+                              key={platform}
+                              heading={
+                                  PLATFORM_NAMES[platform as PlatformType] || "Other"
+                              }
+                          >
+                            {platformStores.map((store: Store) => (
+                                <CommandItem
+                                    key={store.id}
+                                    value={`${store.name} ${PLATFORM_NAMES[platform as PlatformType]}`}
+                                    onSelect={() => handleStoreSelect(store.id)}
+                                >
+                                  <Store className="mr-2 h-4 w-4 opacity-70"/>
+                                  <span className="flex-1 truncate">{store.name}</span>
+                                  {activeStore?.id === store.id && (
+                                      <Check className="h-4 w-4 text-primary"/>
+                                  )}
+                                </CommandItem>
+                            ))}
+                          </CommandGroup>
+                      ),
+                  )}
+                </>
             ) : (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 No stores found for this organization.

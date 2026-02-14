@@ -414,20 +414,20 @@ export class ReturnsProcessor extends WorkerHost {
         ? new Date(store.last_returns_synced_at).toISOString()
         : undefined;
 
-      // 1️⃣ Fetch the logistical return data
-      const ordersWithReturns: FetchReturnsQuery['orders']['edges'] =
-        await service.fetchReturns(since);
-      if (!ordersWithReturns.length) return;
+      const ordersWithReturns = await service.fetchReturns(since);
 
-      // 2️⃣ Resolve internal order_id (FK)
-      const externalOrderIds: string[] = ordersWithReturns
-        .map((o) => o.node.id)
-        .filter((id): id is string => typeof id === 'string');
+      if (!ordersWithReturns.length) {
+        this.logger.log('No returns found.');
+        return;
+      }
+
+      const externalOrderIds = ordersWithReturns.map((o) => o.node.id);
 
       const dbOrders = await this.ordersRepo.getByExternalOrderIds(
         store.id,
         externalOrderIds,
       );
+
       const orderIdMap = new Map(
         dbOrders.map((o) => [o.external_order_id, o.id]),
       );
@@ -435,22 +435,22 @@ export class ReturnsProcessor extends WorkerHost {
       const returnInserts: Database['public']['Tables']['returns']['Insert'][] =
         [];
 
-      for (const orderNode of ordersWithReturns) {
-        const internalOrderId = orderIdMap.get(orderNode.node.id);
+      for (const orderEdge of ordersWithReturns) {
+        const orderNode = orderEdge.node;
 
-        // Safety: Only map if the parent order exists in our DB
+        const internalOrderId = orderIdMap.get(orderNode.id);
+
         if (!internalOrderId) {
           this.logger.warn(
-            `Skipping return for order ${orderNode.node.id}: Order not found in DB.`,
+            `Return skipped — order not found in DB: ${orderNode.id}`,
           );
           continue;
         }
 
-        // Map each Return record found in the order
-        for (const returnNode of orderNode.node.returns?.nodes || []) {
+        for (const returnNode of orderNode.returns?.nodes || []) {
           returnInserts.push(
             mapShopifyReturnToDB(
-              orderNode.node,
+              orderNode,
               returnNode,
               store.id,
               internalOrderId,
@@ -459,31 +459,31 @@ export class ReturnsProcessor extends WorkerHost {
         }
       }
 
-      if (returnInserts.length > 0) {
-        const { error } = await this.returnsRepo.insertReturns(returnInserts);
+      const deduped = Array.from(
+        new Map(
+          returnInserts.map((r) => [
+            `${r.store_id}-${r.external_return_id}`,
+            r,
+          ]),
+        ).values(),
+      );
+
+      if (deduped.length > 0) {
+        const { error } = await this.returnsRepo.insertReturns(deduped);
+
         if (error) throw error;
-        this.logger.log(`Synced ${returnInserts.length} logistical returns.`);
+
+        this.logger.log(`Synced ${deduped.length} returns.`);
+
+        await this.storeRepo.update(store.id, 'returns', {
+          last_synced_at: new Date().toISOString(),
+        });
       }
     } catch (error) {
       this.logger.error(
-        `${store.platform.toUpperCase()} product returns failed for store ${store.id}`,
+        `${store.platform.toUpperCase()} returns failed for store ${store.id}`,
         error.stack,
       );
-
-      await this.storeRepo.updateStoreHealth(
-        store.id,
-        'unhealthy',
-        `Returns sync failed: ${error.message}`,
-      );
-
-      await this.alertsRepo.createAlert({
-        store_id: store.id,
-        alert_type: 'returns_sync_failure',
-        message: `${store.platform.toUpperCase()} product returns sync failed: ${error.message}`,
-        severity: 'high',
-        platform: store.platform,
-      });
-
       throw error;
     }
   }

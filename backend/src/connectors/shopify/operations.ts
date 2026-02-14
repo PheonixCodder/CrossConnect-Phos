@@ -46,6 +46,11 @@ export const FETCH_INVENTORY_LEVELS = `#graphql
         id
         sku
         updatedAt
+        variant {
+          product {
+            id
+          }
+        }
         inventoryLevels(first: 50) {
           nodes {
             id

@@ -21,15 +21,13 @@ export function mapShopifyProductToDB(
   if (!product.variants?.nodes?.length) return [];
 
   return product.variants.nodes.map((variant) => {
-    const productId = product.id.split('/').pop();
-    const variantId = variant.id.split('/').pop();
-
     // 🔑 CRITICAL FIX:
     // Namespace SKU by product to avoid batch conflicts
-    const sku = variant.sku
-      ? `shopify-${productId}-${variant.sku}`
-      : `shopify-${productId}-variant-${variantId}`;
-
+    const sku = buildShopifySku(
+      product.id,
+      variant.sku,
+      variant.id.split('/').pop(),
+    );
     return {
       external_product_id: product.id, // product-level ID (correct)
       platform: 'shopify',
@@ -44,6 +42,24 @@ export function mapShopifyProductToDB(
   });
 }
 
+export function buildShopifySku(
+  productGid: string,
+  rawSku: string | null | undefined,
+  fallbackId?: string,
+): string {
+  const productId = productGid.split('/').pop();
+
+  if (rawSku && rawSku.trim().length > 0) {
+    return `shopify-${productId}-${rawSku.trim()}`;
+  }
+
+  if (fallbackId) {
+    return `shopify-${productId}-inventory-${fallbackId}`;
+  }
+
+  return `shopify-${productId}-no-sku`;
+}
+
 export function mapShopifyInventoryToDB(
   item: ShopifyInventoryItemNode,
   level: ShopifyInventoryLevelNode,
@@ -53,10 +69,18 @@ export function mapShopifyInventoryToDB(
   const available =
     level.quantities?.find((q) => q.name === 'available')?.quantity ?? 0;
 
+  const inventoryItemId = item.id.split('/').pop();
+
+  const sku = buildShopifySku(
+    item.variant.product.id,
+    item.sku,
+    inventoryItemId,
+  );
+
   return {
     store_id: storeId,
     product_id: productId,
-    sku: item.sku || 'NO-SKU',
+    sku,
     platform_quantity: available,
     inventory_status: available > 0 ? 'in_stock' : 'out_of_stock',
     last_platform_event: 'shopify_inventory_sync',

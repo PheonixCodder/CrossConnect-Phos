@@ -98,7 +98,7 @@ export function DataTable<TData, TValue>({
   return (
     <div
       className={cn(
-        "space-y-4 max-h-[50vh] overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:hidden",
+        "space-y-4 max-h-[50vh] overflow-y-scroll [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar-thumb]:hidden",
         className,
       )}
     >
