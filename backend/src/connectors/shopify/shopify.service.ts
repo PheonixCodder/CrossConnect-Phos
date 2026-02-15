@@ -74,8 +74,11 @@ export class ShopifyService {
           err?.response?.errors?.some((e) =>
             String(e.message).toLowerCase().includes('throttle'),
           ) ?? false;
+        const isNetworkError =
+          err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT';
 
-        const retryable = status === 429 || status >= 500 || isThrottle;
+        const retryable =
+          isNetworkError || status === 429 || status >= 500 || isThrottle;
 
         if (!retryable || attempt > maxRetries) {
           this.logger.error(

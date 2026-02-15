@@ -492,9 +492,12 @@ export class ReturnsProcessor extends WorkerHost {
     service: TikTokService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
+    const since = store.last_orders_synced_at
+      ? Math.floor(new Date(store.last_orders_synced_at).getTime() / 1000)
+      : undefined;
     try {
       // 1️⃣ Fetch TikTok returns
-      const tiktokReturns = await service.getAllReturns(store.id);
+      const tiktokReturns = await service.getAllReturns(store.id, since);
 
       if (!tiktokReturns?.length) {
         this.logger.log('No TikTok returns found');

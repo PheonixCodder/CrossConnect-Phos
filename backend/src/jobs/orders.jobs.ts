@@ -910,6 +910,10 @@ export class OrdersProcessor extends WorkerHost {
     service: TikTokService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
+    const since = store.last_orders_synced_at
+      ? Math.floor(new Date(store.last_orders_synced_at).getTime() / 1000)
+      : undefined;
+
     try {
       /* ---------- 1. Reference products (SKU → product_id) ---------- */
       const products = await this.productsRepo.getAllProductsByStore(store.id);
@@ -919,7 +923,7 @@ export class OrdersProcessor extends WorkerHost {
       );
 
       /* ---------- 2. Fetch orders ---------- */
-      const orders = await service.getAllOrders(store.id);
+      const orders = await service.getAllOrders(store.id, since);
 
       if (!orders?.length) {
         this.logger.log(`[TikTok] No orders to sync for store ${store.id}`);
@@ -981,7 +985,7 @@ export class OrdersProcessor extends WorkerHost {
       }
 
       /* ---------- 5. Fulfillments ---------- */
-      const packages = await service.getAllFulfillments(store.id);
+      const packages = await service.getAllFulfillments(store.id, since);
 
       if (packages?.length) {
         const fulfillmentInserts = mapTiktokFulfillmentsToDB(

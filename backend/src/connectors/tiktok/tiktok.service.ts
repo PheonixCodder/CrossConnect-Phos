@@ -50,8 +50,11 @@ export class TikTokService {
 
         const status =
           err?.response?.status ?? err?.response?.statusCode ?? err?.statusCode;
+        const isNetworkError =
+          err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT';
 
-        const retryable = status === 429 || (status >= 500 && status < 600);
+        const retryable =
+          isNetworkError || status === 429 || (status >= 500 && status < 600);
 
         if (!retryable || attempt > maxRetries) {
           this.logger.error(
@@ -82,6 +85,7 @@ export class TikTokService {
 
   async getAllOrders(
     storeId: string,
+    since?: number,
   ): Promise<Order202309GetOrderListResponseDataOrders[]> {
     const { accessToken, shop_cipher } =
       await this.oauth.getValidToken(storeId);
@@ -100,6 +104,7 @@ export class TikTokService {
             pageToken || undefined,
             undefined,
             shop_cipher,
+            { createTimeGe: since },
           ),
         'OrdersSearchPost',
       );
@@ -171,6 +176,7 @@ export class TikTokService {
 
   async getAllReturns(
     storeId: string,
+    since?: number,
   ): Promise<ReturnRefund202309SearchReturnsResponseDataReturnOrders[]> {
     const { accessToken, shop_cipher } =
       await this.oauth.getValidToken(storeId);
@@ -190,6 +196,7 @@ export class TikTokService {
             '50',
             pageToken || undefined,
             shop_cipher,
+            { createTimeGe: since },
           ),
         'ReturnsSearchPost',
       );
@@ -209,6 +216,7 @@ export class TikTokService {
 
   async getAllFulfillments(
     storeId: string,
+    since?: number,
   ): Promise<Fulfillment202309SearchPackageResponseDataPackages[]> {
     const { accessToken, shop_cipher } =
       await this.oauth.getValidToken(storeId);
@@ -228,6 +236,7 @@ export class TikTokService {
             undefined,
             pageToken || undefined,
             shop_cipher,
+            { createTimeGe: since },
           ),
         'PackagesSearchPost',
       );
