@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDashboardStore } from "@/store/useStore";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase.types";
+import {useMemo} from "react";
 
 export interface DateRangeValue {
   from: Date;
@@ -26,14 +27,20 @@ interface DashboardPayload {
   alerts: Database["public"]["Tables"]["alerts"]["Row"][];
 }
 
-export function useDashboardData(dateRange: DateRangeValue | null) {
-  const supabase = createClient();
+export function useDashboardData(dateRange: DateRangeValue) {
+  const supabase = useMemo(() => createClient(), []);
   const { activeOrg, activeStore } = useDashboardStore();
 
-  const startDateIso = dateRange?.from.toISOString();
-  const endDateIso = dateRange?.to.toISOString();
+  const startDateIso = useMemo(
+      () => dateRange.from.toISOString(),
+      [dateRange.from]
+  );
 
-  // 1️⃣ Fetch stores
+  const endDateIso = useMemo(
+      () => dateRange.to.toISOString(),
+      [dateRange.to]
+  );
+
   const { data: stores = [] } = useQuery({
     queryKey: ["stores", activeOrg?.id],
     queryFn: async () => {
@@ -46,17 +53,23 @@ export function useDashboardData(dateRange: DateRangeValue | null) {
       return data;
     },
     enabled: !!activeOrg?.id,
+    staleTime: 1000 * 60 * 5,
   });
 
-  const targetStoreIds = activeStore
-      ? [activeStore.id]
-      : stores.map((s) => s.id);
+  const targetStoreIds = useMemo(() => {
+    if (activeStore?.id) return [activeStore.id];
+    return stores.map((s) => s.id);
+  }, [activeStore?.id, stores]);
 
-  // 2️⃣ Dashboard bundle query
+  const storeIdsKey = useMemo(
+      () => targetStoreIds.join(","),
+      [targetStoreIds]
+  );
+
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: [
       "dashboard_bundle",
-      targetStoreIds,
+      storeIdsKey,
       startDateIso,
       endDateIso,
     ],
@@ -65,8 +78,8 @@ export function useDashboardData(dateRange: DateRangeValue | null) {
           "get_complete_dashboard_data",
           {
             p_store_ids: targetStoreIds,
-            p_start_date: startDateIso || '',
-            p_end_date: endDateIso || '',
+            p_start_date: startDateIso,
+            p_end_date: endDateIso,
           }
       );
 
@@ -74,11 +87,14 @@ export function useDashboardData(dateRange: DateRangeValue | null) {
       return (data as unknown) as DashboardPayload;
     },
     enabled:
-        targetStoreIds.length > 0 &&
+        !!storeIdsKey &&
         !!startDateIso &&
         !!endDateIso,
     staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
+
 
   return {
     stores,

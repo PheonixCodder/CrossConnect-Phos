@@ -71,17 +71,26 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
      ✅ REPLACED TIMERANGE SETUP
   =========================== */
 
-  const today = new Date();
-  const defaultFrom = addDays(today, -7);
+  const initialDates = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const from = addDays(today, -7);
+
+    return {
+      from: from.toISOString(),
+      to: today.toISOString(),
+    };
+  }, []);
 
   const [fromParam, setFromParam] = useQueryState(
       "from",
-      parseAsString.withDefault(defaultFrom.toISOString()),
+      parseAsString.withDefault(initialDates.from),
   );
 
   const [toParam, setToParam] = useQueryState(
       "to",
-      parseAsString.withDefault(today.toISOString()),
+      parseAsString.withDefault(initialDates.to),
   );
 
   const dateRange: DateRange = useMemo(() => {
