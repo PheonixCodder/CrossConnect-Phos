@@ -125,7 +125,13 @@ export class TikTokOAuthService {
       .eq('store_id', storeId)
       .single();
 
-    if (error || !credRecord)
+    const { data: storeRecord, error: storeError } = await this.supabase
+      .from('stores')
+      .select('stores')
+      .eq('id', storeId)
+      .single();
+
+    if (error || storeError || !credRecord)
       throw new UnauthorizedException('TikTok not connected');
 
     const creds = credRecord.credentials as any;
@@ -135,7 +141,7 @@ export class TikTokOAuthService {
       return this.refreshToken(
         storeId,
         this.crypto.decrypt(creds.refresh_token) as string,
-        creds.shop_cipher as string,
+        storeRecord.stores![0].cipher as string,
       );
     }
     // Inside getValidToken

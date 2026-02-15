@@ -78,7 +78,11 @@ export class AmazonService {
         const status =
           err?.response?.statusCode ?? err?.response?.status ?? err?.statusCode;
 
-        const retryable = status === 429 || (status >= 500 && status < 600);
+        const isNetworkError =
+          err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT';
+
+        const retryable =
+          isNetworkError || status === 429 || (status >= 500 && status < 600);
 
         if (!retryable || attempt > maxRetries) {
           this.logger.error(
