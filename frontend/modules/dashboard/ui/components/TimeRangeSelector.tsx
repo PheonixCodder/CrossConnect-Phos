@@ -1,40 +1,57 @@
-import { cn } from "@/lib/utils";
-import { TimeRange } from "../../hooks/use-dashboard-data";
+"use client";
 
-interface TimeRangeSelectorProps {
-  value: TimeRange;
-  onChange: (value: TimeRange) => void;
-  className?: string;
+import * as React from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { type DateRange } from "react-day-picker";
+
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+interface DateRangePickerProps {
+  value: DateRange | undefined;
+  onChange: (value: DateRange | undefined) => void;
 }
 
-const ranges: { label: string; value: TimeRange }[] = [
-  { label: "7d", value: "7d" },
-  { label: "30d", value: "30d" },
-  { label: "90d", value: "90d" },
-  { label: "1y", value: "1y" },
-];
-
-export function TimeRangeSelector({
-  value,
-  onChange,
-  className,
-}: TimeRangeSelectorProps) {
+export function DateRangePicker({
+                                  value,
+                                  onChange,
+                                }: DateRangePickerProps) {
   return (
-    <div className={cn("flex rounded-md border overflow-hidden", className)}>
-      {ranges.map((range) => (
-        <button
-          key={range.value}
-          onClick={() => onChange(range.value)}
-          className={cn(
-            "px-3 py-1.5 text-sm font-medium transition-colors",
-            value === range.value
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted",
-          )}
-        >
-          {range.label}
-        </button>
-      ))}
-    </div>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+              variant="outline"
+              className="justify-start text-left font-normal"
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {value?.from ? (
+                value.to ? (
+                    <>
+                      {format(value.from, "LLL dd, y")} -{" "}
+                      {format(value.to, "LLL dd, y")}
+                    </>
+                ) : (
+                    format(value.from, "LLL dd, y")
+                )
+            ) : (
+                <span>Select date range</span>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="end">
+          <Calendar
+              mode="range"
+              selected={value}
+              onSelect={onChange}
+              numberOfMonths={2}
+          />
+        </PopoverContent>
+      </Popover>
   );
 }

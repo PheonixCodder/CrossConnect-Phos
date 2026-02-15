@@ -3,10 +3,9 @@
 import { useMemo } from "react";
 import {
   parseAsString,
-  parseAsStringEnum,
-  parseAsStringLiteral,
   useQueryState,
 } from "nuqs";
+import { addDays } from "date-fns";
 import {
   DollarSign,
   ShoppingCart,
@@ -29,7 +28,6 @@ import { formatCurrency, formatNumber } from "@/lib/formatters";
 import { ChannelStatus } from "@/lib/mockData";
 import {
   StoreMetrics,
-  TimeRange,
   useDashboardData,
 } from "../../hooks/use-dashboard-data";
 import { OrdersTable } from "../components/orders-table";
@@ -42,6 +40,7 @@ import { InfoState } from "@/components/layout/empty-state";
 import { Card } from "@/components/ui/card";
 import { InventoryTable } from "../components/inventory-table";
 import { Database } from "@/types/supabase.types";
+import { DateRange } from "react-day-picker";
 
 // Platform Assets
 const PLATFORM_ICONS: Record<string, string> = {
@@ -63,16 +62,51 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
   const setActiveStore = useDashboardStore((state) => state.setActiveStore);
 
   const onChannelClick = (
-    store: Database["public"]["Tables"]["stores"]["Row"],
+      store: Database["public"]["Tables"]["stores"]["Row"],
   ) => {
     setActiveStore(store);
   };
-  const timeRangeValues = ["7d", "30d", "90d", "1y"] as const;
 
-  const [timeRange, setTimeRange] = useQueryState<TimeRange>(
-    "range",
-    parseAsStringLiteral(timeRangeValues).withDefault("7d"),
+  /* ===========================
+     ✅ REPLACED TIMERANGE SETUP
+  =========================== */
+
+  const initialDates = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const from = addDays(today, -7);
+
+    return {
+      from: from.toISOString(),
+      to: today.toISOString(),
+    };
+  }, []);
+
+  const [fromParam, setFromParam] = useQueryState(
+      "from",
+      parseAsString.withDefault(initialDates.from),
   );
+
+  const [toParam, setToParam] = useQueryState(
+      "to",
+      parseAsString.withDefault(initialDates.to),
+  );
+
+  const dateRange: DateRange = useMemo(() => {
+    return {
+      from: new Date(fromParam),
+      to: new Date(toParam),
+    };
+  }, [fromParam, toParam]);
+
+  const setDateRange = async (range: DateRange | undefined) => {
+    if (!range?.from || !range?.to) return;
+    await setFromParam(range.from.toISOString());
+    await setToParam(range.to.toISOString());
+  };
+
+  /* =========================== */
 
   const [orderId, setOrderId] = useQueryState("order");
   const [productId, setProductId] = useQueryState("product");
@@ -89,21 +123,51 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     isLoading,
     isFetching,
     refetch
-  } = useDashboardData(timeRange);
+  } = useDashboardData({
+    from: dateRange.from!,
+    to: dateRange.to!,
+  });
 
   const metrics = useMemo(() => {
-    const grossSales = orders.reduce(
-      (sum, order) => sum + (order.total || 0),
-      0,
+    const cancelledOrders = orders.filter(
+        (order) => order.status === "cancelled"
     );
-    const totalOrders = orders.length;
-    const unitsSold = orderItems.reduce(
-      (sum, item) => sum + (item.quantity || 0),
-      0,
-    );
-    const avgOrderValue = totalOrders > 0 ? grossSales / totalOrders : 0;
 
-    return { grossSales, totalOrders, unitsSold, avgOrderValue };
+    const validOrders = orders.filter(
+        (order) => order.status !== "cancelled"
+    );
+
+    const grossSales = validOrders.reduce(
+        (sum, order) => sum + (order.total || 0),
+        0
+    );
+
+    const totalOrders = validOrders.length;
+
+    const cancelledCount = cancelledOrders.length;
+
+    const cancelledRevenue = cancelledOrders.reduce(
+        (sum, order) => sum + (order.total || 0),
+        0
+    );
+
+    const validOrderIds = new Set(validOrders.map((o) => o.id));
+
+    const unitsSold = orderItems
+        .filter((item) => validOrderIds.has(item.order_id))
+        .reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+    const avgOrderValue =
+        totalOrders > 0 ? grossSales / totalOrders : 0;
+
+    return {
+      grossSales,
+      totalOrders,
+      unitsSold,
+      avgOrderValue,
+      cancelledCount,
+      cancelledRevenue,
+    };
   }, [orders, orderItems]);
 
   const storeMetrics = useMemo(() => {
@@ -112,6 +176,8 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
       map.set(store.id, { storeId: store.id, sales: 0, orders: 0, units: 0 });
     });
     orders.forEach((order) => {
+      if (order.status === "cancelled") return;
+
       const current = map.get(order.store_id);
       if (current) {
         current.sales += order.total || 0;
@@ -131,23 +197,14 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     return Array.from(map.values());
   }, [stores, orders, orderItems]);
 
-
   const salesTrend = useMemo(() => {
     type DayBucket = {
       date: string;
       [platform: string]: number | string;
     };
 
-    const rangeDaysMap = {
-      "7d": 7,
-      "30d": 30,
-      "90d": 90,
-      "1y": 365,
-    };
-
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - rangeDaysMap[timeRange]);
+    const end = dateRange.to!;
+    const start = dateRange.from!;
 
     const buildDateRange = (s: Date, e: Date) => {
       const dates: string[] = [];
@@ -162,13 +219,12 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     const allDates = buildDateRange(start, end);
     const bucket = new Map<string, DayBucket>();
 
-    // 1️⃣ Initialize all days
     allDates.forEach((date) => {
       bucket.set(date, { date });
     });
 
-    // 2️⃣ ALL ORDERS = GROSS SALES
     orders.forEach((order) => {
+      if (order.status === "cancelled") return;
       if (!order.total) return;
 
       const date = (order.ordered_at ?? order.created_at).slice(0, 10);
@@ -182,25 +238,28 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     });
 
     return Array.from(bucket.values());
-  }, [orders, timeRange]);
+  }, [orders, dateRange]);
 
   const successChannels = stores.filter(
-    (s) => s.auth_status === "active",
+      (s) => s.auth_status === "active",
   ).length;
 
   return (
     <PageContainer maxWidth="2xl" padding="lg" className="py-8 space-y-8">
-      <DashboardHeader actions={
-        <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-        >
-          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-        </Button>
-      }
-                         timeRange={timeRange} setTimeRange={setTimeRange} />
+      <DashboardHeader
+          actions={
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+            >
+              <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+            </Button>
+          }
+          dateRange={dateRange}
+          setDateRange={setDateRange}
+      />
 
       <section className="card-base p-6 rounded-xl shadow-sm bg-linear-to-r from-primary/5 to-transparent">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -234,19 +293,16 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <MetricCard
           title="Gross Sales"
           value={formatCurrency(metrics.grossSales)}
-          trend={14.2}
           icon={DollarSign}
           loading={isLoading || isFetching}
-          description="+12.4% vs last period"
         />
         <MetricCard
           title="Total Orders"
           value={formatNumber(metrics.totalOrders)}
-          trend={8.7}
           icon={ShoppingCart}
           loading={isLoading || isFetching}
           description="Placed orders"
@@ -254,7 +310,6 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
         <MetricCard
           title="Units Sold"
           value={formatNumber(metrics.unitsSold)}
-          trend={11.3}
           icon={Package}
           loading={isLoading || isFetching}
           description={
@@ -263,9 +318,18 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           }
         />
         <MetricCard
+            title="Cancelled Orders"
+            value={formatNumber(metrics.cancelledCount)}
+            icon={RefreshCw}
+            loading={isLoading || isFetching}
+            description={
+                "Lost revenue: " +
+                formatCurrency(metrics.cancelledRevenue)
+            }
+        />
+        <MetricCard
           title="Avg Order Value"
           value={formatCurrency(metrics.avgOrderValue)}
-          trend={5.4}
           icon={TrendingUp}
           loading={isLoading || isFetching}
           description="AOV"

@@ -56,8 +56,8 @@ export class ShopifyService {
   private async withRetry<T>(
     fn: () => Promise<T>,
     context: string,
-    maxRetries = 5,
-    baseDelayMs = 1000,
+    maxRetries = 8,
+    baseDelayMs = 5000,
   ): Promise<T> {
     let attempt = 0;
 
@@ -169,7 +169,6 @@ export class ShopifyService {
     since?: string,
   ): Promise<FetchOrdersQuery['orders']['nodes']> {
     const filter = since ? `updated_at:>='${since}'` : '';
-
     const data = await this.execute<FetchOrdersQuery>(
       FETCH_ORDERS,
       {

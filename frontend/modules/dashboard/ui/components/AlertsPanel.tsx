@@ -41,7 +41,7 @@ export function AlertsPanel({ alerts, loading = false }: AlertsPanelProps) {
   }
 
   return (
-    <div className="card-base p-6 rounded-xl shadow-sm">
+    <div className="card-base p-6 rounded-xl shadow-sm max-h-[600px] overflow-scroll [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar-thumb]:hidden">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold">Needs Attention</h2>

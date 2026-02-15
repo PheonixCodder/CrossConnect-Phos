@@ -4,8 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useDashboardStore } from "@/store/useStore";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase.types";
+import {useMemo} from "react";
 
-export type TimeRange = "7d" | "30d" | "90d" | "1y";
+export interface DateRangeValue {
+  from: Date;
+  to: Date;
+}
+
 export interface StoreMetrics {
   storeId: string;
   sales: number;
@@ -13,7 +18,6 @@ export interface StoreMetrics {
   units: number;
 }
 
-// Define the shape based on our RPC return
 interface DashboardPayload {
   orders: Database["public"]["Tables"]["orders"]["Row"][];
   order_items: Database["public"]["Tables"]["order_items"]["Row"][];
@@ -23,18 +27,20 @@ interface DashboardPayload {
   alerts: Database["public"]["Tables"]["alerts"]["Row"][];
 }
 
-export function useDashboardData(timeRange: TimeRange) {
-  const supabase = createClient();
+export function useDashboardData(dateRange: DateRangeValue) {
+  const supabase = useMemo(() => createClient(), []);
   const { activeOrg, activeStore } = useDashboardStore();
 
-  // 1. Calculate Date Range
-  const subDaysMap: Record<TimeRange, number> = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 };
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - (subDaysMap[timeRange] || 7));
-  const startDateIso = startDate.toISOString();
+  const startDateIso = useMemo(
+      () => dateRange.from.toISOString(),
+      [dateRange.from]
+  );
 
-  // 2. Resolve Stores for the query
-  // We still fetch stores normally as they are the "anchor" for the dashboard
+  const endDateIso = useMemo(
+      () => dateRange.to.toISOString(),
+      [dateRange.to]
+  );
+
   const { data: stores = [] } = useQuery({
     queryKey: ["stores", activeOrg?.id],
     queryFn: async () => {
@@ -42,29 +48,53 @@ export function useDashboardData(timeRange: TimeRange) {
           .from("stores")
           .select("*")
           .eq("org_id", activeOrg?.id as string);
+
       if (error) throw error;
       return data;
     },
     enabled: !!activeOrg?.id,
+    staleTime: 1000 * 60 * 5,
   });
 
-  const targetStoreIds = activeStore ? [activeStore.id] : stores.map((s) => s.id);
+  const targetStoreIds = useMemo(() => {
+    if (activeStore?.id) return [activeStore.id];
+    return stores.map((s) => s.id);
+  }, [activeStore?.id, stores]);
 
-  // 3. The "Big Bang" RPC Query
+  const storeIdsKey = useMemo(
+      () => targetStoreIds.join(","),
+      [targetStoreIds]
+  );
+
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["dashboard_bundle", targetStoreIds, timeRange],
+    queryKey: [
+      "dashboard_bundle",
+      storeIdsKey,
+      startDateIso,
+      endDateIso,
+    ],
     queryFn: async (): Promise<DashboardPayload> => {
-      const { data, error } = await supabase.rpc("get_complete_dashboard_data", {
-        p_store_ids: targetStoreIds,
-        p_start_date: startDateIso,
-      });
+      const { data, error } = await supabase.rpc(
+          "get_complete_dashboard_data",
+          {
+            p_store_ids: targetStoreIds,
+            p_start_date: startDateIso,
+            p_end_date: endDateIso,
+          }
+      );
 
       if (error) throw error;
       return (data as unknown) as DashboardPayload;
     },
-    enabled: targetStoreIds.length > 0,
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes to prevent over-fetching
+    enabled:
+        !!storeIdsKey &&
+        !!startDateIso &&
+        !!endDateIso,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
+
 
   return {
     stores,
@@ -77,6 +107,6 @@ export function useDashboardData(timeRange: TimeRange) {
     isLoading,
     refetch,
     error,
-    isFetching
+    isFetching,
   };
 }

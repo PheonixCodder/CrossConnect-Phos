@@ -15,6 +15,7 @@ import {
 } from '../connectors/faire/faire.mapper';
 import { GetInventory } from '../connectors/faire/faire.types';
 import {
+  buildShopifySku,
   mapShopifyInventoryToDB,
   mapShopifyProductToDB,
   ShopifyInventoryItemNode,
@@ -682,29 +683,26 @@ export class ProductsProcessor extends WorkerHost {
     store: Database['public']['Tables']['stores']['Row'],
   ) {
     try {
-      const since = store.last_products_synced_at
-        ? new Date(store.last_products_synced_at).toISOString()
-        : undefined;
-
       this.logger.log(`Starting product sync for platform: ${store.platform}`);
 
-      // 1. Fetch Data with Error Boundary
+      // 1️⃣ Fetch Products
       const products: ShopifyProductNode[] = await service.fetchProducts();
       if (!products.length) {
         this.logger.warn('No products found on Shopify. Skipping.');
         return;
       }
 
-      // 2. Map & Insert Products
+      // 2️⃣ Map + Upsert Products
       const productRows = products.flatMap((p) =>
         mapShopifyProductToDB(p, store.id),
       );
+
       if (productRows.length > 0) {
         await this.productsRepo.insertProducts(productRows);
       }
 
-      // 3. Inventory Sync Logic
-      const skus = productRows.map((p) => p.sku).filter(Boolean);
+      const skus = productRows.map((p) => p.sku);
+
       const productIdRows =
         await this.productsRepo.getProductIdsBySkusInBatches(
           store.id,
@@ -716,15 +714,23 @@ export class ProductsProcessor extends WorkerHost {
         skus,
         store.id,
       );
+
+      // 3️⃣ Fetch Inventory
       const inventoryItems: ShopifyInventoryItemNode[] =
-        await service.fetchInventory(since);
+        await service.fetchInventory();
 
       const inventoryUpserts: Database['public']['Tables']['inventory']['Insert'][] =
         [];
 
       for (const item of inventoryItems) {
-        if (!item.sku) continue;
-        const productId = productIdRows.get(item.sku);
+        const productGid = item.variant?.product?.id;
+        if (!productGid) continue;
+
+        const inventoryItemId = item.id.split('/').pop();
+
+        const sku = buildShopifySku(productGid, item.sku, inventoryItemId);
+
+        const productId = productIdRows.get(sku);
         if (!productId) continue;
 
         for (const level of item.inventoryLevels.nodes) {
@@ -734,7 +740,8 @@ export class ProductsProcessor extends WorkerHost {
             store.id,
             productId,
           );
-          const existing = existingInventory[item.sku];
+
+          const existing = existingInventory[sku];
 
           if (!existing || shouldUpdateShopifyInventory(existing, next)) {
             inventoryUpserts.push(next);
@@ -742,11 +749,18 @@ export class ProductsProcessor extends WorkerHost {
         }
       }
 
-      // 4. Batch Update
-      if (inventoryUpserts.length > 0) {
-        await this.inventoryRepo.updateInventoryBatch(inventoryUpserts);
+      // 4️⃣ Deduplicate Before Batch (Prevents Intra-Batch Conflict)
+      const deduped = Array.from(
+        new Map(
+          inventoryUpserts.map((i) => [`${i.store_id}-${i.sku}`, i]),
+        ).values(),
+      );
+
+      if (deduped.length > 0) {
+        await this.inventoryRepo.updateInventoryBatch(deduped);
+
         this.logger.log(
-          `Successfully synced ${inventoryUpserts.length} inventory records.`,
+          `Successfully synced ${deduped.length} inventory records.`,
         );
       } else {
         this.logger.log('No inventory changes detected.');
@@ -774,6 +788,7 @@ export class ProductsProcessor extends WorkerHost {
       throw error;
     }
   }
+
   private async processTiktokProducts(
     service: TikTokService,
     store: Database['public']['Tables']['stores']['Row'],
