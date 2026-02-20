@@ -249,8 +249,8 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
 
             const platform = m.platform ?? "unknown";
             if (!day[platform]) day[platform] = 0;
-            if (["sales"].includes(m.metric_type)) {
-                day[platform] += m.value as unknown as string ?? 0;
+            if (m.metric_type === "sales") {
+                (day[platform] as number) += Number(m.value ?? 0);
             }
         });
 

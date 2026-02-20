@@ -151,7 +151,8 @@ export class ShopifyService {
       timeClause = `SINCE ${formattedSince} UNTIL today`;
     } else {
       // Replaced DURING with SINCE/UNTIL to avoid IDENTIFIER mismatch
-      timeClause = `SINCE 2026-01-01 UNTIL 2026-02-18`;
+      const yearStart = `${new Date().getFullYear()}-01-01`;
+      timeClause = `SINCE ${yearStart} UNTIL today`;
     }
 
     // Added 'BY day' before TIMESERIES

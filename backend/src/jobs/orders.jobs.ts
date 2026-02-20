@@ -438,7 +438,7 @@ export class OrdersProcessor extends WorkerHost {
         orders: insertedOrders,
         orderItems: dbOrderItems,
         fulfillments: dbFulfillments,
-        platform: 'faire',
+        platform: 'target',
         storeId: store.id,
       });
 
@@ -713,10 +713,12 @@ export class OrdersProcessor extends WorkerHost {
       // GET METRICS
       const dailyData = await service.getDailySalesMetrics(store);
 
-      // Map JSON response to your DB Schema
-      const allMetrics = mapDailySalesToDB(dailyData, store.id);
-
-      await this.metricsRepo.bulkUpsertMetrics(allMetrics);
+      if (dailyData?.length) {
+        const allMetrics = mapDailySalesToDB(dailyData, store.id);
+        if (allMetrics.length) {
+          await this.metricsRepo.bulkUpsertMetrics(allMetrics);
+        }
+      }
 
       // ============================================================
       // 4️⃣ UPDATE CURSOR
