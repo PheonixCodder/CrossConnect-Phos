@@ -113,6 +113,19 @@ export type FetchReturnsQuery = { orders: { edges: Array<{ node: (
         & { returns: { nodes: Array<Pick<AdminTypes.Return, 'id' | 'status' | 'createdAt'>> }, refunds: Array<{ totalRefundedSet: { shopMoney: Pick<AdminTypes.MoneyV2, 'amount'> } }> }
       ) }>, pageInfo: Pick<AdminTypes.PageInfo, 'hasNextPage' | 'endCursor'> } };
 
+export type ShopifyDailySalesMetricsQueryVariables = AdminTypes.Exact<{
+  shopifyql: AdminTypes.Scalars['String']['input'];
+}>;
+
+
+export type ShopifyDailySalesMetricsQuery = { shopifyqlQuery?: AdminTypes.Maybe<(
+    Pick<AdminTypes.ShopifyqlQueryResponse, 'parseErrors'>
+    & { tableData?: AdminTypes.Maybe<(
+      Pick<AdminTypes.ShopifyqlTableData, 'rows'>
+      & { columns: Array<Pick<AdminTypes.ShopifyqlTableDataColumn, 'name' | 'dataType' | 'displayName'>> }
+    )> }
+  )> };
+
 interface GeneratedQueryTypes {
   "\n  query listWebhooks {\n    webhookSubscriptions(first: 50) {\n      nodes {\n        id\n        topic\n        endpoint {\n          __typename\n          ... on WebhookHttpEndpoint {\n            callbackUrl\n          }\n        }\n      }\n    }\n  }\n": {return: ListWebhooksQuery, variables: ListWebhooksQueryVariables},
   "#graphql\n  query FetchFulfillments($after: String, $since: String) {\n  orders(first: 250, after: $after, query: $since) {\n    nodes {\n      id\n      updatedAt\n      fulfillments {\n        id\n        status\n        updatedAt\n        trackingInfo {\n          company\n          number\n          url\n        }\n        # ADD THIS BLOCK\n        fulfillmentLineItems(first: 100) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              sku\n              product { id }\n            }\n          }\n        }\n      }\n    }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n  }\n}\n": {return: FetchFulfillmentsQuery, variables: FetchFulfillmentsQueryVariables},
@@ -120,6 +133,7 @@ interface GeneratedQueryTypes {
   "#graphql\n  query FetchOrders($after: String, $since: String) {\n    orders(first: 250, after: $after, query: $since) {\n      nodes {\n        id\n        updatedAt\n        createdAt\n        createdAt\n        currencyCode\n        canMarkAsPaid\n        cancelReason\n        subtotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalTaxSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        lineItems(first: 250) {\n          nodes {\n            id\n            sku\n            quantity\n            originalUnitPrice\n            discountedUnitPrice\n            originalUnitPriceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n            }\n            discountedTotalSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n            }\n            product {\n              id\n              priceRange {\n                maxVariantPrice {\n                  amount\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n": {return: FetchOrdersQuery, variables: FetchOrdersQueryVariables},
   "#graphql\n  query FetchProducts($after: String) {\n    products(first: 250, after: $after) {\n      nodes {\n        id\n        title\n        status\n        descriptionPlainSummary\n        updatedAt\n        createdAt\n        variants(first: 100) {\n          nodes {\n            id\n            sku\n            price\n            updatedAt\n            inventoryItem {\n              id\n            }\n          }\n        }\n      }\n        pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n": {return: FetchProductsQuery, variables: FetchProductsQueryVariables},
   "#graphql\n  query FetchReturns($after: String, $since: String) {\n    orders(first: 250, after: $after, query: $since) {\n      edges {\n        node {\n          id\n          currencyCode\n          updatedAt\n          # Logistical Return Data\n          returns(first: 10) {\n            nodes {\n              id\n              status\n              createdAt\n              # Optional: You can add more return-specific fields here if your schema grows\n            }\n          }\n          # Financial data linked to the order to populate refund_amount\n          refunds(first: 10) {\n              totalRefundedSet {\n                shopMoney {\n                  amount\n                }\n            }\n          }\n        }\n      }\n        pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n": {return: FetchReturnsQuery, variables: FetchReturnsQueryVariables},
+  "#graphql\n  query ShopifyDailySalesMetrics($shopifyql: String!) {\n    shopifyqlQuery(query: $shopifyql) {\n      tableData {\n        columns {\n          name\n          dataType\n          displayName\n        }\n        rows\n      }\n      parseErrors\n    }\n  }\n": {return: ShopifyDailySalesMetricsQuery, variables: ShopifyDailySalesMetricsQueryVariables},
 }
 
 interface GeneratedMutationTypes {

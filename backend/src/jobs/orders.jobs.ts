@@ -8,9 +8,12 @@ import { OrderItemsRepository } from '../supabase/repositories/order_items.repos
 import { FulfillmentsRepository } from '../supabase/repositories/fulfillments.repository';
 import { StoresRepository } from '../supabase/repositories/stores.repository';
 import { ProductsRepository } from '../supabase/repositories/products.repository';
+import { MetricsRepository } from '../supabase/repositories/metrics.repository';
 import { StoreCredentialsService } from '../supabase/repositories/store_credentials.repository';
 import { Database } from '../supabase/supabase.types';
-import { mapOrdersToDB } from '../connectors/faire/faire.mapper';
+import {
+  mapOrdersToDB,
+} from '../connectors/faire/faire.mapper';
 import {
   mapFulfillmentToDB,
   mapOrderLinesToDB,
@@ -28,6 +31,7 @@ import {
   mapAmazonOrderItemToDB,
   mapAmazonOrderToDB,
   mapAmazonShipmentToDB,
+  mapDailySalesToDB,
   mapFlatFileRowsToOrders,
   mapFlatFileRowToOrderItem,
   mapReportFulfillmentToDB,
@@ -43,6 +47,7 @@ import {
   mapShopifyFulfillmentsToDB,
   mapShopifyOrderItemsToDB,
   mapShopifyOrderToDB,
+  mapShopifyPerformanceToDb,
   ShopifyFulfillmentOrderNode,
   ShopifyOrderNode,
 } from '../connectors/shopify/shopify.mapper';
@@ -59,6 +64,7 @@ import {
   mapTiktokFulfillmentsToDB,
   mapTiktokOrderItemsToDB,
   mapTiktokOrderToDB,
+  mapTikTokPerformanceToDb,
 } from '../connectors/tiktok/tiktok.mapper';
 import { ShopifyService } from '../connectors/shopify/shopify.service';
 import { WarehanceService } from '../connectors/warehouse/warehance.service';
@@ -67,6 +73,7 @@ import { WalmartService } from '../connectors/walmart/walmart.service';
 import { TargetService } from '../connectors/target/target.service';
 import { FaireService } from '../connectors/faire/faire.service';
 import { getOrders } from '../connectors/faire/faire.types';
+import { deriveMetricsFromOrders } from '../common/mappers';
 
 @Processor('orders', { concurrency: 5 })
 export class OrdersProcessor extends WorkerHost {
@@ -79,6 +86,7 @@ export class OrdersProcessor extends WorkerHost {
     private readonly shipmentRepo: FulfillmentsRepository,
     private readonly storeRepo: StoresRepository,
     private readonly productsRepo: ProductsRepository,
+    private readonly metricsRepo: MetricsRepository,
     private readonly storeCredentialsService: StoreCredentialsService,
     private readonly alertsRepo: AlertsRepository,
     @InjectSupabaseClient()
@@ -251,6 +259,18 @@ export class OrdersProcessor extends WorkerHost {
       // 8️⃣ Insert shipments
       await this.shipmentRepo.insertShipments(shipmentsDB);
 
+      // 9 Map Metrics and Insert
+      const metrics = deriveMetricsFromOrders({
+        orders: insertedOrders,
+        orderItems: orderItemsDB,
+        fulfillments: shipmentsDB,
+        platform: 'faire',
+        storeId: store.id,
+      });
+
+      if (metrics.length) {
+        await this.metricsRepo.bulkUpsertMetrics(metrics);
+      }
       this.logger.log(
         `Successfully synced ${rawOrders.length} orders, ${orderItemsDB.length} items, ${shipmentsDB.length} shipments`,
       );
@@ -413,6 +433,19 @@ export class OrdersProcessor extends WorkerHost {
         this.logger.log('No fulfillments to insert for this run');
       }
 
+      // Map Metrics and Insert
+      const metrics = deriveMetricsFromOrders({
+        orders: insertedOrders,
+        orderItems: dbOrderItems,
+        fulfillments: dbFulfillments,
+        platform: 'faire',
+        storeId: store.id,
+      });
+
+      if (metrics.length) {
+        await this.metricsRepo.bulkUpsertMetrics(metrics);
+      }
+
       this.logger.log(
         `Target orders sync complete: ${insertedOrders.length} orders, ${dbOrderItems.length} items, ${dbFulfillments.length} fulfillments`,
       );
@@ -504,6 +537,19 @@ export class OrdersProcessor extends WorkerHost {
 
       if (fulfillments.length)
         await this.shipmentRepo.insertShipments(fulfillments);
+
+      // 6 Map Metrics and Insert
+      const metrics = deriveMetricsFromOrders({
+        orders: insertedOrders,
+        orderItems,
+        fulfillments,
+        platform: 'walmart',
+        storeId: store.id,
+      });
+
+      if (metrics.length) {
+        await this.metricsRepo.bulkUpsertMetrics(metrics);
+      }
 
       this.logger.log(
         `Walmart orders synced: ${insertedOrders.length} orders, ${orderItems.length} items, ${fulfillments.length} fulfillments`,
@@ -664,6 +710,14 @@ export class OrdersProcessor extends WorkerHost {
         );
       }
 
+      // GET METRICS
+      const dailyData = await service.getDailySalesMetrics(store);
+
+      // Map JSON response to your DB Schema
+      const allMetrics = mapDailySalesToDB(dailyData, store.id);
+
+      await this.metricsRepo.bulkUpsertMetrics(allMetrics);
+
       // ============================================================
       // 4️⃣ UPDATE CURSOR
       // ============================================================
@@ -784,6 +838,19 @@ export class OrdersProcessor extends WorkerHost {
       // Insert Fulfillments
       await this.shipmentRepo.insertShipments(fulfillmentInserts);
 
+      // Map Metrics and Insert
+      const metrics = deriveMetricsFromOrders({
+        orders: insertedOrders,
+        orderItems: orderItemInserts,
+        fulfillments: fulfillmentInserts,
+        platform: 'warehance',
+        storeId: store.id,
+      });
+
+      if (metrics.length) {
+        await this.metricsRepo.bulkUpsertMetrics(metrics);
+      }
+
       const duration = (Date.now() - syncStart.getTime()) / 1000;
       this.logger.log(
         `Warehance orders sync complete: ${orderInserts.length} orders, ${orderItemInserts.length} items, ${fulfillmentInserts.length} fulfillments in ${duration}s`,
@@ -880,6 +947,14 @@ export class OrdersProcessor extends WorkerHost {
         }
       }
 
+      // 4. Metrics Sync
+      const metrics = await service.fetchDailyMetrics();
+      const metricsInserts = mapShopifyPerformanceToDb(metrics, store.id);
+
+      if (metricsInserts.length > 0) {
+        await this.metricsRepo.bulkUpsertMetrics(metricsInserts);
+      }
+
       this.logger.log(
         `${store.platform} sync successful: ${insertedOrders.length} orders processed.`,
       );
@@ -906,6 +981,7 @@ export class OrdersProcessor extends WorkerHost {
       throw error;
     }
   }
+
   private async processTiktokOrders(
     service: TikTokService,
     store: Database['public']['Tables']['stores']['Row'],
@@ -997,6 +1073,17 @@ export class OrdersProcessor extends WorkerHost {
 
         if (fulfillmentInserts.length) {
           await this.shipmentRepo.insertShipments(fulfillmentInserts);
+        }
+      }
+
+      /* ---------- 6. Analytics ---------- */
+      const analytics = await service.getDailyGMV(store.id);
+
+      if (analytics?.length) {
+        const analyticsInserts = mapTikTokPerformanceToDb(analytics, store.id);
+
+        if (analyticsInserts.length) {
+          await this.metricsRepo.bulkUpsertMetrics(analyticsInserts);
         }
       }
 

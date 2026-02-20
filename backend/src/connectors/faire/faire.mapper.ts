@@ -1,4 +1,4 @@
-import { Database } from '../../supabase/supabase.types';
+import { Database, Tables, TablesInsert } from '../../supabase/supabase.types';
 import { GetInventory } from './faire.types';
 
 // Products
@@ -389,3 +389,4 @@ export const mapInventoryToDB = (
 
   return updates;
 };
+

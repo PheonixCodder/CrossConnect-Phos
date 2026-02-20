@@ -22,6 +22,7 @@ import { SupabaseModule } from 'nestjs-supabase-js';
 import { HttpModule } from '@nestjs/axios';
 import { AlertsRepository } from '../supabase/repositories/alerts.repository';
 import { TikTokModule } from '../connectors/tiktok/tiktok.module';
+import { MetricsRepository } from '../supabase/repositories/metrics.repository';
 
 @Module({
   imports: [
@@ -86,7 +87,7 @@ import { TikTokModule } from '../connectors/tiktok/tiktok.module';
     FulfillmentsRepository,
     ReturnsRepository,
     AlertsRepository,
-
+    MetricsRepository,
     // Services
     PlatformServiceFactory,
     StoreCredentialsService,
