@@ -492,8 +492,8 @@ export class ReturnsProcessor extends WorkerHost {
     service: TikTokService,
     store: Database['public']['Tables']['stores']['Row'],
   ) {
-    const since = store.last_orders_synced_at
-      ? Math.floor(new Date(store.last_orders_synced_at).getTime() / 1000)
+    const since = store.last_returns_synced_at
+      ? Math.floor(new Date(store.last_returns_synced_at).getTime() / 1000)
       : undefined;
     try {
       // 1️⃣ Fetch TikTok returns

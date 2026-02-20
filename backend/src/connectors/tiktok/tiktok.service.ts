@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  Analytics202405GetShopPerformanceResponseDataPerformanceIntervals,
   ClientConfiguration,
   Fulfillment202309SearchPackageResponseDataPackages,
   Order202309GetOrderListResponseDataOrders,
@@ -50,8 +51,15 @@ export class TikTokService {
 
         const status =
           err?.response?.status ?? err?.response?.statusCode ?? err?.statusCode;
+
         const isNetworkError =
           err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT';
+
+        if (err.body) {
+          this.logger.error(
+            `TikTok API Error Body: ${JSON.stringify(err.body)}`,
+          );
+        }
 
         const retryable =
           isNetworkError || status === 429 || (status >= 500 && status < 600);
@@ -251,5 +259,71 @@ export class TikTokService {
     } while (pageToken !== '');
 
     return allPackages;
+  }
+
+  async getDailyGMV(
+    storeId: string,
+    since?: number | Date,
+  ): Promise<
+    Analytics202405GetShopPerformanceResponseDataPerformanceIntervals[]
+  > {
+    const { accessToken, shop_cipher } =
+      await this.oauth.getValidToken(storeId);
+
+    const allIntervals: Analytics202405GetShopPerformanceResponseDataPerformanceIntervals[] =
+      [];
+
+    // Determine Start Date: use 'since' if provided, otherwise Jan 1st
+    let currentStart: Date;
+    if (since) {
+      currentStart = new Date(since);
+    } else {
+      currentStart = new Date(new Date().getFullYear(), 0, 1);
+    }
+
+    const today = new Date();
+
+    while (currentStart < today) {
+      // Use 7-day windows for reliability
+      let currentEnd = new Date(currentStart);
+      currentEnd.setDate(currentEnd.getDate() + 7);
+
+      // end_date_lt is exclusive. To include "today", query up to "tomorrow".
+      if (currentEnd > today) {
+        currentEnd = new Date(today);
+        currentEnd.setDate(currentEnd.getDate() + 1);
+      }
+
+      const startDateGe = currentStart.toISOString().split('T')[0];
+      const endDateLt = currentEnd.toISOString().split('T')[0];
+
+      const res = await this.withRetry(
+        () =>
+          this.client.api.AnalyticsV202405Api.ShopPerformanceGet(
+            startDateGe,
+            endDateLt,
+            shop_cipher,
+            accessToken,
+            'application/json',
+            false, // withComparison
+            '1D', // granularity
+            'LOCAL', // currency
+          ),
+        `ShopPerformanceGet [${startDateGe} to ${endDateLt}]`,
+      );
+
+      const performance = res.body.data?.performance;
+      if (performance?.intervals) {
+        allIntervals.push(...performance.intervals);
+      }
+
+      // Progress the loop: next start is the current exclusive end
+      currentStart = new Date(currentEnd);
+
+      // Respect rate limits
+      await this.sleep(1000);
+    }
+
+    return allIntervals;
   }
 }

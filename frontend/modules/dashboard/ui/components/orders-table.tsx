@@ -9,8 +9,10 @@ import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-display/data-table";
 import {formatDistanceToNow} from "date-fns";
+import {DateTime} from "luxon";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
+const STORE_TZ = "America/Los_Angeles";
 
 const columns: ColumnDef<Order>[] = [
   {
@@ -72,8 +74,27 @@ const columns: ColumnDef<Order>[] = [
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
     ),
-    cell: ({ row }) =>
-        formatDistanceToNow(row.original.ordered_at ?? row.original.created_at),
+    cell: ({ row }) => {
+      const raw =
+          row.original.ordered_at ?? row.original.created_at;
+
+      if (!raw) return "-";
+
+      const pacific = DateTime
+          .fromISO(raw, { zone: "utc" }) // assume DB is UTC
+          .setZone(STORE_TZ);
+
+      return (
+          <div className="flex flex-col">
+        <span>
+          {pacific.toFormat("MMM dd, yyyy")}
+        </span>
+            <span className="text-xs text-muted-foreground">
+          {pacific.toFormat("hh:mm a")} PT
+        </span>
+          </div>
+      );
+    },
   },
   {
     accessorKey: "platform",

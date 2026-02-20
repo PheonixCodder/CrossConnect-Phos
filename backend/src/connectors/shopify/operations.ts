@@ -201,3 +201,19 @@ export const FETCH_RETURNS = `#graphql
     }
   }
 `;
+
+export const FETCH_DAILY_METRICS = `#graphql
+  query ShopifyDailySalesMetrics($shopifyql: String!) {
+    shopifyqlQuery(query: $shopifyql) {
+      tableData {
+        columns {
+          name
+          dataType
+          displayName
+        }
+        rows
+      }
+      parseErrors
+    }
+  }
+`;

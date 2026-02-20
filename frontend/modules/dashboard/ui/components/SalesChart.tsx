@@ -1,5 +1,5 @@
 "use client";
-
+import { DateTime } from "luxon";
 import {
   AreaChart,
   Area,
@@ -107,10 +107,8 @@ export function SalesChart({ data, loading }: SalesChartProps) {
                   dataKey="date"
                   interval="preserveStartEnd"
                   tickFormatter={(v) =>
-                      new Date(v).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })
+                      DateTime.fromISO(v)
+                          .toFormat("MMM dd")
                   }
               />
 
@@ -119,7 +117,7 @@ export function SalesChart({ data, loading }: SalesChartProps) {
               <Tooltip
                   formatter={(v: number) => formatCurrency(v)}
                   labelFormatter={(l) =>
-                      new Date(l).toLocaleDateString()
+                      DateTime.fromISO(l).toFormat("MMM dd, yyyy")
                   }
               />
 

@@ -5,6 +5,7 @@ import {
 } from './amazon.types';
 import { InventorySummary } from '@sp-api-sdk/fba-inventory-api-v1';
 import { Order, OrderItem } from '@sp-api-sdk/orders-api-v0';
+import { OrderMetricsInterval } from '@sp-api-sdk/sales-api-v1';
 
 export function mapAmazonInventoryFromFbaSummary(
   summary: InventorySummary,
@@ -111,11 +112,7 @@ export function mapAmazonOrderToDB(
   platform: string,
   items: OrderItem[] = [],
 ): Database['public']['Tables']['orders']['Insert'] {
-  const computedSubtotal = items.reduce((sum, item) => {
-    const lineTotal =
-      item.ItemPrice?.Amount !== undefined ? Number(item.ItemPrice.Amount) : 0;
-    return sum + lineTotal;
-  }, 0);
+  const computed = computeOrderTotalsFromItems(items);
 
   const hasOrderTotal = order.OrderTotal?.Amount;
 
@@ -135,11 +132,11 @@ export function mapAmazonOrderToDB(
 
     subtotal: hasOrderTotal
       ? Number(order.OrderTotal?.Amount)
-      : computedSubtotal || null,
+      : computed.subtotal || null,
 
     total: hasOrderTotal
       ? Number(order.OrderTotal?.Amount)
-      : computedSubtotal || null,
+      : computed.total || null,
 
     tax: null, // can be derived later from OrderItem.Tax
     shipping: null, // derive from ShippingPrice if needed
@@ -466,4 +463,62 @@ export function mapFlatFileRowToOrderItem(
     total: price * quantity,
     fulfilled_quantity: row['item-status'] === 'Shipped' ? quantity : 0,
   };
+}
+
+export function mapDailySalesToDB(
+  metrics: OrderMetricsInterval[],
+  storeId: string,
+): Database['public']['Tables']['metrics_summary']['Insert'][] {
+  const platform = 'amazon';
+  const rows: Database['public']['Tables']['metrics_summary']['Insert'][] = [];
+
+  metrics.forEach((interval) => {
+    // Amazon interval format is "2023-01-01T00:00:00Z--2023-01-02T00:00:00Z"
+    // We extract the start date for the DB 'date' column
+    const date = interval.interval.split('--')[0];
+
+    const totalSales = parseFloat(interval.totalSales.amount);
+    const ordersCount = interval.orderCount;
+
+    // Calculate Average Order Value (AOV) safely
+    const avgOrderValue = ordersCount > 0 ? totalSales / ordersCount : 0;
+
+    // 1. Sales Metric
+    rows.push({
+      store_id: storeId,
+      platform,
+      date,
+      metric_type: 'sales',
+      value: totalSales,
+    });
+
+    // 2. Orders Count Metric
+    rows.push({
+      store_id: storeId,
+      platform,
+      date,
+      metric_type: 'orders_count',
+      value: ordersCount,
+    });
+
+    // 3. Units Sold Metric
+    rows.push({
+      store_id: storeId,
+      platform,
+      date,
+      metric_type: 'units_sold',
+      value: interval.unitCount,
+    });
+
+    // 4. Avg Order Value Metric
+    rows.push({
+      store_id: storeId,
+      platform,
+      date,
+      metric_type: 'avg_order_value',
+      value: avgOrderValue,
+    });
+  });
+
+  return rows;
 }

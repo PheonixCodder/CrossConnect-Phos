@@ -1,4 +1,5 @@
 import {
+  Analytics202405GetShopPerformanceResponseDataPerformanceIntervals,
   Fulfillment202309SearchPackageResponseDataPackages,
   Order202309GetOrderListResponseDataOrders,
   Order202309GetOrderListResponseDataOrdersLineItems,
@@ -81,6 +82,21 @@ export function mapTiktokOrderToDB(
   o: Order202309GetOrderListResponseDataOrders,
   storeId: string,
 ): Database['public']['Tables']['orders']['Insert'] {
+  const itemsTotal =
+    o.lineItems?.reduce((sum, item) => sum + Number(item.salePrice ?? 0), 0) ??
+    0;
+
+  // Seller promotions and platform co-funding
+  const sellerPromotions = Number(o.payment?.sellerDiscount ?? 0);
+  const platformCoFunding = Number(o.payment?.platformDiscount ?? 0);
+
+  // GMV = itemsTotal + shipping - promotions - co-funding
+  const gmv =
+    itemsTotal +
+    Number(o.payment?.shippingFee ?? 0) -
+    sellerPromotions -
+    platformCoFunding;
+
   return {
     store_id: storeId,
     platform: 'tiktok',
@@ -96,6 +112,7 @@ export function mapTiktokOrderToDB(
     tax: Number(o.payment?.tax ?? 0),
     shipping: Number(o.payment?.shippingFee ?? 0),
     total: Number(o.payment?.totalAmount ?? 0),
+    totalDashboard: gmv,
   };
 }
 
@@ -212,4 +229,120 @@ export function mapTiktokReturnsToDB(
   }
 
   return mapped;
+}
+
+/**
+ * Maps TikTok Performance intervals to multiple rows in metrics_summary
+ */
+export function mapTikTokPerformanceToDb(
+  intervals: Analytics202405GetShopPerformanceResponseDataPerformanceIntervals[],
+  storeId: string,
+): Database['public']['Tables']['metrics_summary']['Insert'][] {
+  const records: any[] = [];
+
+  for (const interval of intervals) {
+    const date = interval.startDate;
+    if (!date) continue;
+
+    // 1. Sales Metric (mapped from GMV per your request)
+    if (interval.gmv?.amount) {
+      records.push(
+        createMetricRow(
+          storeId,
+          date,
+          'sales',
+          parseFloat(interval.gmv.amount),
+        ),
+      );
+    }
+
+    // 2. Orders & Units
+    if (interval.orders !== undefined) {
+      records.push(
+        createMetricRow(storeId, date, 'orders_count', interval.orders),
+      );
+    }
+    if (interval.unitsSold !== undefined) {
+      records.push(
+        createMetricRow(storeId, date, 'units_sold', interval.unitsSold),
+      );
+    }
+    if (interval.skuOrders !== undefined) {
+      records.push(
+        createMetricRow(storeId, date, 'sku_orders', interval.skuOrders),
+      );
+    }
+
+    // 3. Financials
+    if (interval.refunds?.amount) {
+      records.push(
+        createMetricRow(
+          storeId,
+          date,
+          'refunds',
+          parseFloat(interval.refunds.amount),
+        ),
+      );
+    }
+    if (interval.avgOrderValue?.amount) {
+      records.push(
+        createMetricRow(
+          storeId,
+          date,
+          'avg_order_value',
+          parseFloat(interval.avgOrderValue.amount),
+        ),
+      );
+    }
+
+    // 4. Traffic & Engagement
+    if (interval.avgProductPageVisitors !== undefined) {
+      records.push(
+        createMetricRow(
+          storeId,
+          date,
+          'visitors',
+          interval.avgProductPageVisitors,
+        ),
+      );
+    }
+    if (interval.productPageViews !== undefined) {
+      records.push(
+        createMetricRow(storeId, date, 'page_views', interval.productPageViews),
+      );
+    }
+    if (interval.productImpressions !== undefined) {
+      records.push(
+        createMetricRow(
+          storeId,
+          date,
+          'impressions',
+          interval.productImpressions,
+        ),
+      );
+    }
+    if (interval.buyers !== undefined) {
+      records.push(
+        createMetricRow(storeId, date, 'buyers_count', interval.buyers),
+      );
+    }
+  }
+
+  return records;
+}
+
+export function createMetricRow(
+  storeId: string,
+  date: string,
+  type: string,
+  value: number,
+) {
+  return {
+    store_id: storeId,
+    platform: 'tiktok',
+    date: date,
+    metric_type: type,
+    value: value,
+    created_at: new Date().toISOString(),
+  };
 }

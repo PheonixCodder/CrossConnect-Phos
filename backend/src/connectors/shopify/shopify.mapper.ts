@@ -6,6 +6,7 @@ import {
   FetchProductsQuery,
   FetchReturnsQuery,
 } from './graphql/generated/admin.generated';
+import { SalesTableData } from 'connectors/shopify/shopify.service';
 
 export type ShopifyProductNode =
   FetchProductsQuery['products']['nodes'][number];
@@ -241,5 +242,85 @@ export function mapShopifyReturnToDB(
     status: returnNode.status.toLowerCase(), // e.g., "open", "returned"
     currency: order.currencyCode,
     refund_amount: totalRefunded,
+  };
+}
+
+type ShopifyQlColumn = {
+  name: string;
+  dataType: string;
+  displayName: string;
+};
+
+type ShopifyQlTableData = {
+  columns: ShopifyQlColumn[];
+  rows: Record<string, any>[];
+};
+
+type MetricsInsert = Database['public']['Tables']['metrics_summary']['Insert'];
+
+export function mapShopifyPerformanceToDb(
+  tableData: SalesTableData | null,
+  storeId: string,
+): MetricsInsert[] {
+  if (!tableData) return [];
+
+  const { columns, rows } = tableData;
+
+  // Find column names programmatically, in case Shopify renames fields later
+  const colDay =
+    columns.find((c) => c.dataType?.includes('DAY'))?.name ?? 'day';
+  const colGrossSales =
+    columns.find((c) => c.name === 'gross_sales')?.name ?? 'gross_sales';
+  const colOrders = columns.find((c) => c.name === 'orders')?.name ?? 'orders';
+  const colUnitsSold =
+    columns.find((c) => c.name === 'units_sold')?.name ?? 'units_sold';
+
+  const records: MetricsInsert[] = [];
+
+  for (const row of rows) {
+    const date = row[colDay] as string | undefined;
+    if (!date) continue;
+
+    // 1. Sales (gross_sales)
+    const grossSales = row[colGrossSales];
+    if (grossSales != null) {
+      records.push(
+        createShopifyMetricRow(storeId, date, 'sales', Number(grossSales)),
+      );
+    }
+
+    // 2. Orders count
+    const orders = row[colOrders];
+    if (orders != null) {
+      records.push(
+        createShopifyMetricRow(storeId, date, 'orders_count', Number(orders)),
+      );
+    }
+
+    // 3. Units sold
+    const unitsSold = row[colUnitsSold];
+    if (unitsSold != null) {
+      records.push(
+        createShopifyMetricRow(storeId, date, 'units_sold', Number(unitsSold)),
+      );
+    }
+  }
+
+  return records;
+}
+
+function createShopifyMetricRow(
+  storeId: string,
+  date: string,
+  type: string,
+  value: number,
+): MetricsInsert {
+  return {
+    store_id: storeId,
+    platform: 'shopify',
+    date,
+    metric_type: type,
+    value,
+    created_at: new Date().toISOString(),
   };
 }

@@ -5,7 +5,7 @@ import {
   parseAsString,
   useQueryState,
 } from "nuqs";
-import { addDays } from "date-fns";
+import { DateTime } from "luxon";
 import {
   DollarSign,
   ShoppingCart,
@@ -60,6 +60,7 @@ interface DashboardViewProps {
 export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
   const activeStore = useDashboardStore((state) => state.activeStore);
   const setActiveStore = useDashboardStore((state) => state.setActiveStore);
+    const STORE_TZ = "America/Los_Angeles";
 
   const onChannelClick = (
       store: Database["public"]["Tables"]["stores"]["Row"],
@@ -72,33 +73,48 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
   =========================== */
 
   const initialDates = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+      const todayPacific = DateTime
+          .now()
+          .setZone("America/Los_Angeles")
+          .startOf("day");
 
-    const from = addDays(today, -7);
+      const fromPacific = todayPacific.minus({ days: 7 });
 
-    return {
-      from: from.toISOString(),
-      to: today.toISOString(),
-    };
-  }, []);
+      return {
+          from: fromPacific.toISO(),
+          to: todayPacific.toISO(),
+      };
+      }, []);
 
   const [fromParam, setFromParam] = useQueryState(
       "from",
-      parseAsString.withDefault(initialDates.from),
+      parseAsString.withDefault(initialDates.from!),
   );
 
   const [toParam, setToParam] = useQueryState(
       "to",
-      parseAsString.withDefault(initialDates.to),
+      parseAsString.withDefault(initialDates.to!),
   );
 
-  const dateRange: DateRange = useMemo(() => {
-    return {
-      from: new Date(fromParam),
-      to: new Date(toParam),
-    };
-  }, [fromParam, toParam]);
+    const dateRange = useMemo(() => {
+        return {
+            from: DateTime.fromISO(fromParam, { zone: STORE_TZ }).toJSDate(),
+            to: DateTime.fromISO(toParam, { zone: STORE_TZ }).toJSDate(),
+        };
+    }, [fromParam, toParam]);
+
+    const dateRangeTrends = useMemo(() => {
+        const from = DateTime.fromISO(fromParam, { zone: STORE_TZ })
+            .startOf("day");
+
+        const to = DateTime.fromISO(toParam, { zone: STORE_TZ })
+            .endOf("day");
+
+        return {
+            from,
+            to,
+        };
+    }, [fromParam, toParam]);
 
   const setDateRange = async (range: DateRange | undefined) => {
     if (!range?.from || !range?.to) return;
@@ -121,6 +137,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     products,
     returns,
     isLoading,
+      metrics: metricsSummary,
     isFetching,
     refetch
   } = useDashboardData({
@@ -128,117 +145,117 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
     to: dateRange.to!,
   });
 
-  const metrics = useMemo(() => {
-    const cancelledOrders = orders.filter(
-        (order) => order.status === "cancelled"
-    );
 
-    const validOrders = orders.filter(
-        (order) => order.status !== "cancelled"
-    );
-
-    const grossSales = validOrders.reduce(
-        (sum, order) => sum + (order.total || 0),
-        0
-    );
-
-    const totalOrders = validOrders.length;
-
-    const cancelledCount = cancelledOrders.length;
-
-    const cancelledRevenue = cancelledOrders.reduce(
-        (sum, order) => sum + (order.total || 0),
-        0
-    );
-
-    const validOrderIds = new Set(validOrders.map((o) => o.id));
-
-    const unitsSold = orderItems
-        .filter((item) => validOrderIds.has(item.order_id))
-        .reduce((sum, item) => sum + (item.quantity || 0), 0);
-
-    const avgOrderValue =
-        totalOrders > 0 ? grossSales / totalOrders : 0;
-
-    return {
-      grossSales,
-      totalOrders,
-      unitsSold,
-      avgOrderValue,
-      cancelledCount,
-      cancelledRevenue,
-    };
-  }, [orders, orderItems]);
-
-  const storeMetrics = useMemo(() => {
-    const map = new Map<string, StoreMetrics>();
-    stores.forEach((store) => {
-      map.set(store.id, { storeId: store.id, sales: 0, orders: 0, units: 0 });
-    });
-    orders.forEach((order) => {
-      if (order.status === "cancelled") return;
-
-      const current = map.get(order.store_id);
-      if (current) {
-        current.sales += order.total || 0;
-        current.orders += 1;
-      }
-    });
-    const orderIdToStore = new Map(orders.map((o) => [o.id, o.store_id]));
-    orderItems.forEach((item) => {
-      const storeId = orderIdToStore.get(item.order_id);
-      if (storeId) {
-        const current = map.get(storeId);
-        if (current) {
-          current.units += item.quantity || 0;
+    const metrics = useMemo(() => {
+        if (!metricsSummary?.length) {
+            return {
+                grossSales: 0,
+                totalOrders: 0,
+                unitsSold: 0,
+                avgOrderValue: 0,
+                cancelledCount: 0,
+                cancelledRevenue: 0,
+            };
         }
-      }
-    });
-    return Array.from(map.values());
-  }, [stores, orders, orderItems]);
 
-  const salesTrend = useMemo(() => {
-    type DayBucket = {
-      date: string;
-      [platform: string]: number | string;
-    };
+        const filtered = metricsSummary.filter((m) => {
+            const metricDate = DateTime.fromISO(m.date, { zone: STORE_TZ });
 
-    const end = dateRange.to!;
-    const start = dateRange.from!;
+            const inRange =
+                metricDate >= dateRangeTrends.from &&
+                metricDate <= dateRangeTrends.to;
 
-    const buildDateRange = (s: Date, e: Date) => {
-      const dates: string[] = [];
-      const d = new Date(s);
-      while (d <= e) {
-        dates.push(d.toISOString().slice(0, 10));
-        d.setDate(d.getDate() + 1);
-      }
-      return dates;
-    };
+            const correctStore =
+                !activeStore || m.store_id === activeStore.id;
 
-    const allDates = buildDateRange(start, end);
-    const bucket = new Map<string, DayBucket>();
+            return inRange && correctStore;
+        });
 
-    allDates.forEach((date) => {
-      bucket.set(date, { date });
-    });
+        const sum = (type: string) =>
+            filtered
+                .filter((m) => m.metric_type === type)
+                .reduce((acc, m) => acc + Number(m.value ?? 0), 0);
 
-    orders.forEach((order) => {
-      if (order.status === "cancelled") return;
-      if (!order.total) return;
+        const grossSales = sum("sales");
+        const totalOrders = sum("orders_count");
+        const unitsSold = sum("units_sold");
 
-      const date = (order.ordered_at ?? order.created_at).slice(0, 10);
-      const day = bucket.get(date);
-      if (!day) return;
+        return {
+            grossSales,
+            totalOrders,
+            unitsSold,
+            avgOrderValue: totalOrders > 0 ? grossSales / totalOrders : 0,
+            cancelledCount: 0,
+            cancelledRevenue: 0,
+        };
+    }, [metricsSummary, activeStore, dateRangeTrends.to, dateRangeTrends.from]);
 
-      const platform = order.platform ?? "unknown";
+    const storeMetrics = useMemo(() => {
+        if (!metricsSummary?.length) return [];
 
-      day[platform] =
-          ((day[platform] as number) || 0) + order.total;
-    });
+        return stores.map((store) => {
+            const filtered = metricsSummary.filter((m) => {
+                const metricDate = DateTime.fromISO(m.date, { zone: STORE_TZ });
 
-    return Array.from(bucket.values());
-  }, [orders, dateRange]);
+                const inRange =
+                    metricDate >= dateRangeTrends.from &&
+                    metricDate <= dateRangeTrends.to;
+
+                const correctStore = m.store_id === store.id;
+
+                return inRange && correctStore;
+            });
+
+            const sum = (type: string) =>
+                filtered
+                    .filter((m) => m.metric_type === type)
+                    .reduce((acc, m) => acc + Number(m.value ?? 0), 0);
+
+            const sales = sum("sales");
+            const orders = sum("orders_count");
+            const units = sum("units_sold");
+
+            return {
+                storeId: store.id,
+                sales,
+                orders,
+                units,
+            };
+        });
+    }, [stores, metricsSummary, dateRangeTrends]);
+
+
+    const salesTrend = useMemo(() => {
+        type DayBucket = {
+            date: string;
+        } & Record<string, number | string>;
+
+        const start = DateTime.fromJSDate(dateRange.from!, { zone: STORE_TZ }).startOf("day");
+        const end = DateTime.fromJSDate(dateRange.to!, { zone: STORE_TZ }).startOf("day");
+
+        const bucket = new Map<string, DayBucket>();
+        let cursor = start;
+        while (cursor <= end) {
+            const key = cursor.toFormat("yyyy-MM-dd");
+            bucket.set(key, { date: key });
+            cursor = cursor.plus({ days: 1 });
+        }
+
+        // Aggregate metrics per day per platform
+        metricsSummary?.forEach((m) => {
+            const date = DateTime.fromISO(m.date, { zone: STORE_TZ }).toFormat("yyyy-MM-dd");
+            const day = bucket.get(date);
+            if (!day) return;
+
+            const platform = m.platform ?? "unknown";
+            if (!day[platform]) day[platform] = 0;
+            if (m.metric_type === "sales") {
+                (day[platform] as number) += Number(m.value ?? 0);
+            }
+        });
+
+        return Array.from(bucket.values());
+    }, [metricsSummary, dateRange]);
 
   const successChannels = stores.filter(
       (s) => s.auth_status === "active",
@@ -400,7 +417,16 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <OrdersTable orders={orders} loading={isLoading || isFetching} />
+        <OrdersTable orders={orders.filter((f) => {
+            const metricDate = DateTime.fromISO(f.ordered_at!, { zone: STORE_TZ });
+
+            const inRange =
+                metricDate >= dateRangeTrends.from &&
+                metricDate <= dateRangeTrends.to;
+
+            return inRange;
+
+        })} loading={isLoading || isFetching} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
         <ProductsTable products={products} loading={isLoading || isFetching} />

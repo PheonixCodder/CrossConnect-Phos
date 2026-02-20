@@ -5,6 +5,7 @@ import { useDashboardStore } from "@/store/useStore";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase.types";
 import {useMemo} from "react";
+import { DateTime } from "luxon";
 
 export interface DateRangeValue {
   from: Date;
@@ -25,21 +26,30 @@ interface DashboardPayload {
   products: Database["public"]["Tables"]["products"]["Row"][];
   inventory: Database["public"]["Tables"]["inventory"]["Row"][];
   alerts: Database["public"]["Tables"]["alerts"]["Row"][];
+  metrics_summary : Database["public"]["Tables"]["metrics_summary"]["Row"][];
 }
 
 export function useDashboardData(dateRange: DateRangeValue) {
   const supabase = useMemo(() => createClient(), []);
   const { activeOrg, activeStore } = useDashboardStore();
 
-  const startDateIso = useMemo(
-      () => dateRange.from.toISOString(),
-      [dateRange.from]
-  );
+    const STORE_TZ = "America/Los_Angeles";
 
-  const endDateIso = useMemo(
-      () => dateRange.to.toISOString(),
-      [dateRange.to]
-  );
+    const startDateIso = useMemo(() => {
+        return DateTime
+            .fromJSDate(dateRange.from, { zone: STORE_TZ })
+            .startOf("day")
+            .toUTC()
+            .toISO();
+    }, [dateRange.from]);
+
+    const endDateIso = useMemo(() => {
+        return DateTime
+            .fromJSDate(dateRange.to, { zone: STORE_TZ })
+            .endOf("day")
+            .toUTC()
+            .toISO();
+    }, [dateRange.to]);
 
   const { data: stores = [] } = useQuery({
     queryKey: ["stores", activeOrg?.id],
@@ -78,8 +88,8 @@ export function useDashboardData(dateRange: DateRangeValue) {
           "get_complete_dashboard_data",
           {
             p_store_ids: targetStoreIds,
-            p_start_date: startDateIso,
-            p_end_date: endDateIso,
+            p_start_date: startDateIso!,
+            p_end_date: endDateIso!,
           }
       );
 
@@ -104,6 +114,7 @@ export function useDashboardData(dateRange: DateRangeValue) {
     products: data?.products ?? [],
     inventory: data?.inventory ?? [],
     alerts: data?.alerts ?? [],
+    metrics: data?.metrics_summary ?? [],
     isLoading,
     refetch,
     error,

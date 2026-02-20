@@ -141,11 +141,11 @@ export class TikTokOAuthService {
       return this.refreshToken(
         storeId,
         this.crypto.decrypt(creds.refresh_token) as string,
-        storeRecord.stores![0].cipher as string,
+        (storeRecord as any).stores!.shops[0].cipher as string,
       );
     }
     // Inside getValidToken
-    const cipher = (creds.shop_cipher as string) ?? null;
+    const cipher = (storeRecord as any).stores!.shops[0].cipher ?? null;
 
     if (!cipher) {
       throw new BadRequestException(

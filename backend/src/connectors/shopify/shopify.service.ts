@@ -10,6 +10,7 @@ import {
   FETCH_FULFILLMENTS,
   FETCH_ORDERS,
   FETCH_RETURNS,
+  FETCH_DAILY_METRICS,
 } from './operations';
 import {
   FetchProductsQuery,
@@ -17,9 +18,13 @@ import {
   FetchOrdersQuery,
   FetchFulfillmentsQuery,
   FetchReturnsQuery,
+  ShopifyDailySalesMetricsQuery,
 } from './graphql/generated/admin.generated';
 import { CryptoService } from '../../common/crypto.service';
 
+export type SalesTableData = NonNullable<
+  NonNullable<ShopifyDailySalesMetricsQuery['shopifyqlQuery']>['tableData']
+>;
 @Injectable()
 export class ShopifyService {
   private readonly logger = new Logger(ShopifyService.name);
@@ -136,6 +141,45 @@ export class ShopifyService {
         'Shopify API Communication Failure',
       );
     }
+  }
+
+  async fetchDailyMetrics(since?: string): Promise<SalesTableData | null> {
+    let timeClause: string;
+
+    if (since) {
+      const formattedSince = since.split('T')[0];
+      timeClause = `SINCE ${formattedSince} UNTIL today`;
+    } else {
+      // Replaced DURING with SINCE/UNTIL to avoid IDENTIFIER mismatch
+      const yearStart = `${new Date().getFullYear()}-01-01`;
+      timeClause = `SINCE ${yearStart} UNTIL today`;
+    }
+
+    // Added 'BY day' before TIMESERIES
+    const shopifyql = `
+  FROM sales 
+  SHOW gross_sales, orders, total_sales 
+  ${timeClause} 
+  TIMESERIES day 
+  ORDER BY day ASC
+`
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const data = await this.execute<ShopifyDailySalesMetricsQuery>(
+      FETCH_DAILY_METRICS,
+      { shopifyql },
+      'fetchDailyMetrics',
+    );
+
+    if (data.shopifyqlQuery?.parseErrors?.length) {
+      this.logger.error(
+        `ShopifyQL parse errors: ${JSON.stringify(data.shopifyqlQuery?.parseErrors)}`,
+      );
+      throw new Error('ShopifyQL query parse error');
+    }
+
+    return data.shopifyqlQuery?.tableData ?? null;
   }
 
   /* -------------------- PRODUCTS (SNAPSHOT) -------------------- */

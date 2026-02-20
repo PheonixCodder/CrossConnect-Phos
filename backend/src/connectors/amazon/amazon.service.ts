@@ -1,4 +1,3 @@
-import { parseStringPromise } from 'xml2js';
 import { Injectable, Logger } from '@nestjs/common';
 import { SellingPartnerApiAuth } from '@sp-api-sdk/auth';
 import { ReportsApiClient } from '@sp-api-sdk/reports-api-2021-06-30';
@@ -8,6 +7,7 @@ import {
   OrdersApiClient,
   OrdersApiGetOrdersRequest,
 } from '@sp-api-sdk/orders-api-v0';
+import { DataKioskApiClient } from '@sp-api-sdk/data-kiosk-api-2023-11-15';
 import {
   FbaInventoryApiClient,
   InventorySummary,
@@ -21,7 +21,7 @@ import {
 import { Database } from '../../supabase/supabase.types';
 import { SellingPartnerRegion } from '@sp-api-sdk/common';
 import { CryptoService } from '../../common/crypto.service';
-import { AmazonOrderReportRow } from 'connectors/amazon/amazon.mapper';
+import { OrderMetricsInterval, SalesApiClient } from '@sp-api-sdk/sales-api-v1';
 
 @Injectable()
 export class AmazonService {
@@ -203,6 +203,129 @@ export class AmazonService {
     } while (nextToken);
 
     return results;
+  }
+
+  async getDailySalesMetrics(
+    store: Database['public']['Tables']['stores']['Row'],
+    since?: string,
+  ): Promise<OrderMetricsInterval[]> {
+    const client = new SalesApiClient({
+      auth: this.auth,
+      region: this.region as SellingPartnerRegion,
+    });
+
+    // 1. Determine Start Date
+    const startDate = since ? new Date(since) : this.AMAZON_FULL_SYNC_START;
+    const endDate = new Date();
+
+    // 2. Format Interval: "startTime--endTime" (ISO8601)
+    // Note: Sales API requires the double hyphen format
+    const interval = `${startDate.toISOString()}--${endDate.toISOString()}`;
+
+    const { data } = await this.withRetry(
+      () =>
+        client.getOrderMetrics({
+          marketplaceIds: [this.MARKETPLACE_ID],
+          interval: interval,
+          granularity: 'Day',
+        }),
+      'getOrderMetrics',
+    );
+
+    /**
+     * Note: getOrderMetrics does NOT use pagination (nextToken).
+     * It returns an array of intervals within the requested range.
+     * Max interval range is 2 years.
+     */
+    return data.payload || [];
+  }
+
+  async getDailySalesReport(
+    store: Database['public']['Tables']['stores']['Row'],
+    since?: string,
+    daysBack: number = 30,
+  ): Promise<any[]> {
+    const client = new ReportsApiClient({
+      auth: this.auth,
+      region: this.region as SellingPartnerRegion,
+    });
+
+    // 1. Determine the Start Date: Use 'since', or fallback to daysBack/FullSyncStart
+    let start: Date;
+    if (since && since.trim().length > 0) {
+      start = new Date(since);
+    } else {
+      // If no cursor, use the defined full sync start
+      start = new Date(this.AMAZON_FULL_SYNC_START);
+      // If FULL_SYNC_START isn't set, fallback to the daysBack logic
+      if (isNaN(start.getTime())) {
+        start = new Date();
+        start.setDate(start.getDate() - daysBack);
+      }
+    }
+
+    // 2. Set End Date (safety: typically 1 day ago or -2 mins for settled data)
+    const end = new Date();
+
+    this.logger.log(
+      `Requesting Sales & Traffic Report from ${start.toISOString()} to ${end.toISOString()}`,
+    );
+
+    const { data } = await this.withRetry(
+      () =>
+        client.createReport({
+          body: {
+            reportType: 'GET_SALES_AND_TRAFFIC_REPORT',
+            marketplaceIds: [this.MARKETPLACE_ID],
+            dataStartTime: start.toISOString(),
+            dataEndTime: end.toISOString(),
+            reportOptions: {
+              dateGranularity: 'DAY',
+            },
+          },
+        }),
+      'createSalesReport',
+    );
+
+    const reportId = data.reportId;
+    let report;
+
+    // Poll for completion
+    for (let i = 0; i < 30; i++) {
+      await this.sleep(30_000);
+      report = await this.withRetry(
+        () => client.getReport({ reportId }),
+        'getSalesReportStatus',
+      );
+
+      if (report.data.processingStatus === 'DONE') break;
+
+      if (['CANCELLED', 'FATAL'].includes(report.data.processingStatus)) {
+        this.logger.error(
+          `Sales report failed with status: ${report.data.processingStatus}`,
+        );
+        return [];
+      }
+    }
+
+    if (report?.data?.processingStatus === 'DONE') {
+      const doc = await this.withRetry(
+        () =>
+          client.getReportDocument({
+            reportDocumentId: report.data.reportDocumentId!,
+          }),
+        'getSalesReportDoc',
+      );
+
+      const raw = await axios.get(doc.data.url as string);
+
+      // Filter logic: Ensure we only return data >= start date
+      // (Amazon sometimes includes the full day of the start range)
+      const dailyData = raw.data.salesAndTrafficByDate || [];
+      return dailyData.filter((day: any) => new Date(day.date) >= start);
+    }
+
+    return [];
   }
 
   async getOrdersFlatFileReport(
