@@ -34,6 +34,7 @@ import {
   mapDailySalesToDB,
   mapFlatFileRowsToOrders,
   mapFlatFileRowToOrderItem,
+  mapKioskToDB,
   mapReportFulfillmentToDB,
   mapReportOrderItemToDB,
   mapReportOrderToDB,
@@ -711,18 +712,17 @@ export class OrdersProcessor extends WorkerHost {
       }
 
       // GET METRICS
-      const dailyData = await service.getDailySalesMetrics(store);
+      const dailyData = await service.getDailySalesDataKiosk(store);
+      console.log(`Data: ${JSON.stringify(dailyData)}`);
 
       if (dailyData?.length) {
-        const allMetrics = mapDailySalesToDB(dailyData, store.id);
+        const allMetrics = mapKioskToDB(dailyData, store.id);
         if (allMetrics.length) {
           await this.metricsRepo.bulkUpsertMetrics(allMetrics);
         }
       }
 
-      // ============================================================
-      // 4️⃣ UPDATE CURSOR
-      // ============================================================
+      // Update cursor
       await this.storeRepo.update(store.id, 'orders', {
         last_synced_at: new Date().toISOString(),
       });

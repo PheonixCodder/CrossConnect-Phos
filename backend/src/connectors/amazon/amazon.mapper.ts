@@ -522,3 +522,55 @@ export function mapDailySalesToDB(
 
   return rows;
 }
+export interface KioskSales {
+  orderedProductSales: {
+    amount: number;
+  };
+  totalOrderItems: number;
+  unitsOrdered: number;
+}
+
+export interface KioskSalesAndTrafficRow {
+  startDate: string; // This is your 'date'
+  sales: KioskSales;
+}
+
+export function mapKioskToDB(
+  kioskData: KioskSalesAndTrafficRow[],
+  storeId: string,
+): Database['public']['Tables']['metrics_summary']['Insert'][] {
+  const platform = 'amazon';
+  const rows: Database['public']['Tables']['metrics_summary']['Insert'][] = [];
+
+  kioskData.forEach((item) => {
+    const date = item.startDate;
+    const sales = item.sales;
+
+    if (!date || !sales) return;
+
+    const totalSales = sales.orderedProductSales.amount;
+    const ordersCount = sales.totalOrderItems;
+    const unitsSold = sales.unitsOrdered;
+    const avgOrderValue = ordersCount > 0 ? totalSales / ordersCount : 0;
+
+    const metrics = [
+      { type: 'sales', value: totalSales },
+      { type: 'orders_count', value: ordersCount },
+      { type: 'units_sold', value: unitsSold },
+      { type: 'avg_order_value', value: avgOrderValue },
+    ];
+
+    metrics.forEach((metric) => {
+      rows.push({
+        store_id: storeId,
+        platform,
+        date,
+        metric_type: metric.type,
+        value: metric.value,
+        created_at: new Date().toISOString(), // Matches your Shopify helper
+      });
+    });
+  });
+
+  return rows;
+}

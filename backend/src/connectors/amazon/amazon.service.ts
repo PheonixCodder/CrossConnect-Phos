@@ -7,7 +7,10 @@ import {
   OrdersApiClient,
   OrdersApiGetOrdersRequest,
 } from '@sp-api-sdk/orders-api-v0';
-import { DataKioskApiClient } from '@sp-api-sdk/data-kiosk-api-2023-11-15';
+import {
+  DataKioskApiClient,
+  Query,
+} from '@sp-api-sdk/data-kiosk-api-2023-11-15';
 import {
   FbaInventoryApiClient,
   InventorySummary,
@@ -22,6 +25,8 @@ import { Database } from '../../supabase/supabase.types';
 import { SellingPartnerRegion } from '@sp-api-sdk/common';
 import { CryptoService } from '../../common/crypto.service';
 import { OrderMetricsInterval, SalesApiClient } from '@sp-api-sdk/sales-api-v1';
+import { KioskSalesAndTrafficRow } from '../amazon/amazon.mapper';
+import { SpApiThrottleManager } from '../amazon/throttle.manager';
 
 @Injectable()
 export class AmazonService {
@@ -31,6 +36,7 @@ export class AmazonService {
   private clientId: string;
   private clientSecret: string;
   private refreshToken: string;
+
   private region = 'na';
   private readonly AMAZON_PAGE_SIZE = 100;
   private readonly AMAZON_CHUNK_DAYS = 30;
@@ -39,7 +45,10 @@ export class AmazonService {
   );
   private readonly MARKETPLACE_ID = 'ATVPDKIKX0DER';
 
-  constructor(private readonly crypto: CryptoService) {}
+  constructor(
+    private readonly crypto: CryptoService,
+    private readonly throttle: SpApiThrottleManager,
+  ) {}
 
   /* -------------------- INIT -------------------- */
 
@@ -59,53 +68,9 @@ export class AmazonService {
     });
   }
 
-  /* -------------------- RETRY + BACKOFF -------------------- */
-
-  private async withRetry<T>(
-    fn: () => Promise<T>,
-    context: string,
-    maxRetries = 8,
-    baseDelayMs = 7000,
-  ): Promise<T> {
-    let attempt = 0;
-
-    while (true) {
-      try {
-        return await fn();
-      } catch (err: any) {
-        attempt++;
-
-        const status =
-          err?.response?.statusCode ?? err?.response?.status ?? err?.statusCode;
-
-        const isNetworkError =
-          err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT';
-
-        const retryable =
-          isNetworkError || status === 429 || (status >= 500 && status < 600);
-
-        if (!retryable || attempt > maxRetries) {
-          this.logger.error(
-            `Amazon API failed [${context}] after ${attempt} attempts`,
-            err?.stack ?? err,
-          );
-          throw err;
-        }
-
-        const backoff =
-          baseDelayMs * Math.pow(2, attempt - 1) +
-          Math.floor(Math.random() * 300);
-
-        this.logger.warn(
-          `Amazon API retry ${attempt}/${maxRetries} [${context}] in ${backoff}ms`,
-        );
-
-        await this.sleep(backoff);
-      }
-    }
-  }
-
-  /* -------------------- PRODUCTS (SNAPSHOT) -------------------- */
+  /* ================================================================
+     PRODUCTS SNAPSHOT
+  ================================================================= */
 
   async getAllProducts(
     store: Database['public']['Tables']['stores']['Row'],
@@ -115,7 +80,8 @@ export class AmazonService {
       region: this.region as SellingPartnerRegion,
     });
 
-    const { data } = await this.withRetry(
+    const create = await this.throttle.execute(
+      'REPORTS',
       () =>
         client.createReport({
           body: {
@@ -126,28 +92,28 @@ export class AmazonService {
       'createListingsReport',
     );
 
-    const reportId = data.reportId;
-    let report;
+    const reportId = create.data.reportId;
+    let report: any;
 
     for (let i = 0; i < 15; i++) {
       await this.sleep(30_000);
 
-      report = await this.withRetry(
+      report = await this.throttle.execute(
+        'REPORTS',
         () => client.getReport({ reportId }),
         'getListingsReportStatus',
       );
 
       if (report.data.processingStatus === 'DONE') break;
-      if (report.data.processingStatus === 'CANCELLED') {
+      if (report.data.processingStatus === 'CANCELLED')
         throw new Error('Listings report cancelled');
-      }
     }
 
-    if (report.data.processingStatus !== 'DONE') {
+    if (report?.data?.processingStatus !== 'DONE')
       throw new Error('Listings report timeout');
-    }
 
-    const doc = await this.withRetry(
+    const doc = await this.throttle.execute(
+      'REPORTS',
       () =>
         client.getReportDocument({
           reportDocumentId: report.data.reportDocumentId!,
@@ -160,15 +126,15 @@ export class AmazonService {
     });
 
     let buffer = Buffer.from(raw.data);
-
-    if (doc.data.compressionAlgorithm === 'GZIP') {
+    if (doc.data.compressionAlgorithm === 'GZIP')
       buffer = zlib.gunzipSync(buffer);
-    }
 
     return this.parseTSV(buffer.toString('utf8'));
   }
 
-  /* -------------------- INVENTORY (DELTA) -------------------- */
+  /* ================================================================
+     INVENTORY
+  ================================================================= */
 
   async getInventorySummaries(
     store: Database['public']['Tables']['stores']['Row'],
@@ -183,7 +149,8 @@ export class AmazonService {
     let nextToken: string | undefined;
 
     do {
-      const { data } = await this.withRetry(
+      const res = await this.throttle.execute(
+        'INVENTORY',
         () =>
           client.getInventorySummaries({
             marketplaceIds: [this.MARKETPLACE_ID],
@@ -195,15 +162,16 @@ export class AmazonService {
         'getInventorySummaries',
       );
 
-      results.push(
-        ...((data.payload.inventorySummaries as InventorySummary[]) ?? []),
-      );
-
-      nextToken = data.pagination?.nextToken;
+      results.push(...(res.data.payload.inventorySummaries ?? []));
+      nextToken = res.data.pagination?.nextToken;
     } while (nextToken);
 
     return results;
   }
+
+  /* ================================================================
+     SALES API
+  ================================================================= */
 
   async getDailySalesMetrics(
     store: Database['public']['Tables']['stores']['Row'],
@@ -214,220 +182,108 @@ export class AmazonService {
       region: this.region as SellingPartnerRegion,
     });
 
-    // 1. Determine Start Date
-    const startDate = since ? new Date(since) : this.AMAZON_FULL_SYNC_START;
-    const endDate = new Date();
+    const start = since ? new Date(since) : this.AMAZON_FULL_SYNC_START;
+    const end = new Date();
 
-    // 2. Format Interval: "startTime--endTime" (ISO8601)
-    // Note: Sales API requires the double hyphen format
-    const interval = `${startDate.toISOString()}--${endDate.toISOString()}`;
+    const interval = `${start.toISOString()}--${end.toISOString()}`;
 
-    const { data } = await this.withRetry(
+    const res = await this.throttle.execute(
+      'SALES',
       () =>
         client.getOrderMetrics({
           marketplaceIds: [this.MARKETPLACE_ID],
-          interval: interval,
+          interval,
           granularity: 'Day',
         }),
       'getOrderMetrics',
     );
 
-    /**
-     * Note: getOrderMetrics does NOT use pagination (nextToken).
-     * It returns an array of intervals within the requested range.
-     * Max interval range is 2 years.
-     */
-    return data.payload || [];
+    return res.data.payload ?? [];
   }
 
-  async getDailySalesReport(
+  /* ================================================================
+     DATA KIOSK (STABLE VERSION)
+  ================================================================= */
+
+  async getDailySalesDataKiosk(
     store: Database['public']['Tables']['stores']['Row'],
     since?: string,
-    daysBack: number = 30,
-  ): Promise<any[]> {
-    const client = new ReportsApiClient({
+  ): Promise<KioskSalesAndTrafficRow[]> {
+    const client = new DataKioskApiClient({
       auth: this.auth,
       region: this.region as SellingPartnerRegion,
     });
 
-    // 1. Determine the Start Date: Use 'since', or fallback to daysBack/FullSyncStart
-    let start: Date;
-    if (since && since.trim().length > 0) {
-      start = new Date(since);
-    } else {
-      // If no cursor, use the defined full sync start
-      start = new Date(this.AMAZON_FULL_SYNC_START);
-      // If FULL_SYNC_START isn't set, fallback to the daysBack logic
-      if (isNaN(start.getTime())) {
-        start = new Date();
-        start.setDate(start.getDate() - daysBack);
+    const startDate = since ? new Date(since) : this.AMAZON_FULL_SYNC_START;
+    const endDate = new Date();
+
+    const startStr = startDate.toISOString().split('T')[0];
+    const endStr = endDate.toISOString().split('T')[0];
+
+    const query = `
+query {
+  analytics_salesAndTraffic_2024_04_24 {
+    salesAndTrafficByDate(
+      startDate: "${startStr}"
+      endDate: "${endStr}"
+      marketplaceIds: ["${this.MARKETPLACE_ID}"]
+      aggregateBy: DAY
+    ) {
+      startDate
+      sales {
+        orderedProductSales { amount currencyCode }
+        totalOrderItems
+        unitsOrdered
       }
     }
+  }
+}`;
 
-    // 2. Set End Date (safety: typically 1 day ago or -2 mins for settled data)
-    const end = new Date();
-
-    this.logger.log(
-      `Requesting Sales & Traffic Report from ${start.toISOString()} to ${end.toISOString()}`,
+    const create = await this.throttle.execute(
+      'DATA_KIOSK',
+      () => client.createQuery({ body: { query } }),
+      'createKioskQuery',
     );
 
-    const { data } = await this.withRetry(
-      () =>
-        client.createReport({
-          body: {
-            reportType: 'GET_SALES_AND_TRAFFIC_REPORT',
-            marketplaceIds: [this.MARKETPLACE_ID],
-            dataStartTime: start.toISOString(),
-            dataEndTime: end.toISOString(),
-            reportOptions: {
-              dateGranularity: 'DAY',
-            },
-          },
-        }),
-      'createSalesReport',
-    );
+    const queryId = create.data.queryId;
+    let status: Query | null = null;
 
-    const reportId = data.reportId;
-    let report;
-
-    // Poll for completion
     for (let i = 0; i < 30; i++) {
-      await this.sleep(30_000);
-      report = await this.withRetry(
-        () => client.getReport({ reportId }),
-        'getSalesReportStatus',
+      await this.sleep(90_000);
+
+      const res = await this.throttle.execute(
+        'DATA_KIOSK',
+        () => client.getQuery({ queryId }),
+        'getKioskStatus',
       );
 
-      if (report.data.processingStatus === 'DONE') break;
+      status = res.data;
 
-      if (['CANCELLED', 'FATAL'].includes(report.data.processingStatus)) {
-        this.logger.error(
-          `Sales report failed with status: ${report.data.processingStatus}`,
-        );
+      if (status?.processingStatus === 'DONE') break;
+      if (['CANCELLED', 'FATAL'].includes(status?.processingStatus ?? ''))
         return [];
-      }
     }
 
-    if (report?.data?.processingStatus === 'DONE') {
-      const doc = await this.withRetry(
-        () =>
-          client.getReportDocument({
-            reportDocumentId: report.data.reportDocumentId!,
-          }),
-        'getSalesReportDoc',
-      );
+    if (!status?.dataDocumentId) return [];
 
-      const raw = await axios.get(doc.data.url as string);
-
-      // Filter logic: Ensure we only return data >= start date
-      // (Amazon sometimes includes the full day of the start range)
-      const dailyData = raw.data.salesAndTrafficByDate || [];
-      return dailyData.filter((day: any) => new Date(day.date) >= start);
-    }
-
-    return [];
-  }
-
-  async getOrdersFlatFileReport(
-    store: Database['public']['Tables']['stores']['Row'],
-  ): Promise<any[]> {
-    const client = new ReportsApiClient({
-      auth: this.auth,
-      region: this.region as SellingPartnerRegion,
-    });
-
-    const allOrders: any[] = [];
-    const CHUNK_SIZE_DAYS = 30;
-    let currentStart = new Date(this.AMAZON_FULL_SYNC_START);
-    const finalEnd = new Date(); // Current time
-
-    // Loop through time in 30-day increments
-    while (currentStart < finalEnd) {
-      let currentEnd = new Date(
-        currentStart.getTime() + CHUNK_SIZE_DAYS * 24 * 60 * 60 * 1000,
-      );
-
-      // Ensure we don't request a future date
-      if (currentEnd > finalEnd) {
-        currentEnd = finalEnd;
-      }
-
-      this.logger.log(
-        `Fetching Amazon orders from ${currentStart.toISOString()} to ${currentEnd.toISOString()}`,
-      );
-
-      const { data } = await this.withRetry(
-        () =>
-          client.createReport({
-            body: {
-              reportType: 'GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL',
-              marketplaceIds: [this.MARKETPLACE_ID],
-              dataStartTime: currentStart.toISOString(),
-              dataEndTime: currentEnd.toISOString(),
-            },
-          }),
-        'createOrdersFlatFileReport',
-      );
-
-      const reportId = data.reportId;
-      let report;
-
-      // Wait for the specific chunk to process
-      for (let i = 0; i < 20; i++) {
-        await this.sleep(30_000);
-        report = await this.withRetry(
-          () => client.getReport({ reportId }),
-          'getOrdersFlatFileReportStatus',
-        );
-
-        if (report.data.processingStatus === 'DONE') break;
-        if (
-          ['CANCELLED', 'FATAL'].includes(
-            report.data.processingStatus as string,
-          )
-        ) {
-          this.logger.error(
-            `Report failed for range ${currentStart.toISOString()}`,
-          );
-          break;
-        }
-      }
-
-      if (report?.data?.processingStatus === 'DONE') {
-        const doc = await this.withRetry(
-          () =>
-            client.getReportDocument({
-              reportDocumentId: report.data.reportDocumentId!,
-            }),
-          'getOrdersFlatFileReportDoc',
-        );
-
-        const raw = await axios.get(doc.data.url as string, {
-          responseType: 'arraybuffer',
-        });
-        let buffer = Buffer.from(raw.data);
-
-        if (doc.data.compressionAlgorithm === 'GZIP') {
-          buffer = zlib.gunzipSync(buffer);
-        }
-
-        const parsedChunk = this.parseTSV(buffer.toString('utf8'));
-        allOrders.push(...parsedChunk);
-      }
-
-      // Move start date forward for next iteration (add 1ms to avoid overlap)
-      currentStart = new Date(currentEnd.getTime() + 1);
-
-      // Rate limiting: Amazon throttles report creation.
-      // Small delay between chunks helps avoid 429 errors.
-      await this.sleep(2000);
-    }
-
-    this.logger.log(
-      `Amazon orders sync completed: ${allOrders.length} total orders found.`,
+    const doc = await this.throttle.execute(
+      'DATA_KIOSK',
+      () => client.getDocument({ documentId: status.dataDocumentId! }),
+      'getKioskDoc',
     );
-    return allOrders;
+
+    const response = await axios.get(doc.data.documentUrl as string);
+
+    const lines = response.data.split('\n').filter((l: string) => l.trim());
+    const parsed = lines.map((l: string) => JSON.parse(l));
+    console.log(`Parsed: ${lines}`);
+
+    return parsed ?? [];
   }
+
+  /* ================================================================
+     ORDERS
+  ================================================================= */
 
   public async getOrders(
     store: Database['public']['Tables']['stores']['Row'],
@@ -438,70 +294,22 @@ export class AmazonService {
       region: this.region as SellingPartnerRegion,
     });
 
-    // 🔒 Normalize cursor: always fallback to AMAZON_FULL_SYNC_START
-    const normalizedSince =
+    const normalized =
       since && since.trim().length > 0
         ? since
         : this.AMAZON_FULL_SYNC_START.toISOString();
 
-    let orders: Order[];
-
-    if (!since) {
-      // FULL SYNC → use chunked by created date
-      orders = await this.getOrdersChunked(client, store);
-    } else {
-      // DELTA SYNC → last updated
-      orders = await this.getOrdersDelta(client, store, normalizedSince);
-    }
+    const orders = since
+      ? await this.getOrdersPaged(client, 'updated', normalized)
+      : await this.getOrdersPaged(client, 'created', normalized);
 
     return this.deduplicateOrders(orders);
   }
 
-  private async getOrdersDelta(
-    client: OrdersApiClient,
-    store: Database['public']['Tables']['stores']['Row'],
-    since: string,
-  ): Promise<Order[]> {
-    return this.getOrdersPaged(client, store, 'updated', since);
-  }
-
-  private async getOrdersChunked(
-    client: OrdersApiClient,
-    store: Database['public']['Tables']['stores']['Row'],
-  ): Promise<Order[]> {
-    const all: Order[] = [];
-    const now = new Date(Date.now() - 2 * 60 * 1000); // safety 2 min
-
-    let cursor = new Date(this.AMAZON_FULL_SYNC_START);
-
-    while (cursor < now) {
-      const end = new Date(cursor);
-      end.setDate(end.getDate() + this.AMAZON_CHUNK_DAYS);
-      if (end > now) end.setTime(now.getTime());
-
-      const chunk = await this.getOrdersPaged(
-        client,
-        store,
-        'created',
-        cursor.toISOString(),
-        end.toISOString(),
-      );
-
-      all.push(...chunk);
-
-      cursor = new Date(end.getTime() + 1000); // +1s overlap protection
-      await this.sleep(1500); // avoid throttling
-    }
-
-    return this.deduplicateOrders(all);
-  }
-
   private async getOrdersPaged(
     client: OrdersApiClient,
-    store: Database['public']['Tables']['stores']['Row'],
     mode: 'created' | 'updated',
     startISO: string,
-    endISO?: string,
   ): Promise<Order[]> {
     const orders: Order[] = [];
     let nextToken: string | undefined;
@@ -513,32 +321,21 @@ export class AmazonService {
       };
 
       if (nextToken) {
-        params.nextToken = nextToken; // Ensure camelCase
-      } else if (mode === 'created') {
-        params.createdAfter = startISO; // lowercase 'c'
-        if (endISO) params.createdBefore = endISO; // lowercase 'c'
-      } else {
-        params.lastUpdatedAfter = startISO; // lowercase 'l'
-        if (endISO) params.lastUpdatedBefore = endISO; // lowercase 'l'
-      }
+        params.nextToken = nextToken;
+      } else if (mode === 'created') params.createdAfter = startISO;
+      else params.lastUpdatedAfter = startISO;
 
-      const { data } = await this.withRetry(
+      const res = await this.throttle.execute(
+        'ORDERS',
         () => client.getOrders(params),
         'getOrdersPaged',
       );
 
-      orders.push(...((data.payload?.Orders as Order[]) ?? []));
-      nextToken = data.payload?.NextToken;
+      orders.push(...(res.data.payload?.Orders ?? []));
+      nextToken = res.data.payload?.NextToken;
     } while (nextToken);
 
     return orders;
-  }
-  private deduplicateOrders(orders: Order[]): Order[] {
-    const map = new Map<string, Order>();
-    for (const o of orders) {
-      if (o.AmazonOrderId) map.set(o.AmazonOrderId, o);
-    }
-    return [...map.values()];
   }
 
   async getOrderItems(orderId: string): Promise<OrderItem[]> {
@@ -551,19 +348,118 @@ export class AmazonService {
     let nextToken: string | undefined;
 
     do {
-      const { data } = await this.withRetry(
+      const res = await this.throttle.execute(
+        'ORDERS',
         () => client.getOrderItems({ orderId, nextToken }),
         'getOrderItems',
       );
 
-      items.push(...((data.payload.OrderItems as OrderItem[]) ?? []));
-      nextToken = data.payload?.NextToken;
+      items.push(...(res.data.payload?.OrderItems ?? []));
+      nextToken = res.data.payload?.NextToken;
     } while (nextToken);
 
     return items;
   }
 
-  /* -------------------- RETURNS (SNAPSHOT + FILTER) -------------------- */
+  async getOrdersFlatFileReport(
+    store: Database['public']['Tables']['stores']['Row'],
+  ): Promise<any[]> {
+    const client = new ReportsApiClient({
+      auth: this.auth,
+      region: this.region as SellingPartnerRegion,
+    });
+
+    const allOrders: any[] = [];
+    const CHUNK_SIZE_DAYS = 30;
+
+    let currentStart = new Date(this.AMAZON_FULL_SYNC_START);
+    const finalEnd = new Date();
+
+    while (currentStart < finalEnd) {
+      let currentEnd = new Date(
+        currentStart.getTime() + CHUNK_SIZE_DAYS * 24 * 60 * 60 * 1000,
+      );
+
+      if (currentEnd > finalEnd) currentEnd = finalEnd;
+
+      this.logger.log(
+        `Fetching Amazon flat file orders from ${currentStart.toISOString()} to ${currentEnd.toISOString()}`,
+      );
+
+      const create = await this.throttle.execute(
+        'REPORTS',
+        () =>
+          client.createReport({
+            body: {
+              reportType: 'GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL',
+              marketplaceIds: [this.MARKETPLACE_ID],
+              dataStartTime: currentStart.toISOString(),
+              dataEndTime: currentEnd.toISOString(),
+            },
+          }),
+        'createOrdersFlatFileReport',
+      );
+
+      const reportId = create.data.reportId;
+      let report: any;
+
+      for (let i = 0; i < 20; i++) {
+        await this.sleep(30_000);
+
+        report = await this.throttle.execute(
+          'REPORTS',
+          () => client.getReport({ reportId }),
+          'getOrdersFlatFileReportStatus',
+        );
+
+        const status = report?.data?.processingStatus;
+
+        if (status === 'DONE') break;
+
+        if (['CANCELLED', 'FATAL'].includes(status)) {
+          this.logger.error(
+            `Orders flat file report failed for range ${currentStart.toISOString()} - ${status}`,
+          );
+          break;
+        }
+      }
+
+      if (report?.data?.processingStatus === 'DONE') {
+        const doc = await this.throttle.execute(
+          'REPORTS',
+          () =>
+            client.getReportDocument({
+              reportDocumentId: report.data.reportDocumentId!,
+            }),
+          'getOrdersFlatFileReportDoc',
+        );
+
+        const raw = await axios.get(doc.data.url as string, {
+          responseType: 'arraybuffer',
+        });
+
+        let buffer = Buffer.from(raw.data);
+
+        if (doc.data.compressionAlgorithm === 'GZIP') {
+          buffer = zlib.gunzipSync(buffer);
+        }
+
+        const parsedChunk = this.parseTSV(buffer.toString('utf8'));
+        allOrders.push(...parsedChunk);
+      }
+
+      currentStart = new Date(currentEnd.getTime() + 1);
+
+      // Important: spacing report creations prevents 429
+      await this.sleep(5000);
+    }
+
+    this.logger.log(
+      `Amazon flat file sync completed: ${allOrders.length} rows`,
+    );
+
+    return allOrders;
+  }
 
   async getReturns(
     store: Database['public']['Tables']['stores']['Row'],
@@ -574,14 +470,15 @@ export class AmazonService {
       region: this.region as SellingPartnerRegion,
     });
 
-    // Calculate 1 year ago as fallback
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
     const startTime = since || oneYearAgo.toISOString();
 
-    this.logger.log(`Requesting FBA Returns Report since: ${startTime}`);
+    this.logger.log(`Requesting FBA Returns since: ${startTime}`);
 
-    const { data } = await this.withRetry(
+    const create = await this.throttle.execute(
+      'REPORTS',
       () =>
         client.createReport({
           body: {
@@ -593,62 +490,53 @@ export class AmazonService {
       'createFbaReturnsReport',
     );
 
-    const reportId = data.reportId;
-    let report;
+    const reportId = create.data.reportId;
+    let report: any;
 
-    // Poll for completion (FBA reports can take several minutes)
     for (let i = 0; i < 20; i++) {
       await this.sleep(45_000);
-      report = await this.withRetry(
+
+      report = await this.throttle.execute(
+        'REPORTS',
         () => client.getReport({ reportId }),
-        'getFbaStatus',
+        'getFbaReturnsStatus',
       );
 
-      if (report.data.processingStatus === 'DONE') break;
-      if (
-        ['CANCELLED', 'FATAL'].includes(report.data.processingStatus as string)
-      ) {
-        throw new Error(
-          `FBA Report ${reportId} failed: ${report.data.processingStatus}`,
-        );
+      const status = report?.data?.processingStatus;
+
+      if (status === 'DONE') break;
+
+      if (['CANCELLED', 'FATAL'].includes(status)) {
+        throw new Error(`FBA Returns report ${reportId} failed: ${status}`);
       }
     }
-    if (report.data.processingStatus !== 'DONE') {
+
+    if (report?.data?.processingStatus !== 'DONE') {
       throw new Error(
-        `FBA Returns report timed out (status: ${report.data.processingStatus})`,
+        `FBA Returns report timeout: ${report?.data?.processingStatus}`,
       );
     }
 
-    const doc = await this.withRetry(
+    const doc = await this.throttle.execute(
+      'REPORTS',
       () =>
         client.getReportDocument({
           reportDocumentId: report.data.reportDocumentId!,
         }),
-      'getFbaDoc',
+      'getFbaReturnsDoc',
     );
 
     const raw = await axios.get(doc.data.url as string, {
       responseType: 'arraybuffer',
     });
+
     let buffer = Buffer.from(raw.data);
-    if (doc.data.compressionAlgorithm === 'GZIP')
+
+    if (doc.data.compressionAlgorithm === 'GZIP') {
       buffer = zlib.gunzipSync(buffer);
+    }
 
     return this.parseFbaReturnsFlatFile(buffer.toString('utf8'));
-  }
-
-  /* -------------------- HELPERS -------------------- */
-
-  private parseTSV(data: string) {
-    const lines = data.trim().split(/\r?\n/);
-    const headers = lines.shift()!.split('\t');
-
-    return lines.map((line) => {
-      const values = line.split('\t');
-      const row: any = {};
-      headers.forEach((h, i) => (row[h] = values[i] ?? null));
-      return row;
-    });
   }
 
   private parseFbaReturnsFlatFile(data: string): AmazonReturnReportItem[] {
@@ -675,6 +563,28 @@ export class AmazonService {
       return_request_date: r['return-date'],
       return_type: 'FBA',
     }));
+  }
+
+  /* ================================================================
+     HELPERS
+  ================================================================= */
+
+  private deduplicateOrders(orders: Order[]): Order[] {
+    const map = new Map<string, Order>();
+    for (const o of orders) if (o.AmazonOrderId) map.set(o.AmazonOrderId, o);
+    return [...map.values()];
+  }
+
+  private parseTSV(data: string) {
+    const lines = data.trim().split(/\r?\n/);
+    const headers = lines.shift()!.split('\t');
+
+    return lines.map((line) => {
+      const values = line.split('\t');
+      const row: any = {};
+      headers.forEach((h, i) => (row[h] = values[i] ?? null));
+      return row;
+    });
   }
 
   private sleep(ms: number) {

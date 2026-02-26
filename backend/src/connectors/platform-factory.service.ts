@@ -14,6 +14,7 @@ import { TikTokService } from './tiktok/tiktok.service';
 import { TikTokOAuthService } from './oauth/tiktok-oauth.service';
 import { WalmartOAuthHook } from '../api/webhooks/connectors/walmart/walmart-oauth.hook';
 import { CryptoService } from '../common/crypto.service';
+import { SpApiThrottleManager } from 'connectors/amazon/throttle.manager';
 
 @Injectable()
 export class PlatformServiceFactory {
@@ -27,6 +28,7 @@ export class PlatformServiceFactory {
     private tiktokOAuthService: TikTokOAuthService,
     private readonly walmartOAuthHook: WalmartOAuthHook,
     private crypto: CryptoService,
+    private throttle: SpApiThrottleManager,
   ) {}
 
   async createService(
@@ -90,7 +92,7 @@ export class PlatformServiceFactory {
   }
 
   private createAmazonService(credentials: any): AmazonService {
-    const service = new AmazonService(this.crypto);
+    const service = new AmazonService(this.crypto, this.throttle);
     service.initialize(credentials);
     return service;
   }
