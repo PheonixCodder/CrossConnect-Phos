@@ -1,8 +1,8 @@
 # CrossConnect-Phos
 
 CrossConnect-Phos is a modular integration platform for collecting and synchronizing metrics and operational data across multiple marketplaces and warehouses. It consists of:
-- A NestJS backend (backend/) that manages connectors, background jobs, webhooks, and persistence.
-- A NextJS frontend (frontend/) that provides a multi-channel dashboard and management UI.
+- A NestJS backend that manages connectors, background jobs, webhooks, and persistence.
+- A NextJS frontend that provides a multi-channel dashboard and management UI.
 
 This README focuses on developer documentation so you can get the app running locally and understand the core structure.
 ---
