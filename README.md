@@ -74,7 +74,6 @@ Environment variables
   - FRONTEND_URL — URL for frontend CORS (default: <http://localhost:3000>)
   - PORT — backend port (default: 3000)
   - NODE_ENV — environment (development | production)
-  - NEW_RELIC_APP_NAME, NEW_RELIC_LICENSE_KEY — (optional) if using New Relic
 - Frontend (suggested / common):
   - NEXT_PUBLIC_API_URL — base URL for backend API (e.g., <http://localhost:3001/api>)
   - NEXT_PUBLIC_SUPABASE_URL — (optional) only if frontend directly calls Supabase
