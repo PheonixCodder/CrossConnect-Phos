@@ -15,7 +15,6 @@
 
   Location: .env (committed to repository)
 
-
   Why this is critical:
 
 - These are live production credentials (Supabase, Shopify, Amazon SP-API, Faire, New Relic)
@@ -270,29 +269,29 @@
   Phase 1: Critical Security Fixes (BEFORE any production deployment)
 
   1. Remove secrets from git (1 hour)
-    - Rotate all exposed credentials immediately
-    - Use git filter-branch or BFG to purge .env history
-    - Set up proper secrets management (AWS Secrets Manager, env vars in deployment)
-  2. Fix Shopify OAuth HMAC verification (2 hours)
-    - Uncomment and call verifyHmac in handleCallback
-    - Add unit tests for valid/invalid HMACs
-  3. Fix webhook HMAC timing (3 hours)
-    - Implement proper base64 decoding and timing-safe comparison
-    - Add tests with known-good/bad signatures
-  4. Fix authentication guard (1 hour)
-    - Extract raw token from Bearer <token> header
-    - Add tests
-  5. Add rate limiting (2-3 hours)
-    - Use @nestjs/throttler or express-rate-limit
-    - Apply to all webhook and OAuth endpoints
-    - Configure reasonable limits per IP
-  6. Add request validation (4-6 hours)
-    - Create DTOs for each webhook topic
-    - Use class-validator with ValidationPipe
-    - Sanitize inputs
-  7. Configure proper raw body handling (1 hour)
-    - Ensure webhook controllers receive unmodified body for signature verification
-    - Test with actual Shopify/Walmart/TikTok webhooks
+  - Rotate all exposed credentials immediately
+  - Use git filter-branch or BFG to purge .env history
+  - Set up proper secrets management (AWS Secrets Manager, env vars in deployment)
+  1. Fix Shopify OAuth HMAC verification (2 hours)
+  - Uncomment and call verifyHmac in handleCallback
+  - Add unit tests for valid/invalid HMACs
+  1. Fix webhook HMAC timing (3 hours)
+  - Implement proper base64 decoding and timing-safe comparison
+  - Add tests with known-good/bad signatures
+  1. Fix authentication guard (1 hour)
+  - Extract raw token from Bearer <token> header
+  - Add tests
+  1. Add rate limiting (2-3 hours)
+  - Use @nestjs/throttler or express-rate-limit
+  - Apply to all webhook and OAuth endpoints
+  - Configure reasonable limits per IP
+  1. Add request validation (4-6 hours)
+  - Create DTOs for each webhook topic
+  - Use class-validator with ValidationPipe
+  - Sanitize inputs
+  1. Configure proper raw body handling (1 hour)
+  - Ensure webhook controllers receive unmodified body for signature verification
+  - Test with actual Shopify/Walmart/TikTok webhooks
 
   ---
   Phase 2: Reliability & Observability (Next 1-2 weeks)
@@ -311,41 +310,41 @@
   }
 
   2. Implement structured logging (4 hours)
-    - Replace all console.*with logger.*
-    - Add request IDs using middleware
-    - Configure log aggregation (Datadog, Papertrail, etc.)
-  3. Add circuit breakers (8 hours)
-    - Use opossum or @nestjs/circuit-breaker
-    - Protect all third-party API calls
-    - Implement fallback strategies
-  4. Set up monitoring (4 hours)
-    - Export BullMQ metrics to Prometheus
-    - Track sync durations, error rates, queue depths
-    - Create dashboards for store health
-  5. Add request timeouts (2 hours)
-    - Set global HTTP timeouts (30s for APIs)
-    - Configure BullMQ job timeouts
+  - Replace all console.*with logger.*
+  - Add request IDs using middleware
+  - Configure log aggregation (Datadog, Papertrail, etc.)
+  1. Add circuit breakers (8 hours)
+  - Use opossum or @nestjs/circuit-breaker
+  - Protect all third-party API calls
+  - Implement fallback strategies
+  1. Set up monitoring (4 hours)
+  - Export BullMQ metrics to Prometheus
+  - Track sync durations, error rates, queue depths
+  - Create dashboards for store health
+  1. Add request timeouts (2 hours)
+  - Set global HTTP timeouts (30s for APIs)
+  - Configure BullMQ job timeouts
 
   ---
   Phase 3: Testing (Next 2-3 weeks)
 
   1. Set up Jest properly (4 hours)
-    - Configure test database (separate Supabase project)
-    - Create test fixtures for stores, credentials
-    - Mock external APIs with nock or msw
-  2. Write unit tests (40-60 hours)
-    - Test all guards (HMAC validation edge cases)
-    - Test all services (success, retry, failure paths)
-    - Test all mappers (data transformation correctness)
-    - Test crypto service (encrypt/decrypt round-trips)
-  3. Write integration tests (20 hours)
-    - Test API endpoints with supertest
-    - Test OAuth flows end-to-end
-    - Test webhook reception and enqueueing
-  4. Load testing (8 hours)
-    - Simulate webhook floods
-    - Test queue processing under load
-    - Identify bottlenecks
+  - Configure test database (separate Supabase project)
+  - Create test fixtures for stores, credentials
+  - Mock external APIs with nock or msw
+  1. Write unit tests (40-60 hours)
+  - Test all guards (HMAC validation edge cases)
+  - Test all services (success, retry, failure paths)
+  - Test all mappers (data transformation correctness)
+  - Test crypto service (encrypt/decrypt round-trips)
+  1. Write integration tests (20 hours)
+  - Test API endpoints with supertest
+  - Test OAuth flows end-to-end
+  - Test webhook reception and enqueueing
+  1. Load testing (8 hours)
+  - Simulate webhook floods
+  - Test queue processing under load
+  - Identify bottlenecks
 
   ---
   Phase 4: Code Quality (Ongoing)
@@ -362,16 +361,16 @@
 
   1. Dockerize - Create multi-stage Dockerfile
   2. CI/CD pipeline - GitHub Actions or GitLab CI with:
-    - Lint
-    - Type check
-    - Unit tests
-    - Integration tests
-    - Build
-    - Security scanning (Snyk, Trivy)
-  3. Staging environment - Deploy to staging with fake platform credentials
-  4. Runbooks - Document common failure scenarios and recovery steps
-  5. Backup strategy - Database backup schedule and restore procedures
-  6. Rollback plan - How to roll back failed deployments
+  - Lint
+  - Type check
+  - Unit tests
+  - Integration tests
+  - Build
+  - Security scanning (Snyk, Trivy)
+  1. Staging environment - Deploy to staging with fake platform credentials
+  2. Runbooks - Document common failure scenarios and recovery steps
+  3. Backup strategy - Database backup schedule and restore procedures
+  4. Rollback plan - How to roll back failed deployments
 
   ---
   Summary
