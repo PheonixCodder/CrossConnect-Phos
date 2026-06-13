@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { Json } from "@/types/supabase.types";
-import {ListStore} from "@/types/types";
+import { ListStore } from "@/types/types";
+
+interface WarehanceStoresResponse {
+  data?: {
+    stores?: ListStore[];
+  };
+  has_next_page?: boolean;
+}
+
+interface WarehanceErrorResponse {
+  errors?: Array<{
+    message?: string;
+  }>;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unexpected route error";
+}
 
 export async function POST(request: Request) {
   try {
@@ -28,7 +45,7 @@ export async function POST(request: Request) {
 
       // 2. Check for HTTP errors (like 400 or 401)
       if (!res.ok) {
-        const errorData = await res.json();
+        const errorData = (await res.json()) as WarehanceErrorResponse;
         console.error("Warehance Error:", errorData);
         throw new Error(
           errorData?.errors?.[0]?.message || `API Error: ${res.status}`,
@@ -36,7 +53,7 @@ export async function POST(request: Request) {
       }
 
       // 3. Parse the data
-      const json = await res.json();
+      const json = (await res.json()) as WarehanceStoresResponse;
 
       // Based on your working snippet, the stores are likely in json.data.stores
       const stores =
@@ -62,8 +79,11 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Route Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }

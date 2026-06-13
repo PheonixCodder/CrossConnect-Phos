@@ -29,6 +29,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SearchCommand } from "@/components/layout/SearchCommand";
 import { useSidebar } from "@/components/ui/sidebar";
+import Image from "next/image";
 
 const data = {
   navMain: [
@@ -184,7 +185,12 @@ export function AppSidebar({
                       href={`${item.url}?platform=${item.title.toLowerCase()}`}
                     >
                       {typeof item.icon === "string" ? (
-                        <img src={item.icon} width={18} alt="icon" />
+                        <Image
+                          src={item.icon}
+                          width={18}
+                          height={18}
+                          alt="icon"
+                        />
                       ) : (
                         <item.icon className="size-4!" />
                       )}

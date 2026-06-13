@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Check } from "lucide-react";
@@ -12,14 +16,16 @@ import { useDashboardStore } from "@/store/useStore";
 import { cn } from "@/lib/utils";
 
 interface OrganizationsListProps {
-  organizations: Array<OrganizationRow & { organization_members: { role: string }[] }>;
+  organizations: Array<
+    OrganizationRow & { organization_members: { role: string }[] }
+  >;
 }
 
 export function OrganizationsList({ organizations }: OrganizationsListProps) {
   const activeOrgId = useDashboardStore((state) => state.activeOrg?.id);
   // Default to the active organization, or the first one
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(
-    activeOrgId || organizations[0]?.id || null
+    activeOrgId || organizations[0]?.id || null,
   );
 
   const selectedOrg = organizations.find((o) => o.id === selectedOrgId);
@@ -30,7 +36,9 @@ export function OrganizationsList({ organizations }: OrganizationsListProps) {
       <Card className="col-span-1 flex flex-col h-full overflow-hidden">
         <CardHeader className="pb-3">
           <CardTitle>Organizations</CardTitle>
-          <CardDescription>Select an organization to manage settings.</CardDescription>
+          <CardDescription>
+            Select an organization to manage settings.
+          </CardDescription>
         </CardHeader>
         <ScrollArea className="flex-1 px-4 pb-4">
           <div className="space-y-2">
@@ -40,7 +48,9 @@ export function OrganizationsList({ organizations }: OrganizationsListProps) {
                 onClick={() => setSelectedOrgId(org.id)}
                 className={cn(
                   "w-full flex items-center justify-between p-3 rounded-md text-left transition-colors border hover:bg-accent",
-                  selectedOrgId === org.id ? "bg-accent border-primary" : "border-transparent"
+                  selectedOrgId === org.id
+                    ? "bg-accent border-primary"
+                    : "border-transparent",
                 )}
               >
                 <div className="flex flex-col gap-1">
@@ -51,12 +61,18 @@ export function OrganizationsList({ organizations }: OrganizationsListProps) {
                 </div>
                 <div className="flex items-center gap-2">
                   {org.id === activeOrgId && (
-                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 flex items-center gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] h-5 px-1.5 flex items-center gap-1"
+                    >
                       <Check className="h-3 w-3" />
                       Active
                     </Badge>
                   )}
-                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5 capitalize">
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] h-5 px-1.5 capitalize"
+                  >
                     {org.organization_members[0].role}
                   </Badge>
                 </div>
@@ -65,7 +81,7 @@ export function OrganizationsList({ organizations }: OrganizationsListProps) {
           </div>
         </ScrollArea>
         <div className="p-4 border-t bg-muted/20 text-xs text-center text-muted-foreground">
-            Edit settings locally without switching dashboard context.
+          Edit settings locally without switching dashboard context.
         </div>
       </Card>
 

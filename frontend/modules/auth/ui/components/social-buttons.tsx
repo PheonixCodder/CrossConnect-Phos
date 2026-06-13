@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { FaGithub } from "react-icons/fa";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type SocialsButtonsProps = {
@@ -14,14 +13,12 @@ export const SocialsButtons = ({
   setError,
   setIsLoading,
 }: SocialsButtonsProps) => {
-  const router = useRouter();
-
   const handleSignInWithGithub = async () => {
     setError(null);
     setIsLoading(true);
 
     const supabase = await createClient();
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
         redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/callback`,

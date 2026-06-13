@@ -7,14 +7,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
-import type { Database } from "@/types/supabase.types";
 import { formatDateTime } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { DataTableSkeleton } from "@/components/data-display/data-table-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { InfoState } from "@/components/layout/empty-state";
-
-type Alert = Database["public"]["Tables"]["alerts"]["Row"];
+import type { AlertPanelItem } from "../../domain/summary-view-models";
 
 const alertIcons: Record<
   string,
@@ -27,14 +25,18 @@ const alertIcons: Record<
 };
 
 interface AlertsPanelProps {
-  alerts: Alert[];
+  alerts: AlertPanelItem[];
   loading?: boolean;
 }
 
 export function AlertsPanel({ alerts, loading = false }: AlertsPanelProps) {
-  const criticalCount = alerts.filter((a) => a.severity === "critical").length;
-  const warningCount = alerts.filter((a) => a.severity === "medium").length;
-  const lowCount = alerts.filter((a) => a.severity === "low").length;
+  const criticalCount = alerts.filter(
+    (alert) => alert.status === "error",
+  ).length;
+  const warningCount = alerts.filter(
+    (alert) => alert.status === "warning",
+  ).length;
+  const lowCount = alerts.filter((alert) => alert.status === "success").length;
 
   if (loading) {
     return <DataTableSkeleton rows={5} />;
@@ -77,13 +79,7 @@ export function AlertsPanel({ alerts, loading = false }: AlertsPanelProps) {
           />
         ) : (
           alerts.map((alert) => {
-            const Icon = alertIcons[alert.alert_type] || AlertTriangle;
-            const badgeStatus =
-              alert.severity === "critical"
-                ? "error"
-                : alert.severity === "medium"
-                  ? "warning"
-                  : "success";
+            const Icon = alertIcons[alert.alertType] || AlertTriangle;
 
             return (
               <div
@@ -99,16 +95,16 @@ export function AlertsPanel({ alerts, loading = false }: AlertsPanelProps) {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold capitalize">
-                        {alert.alert_type}
+                        {alert.alertType}
                       </h3>
-                      <StatusBadge status={badgeStatus} size="sm" />
+                      <StatusBadge status={alert.status} size="sm" />
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                       {alert.message}
                     </p>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span className="capitalize">
-                        {alert.platform} · {formatDateTime(alert.created_at)}
+                        {alert.platform} - {formatDateTime(alert.createdAt)}
                       </span>
                       <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                     </div>

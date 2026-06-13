@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   keywords: ["ecommerce", "dashboard", "multichannel", "analytics"],
   authors: [{ name: "CrossConnect Team" }],
   creator: "CrossConnect",
+};
+
+export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "white" },
     { media: "(prefers-color-scheme: dark)", color: "black" },

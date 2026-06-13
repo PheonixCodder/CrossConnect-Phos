@@ -1,10 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  parseAsString,
-  useQueryState,
-} from "nuqs";
+import { parseAsString, useQueryState } from "nuqs";
 import { DateTime } from "luxon";
 import {
   DollarSign,
@@ -25,11 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { useDashboardStore } from "@/store/useStore";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/formatters";
-import { ChannelStatus } from "@/lib/mockData";
-import {
-  StoreMetrics,
-  useDashboardData,
-} from "../../hooks/use-dashboard-data";
+import { useDashboardData } from "../../hooks/use-dashboard-data";
 import { OrdersTable } from "../components/orders-table";
 import { ProductsTable } from "../components/products-table";
 import { ReturnsTable } from "../components/returns-table";
@@ -39,19 +32,20 @@ import { ReturnDialog } from "../components/return-dialog";
 import { InfoState } from "@/components/layout/empty-state";
 import { Card } from "@/components/ui/card";
 import { InventoryTable } from "../components/inventory-table";
-import { Database } from "@/types/supabase.types";
 import { DateRange } from "react-day-picker";
-
-// Platform Assets
-const PLATFORM_ICONS: Record<string, string> = {
-  amazon: "/images/amazon.svg",
-  faire: "/images/faire.svg",
-  shopify: "/images/shopify.svg",
-  target: "/images/target.png",
-  walmart: "/images/walmart.svg",
-  tiktok: "/images/tiktok.svg",
-  warehance: "/images/warehance.svg",
-};
+import {
+  toInventoryTableRows,
+  toOrderTableRows,
+  toProductTableRows,
+  toReturnTableRows,
+} from "../../domain/product-view-models";
+import {
+  toAlertPanelItems,
+  toChannelViewModels,
+  toDashboardMetricSummary,
+  toSalesTrendRows,
+  toStoreMetricSummaries,
+} from "../../domain/summary-view-models";
 
 interface DashboardViewProps {
   userDisplayName: string | undefined;
@@ -60,69 +54,54 @@ interface DashboardViewProps {
 export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
   const activeStore = useDashboardStore((state) => state.activeStore);
   const setActiveStore = useDashboardStore((state) => state.setActiveStore);
-    const STORE_TZ = "America/Los_Angeles";
-
-  const onChannelClick = (
-      store: Database["public"]["Tables"]["stores"]["Row"],
-  ) => {
-    setActiveStore(store);
-  };
-
-  /* ===========================
-     ✅ REPLACED TIMERANGE SETUP
-  =========================== */
+  const STORE_TZ = "America/Los_Angeles";
 
   const initialDates = useMemo(() => {
-      const todayPacific = DateTime
-          .now()
-          .setZone("America/Los_Angeles")
-          .startOf("day");
+    const todayPacific = DateTime.now()
+      .setZone("America/Los_Angeles")
+      .startOf("day");
 
-      const fromPacific = todayPacific.minus({ days: 7 });
+    const fromPacific = todayPacific.minus({ days: 7 });
 
-      return {
-          from: fromPacific.toISO(),
-          to: todayPacific.toISO(),
-      };
-      }, []);
+    return {
+      from: fromPacific.toISO(),
+      to: todayPacific.toISO(),
+    };
+  }, []);
 
   const [fromParam, setFromParam] = useQueryState(
-      "from",
-      parseAsString.withDefault(initialDates.from!),
+    "from",
+    parseAsString.withDefault(initialDates.from!),
   );
 
   const [toParam, setToParam] = useQueryState(
-      "to",
-      parseAsString.withDefault(initialDates.to!),
+    "to",
+    parseAsString.withDefault(initialDates.to!),
   );
 
-    const dateRange = useMemo(() => {
-        return {
-            from: DateTime.fromISO(fromParam, { zone: STORE_TZ }).toJSDate(),
-            to: DateTime.fromISO(toParam, { zone: STORE_TZ }).toJSDate(),
-        };
-    }, [fromParam, toParam]);
+  const dateRange = useMemo(() => {
+    return {
+      from: DateTime.fromISO(fromParam, { zone: STORE_TZ }).toJSDate(),
+      to: DateTime.fromISO(toParam, { zone: STORE_TZ }).toJSDate(),
+    };
+  }, [fromParam, toParam]);
 
-    const dateRangeTrends = useMemo(() => {
-        const from = DateTime.fromISO(fromParam, { zone: STORE_TZ })
-            .startOf("day");
+  const dateRangeTrends = useMemo(() => {
+    const from = DateTime.fromISO(fromParam, { zone: STORE_TZ }).startOf("day");
 
-        const to = DateTime.fromISO(toParam, { zone: STORE_TZ })
-            .endOf("day");
+    const to = DateTime.fromISO(toParam, { zone: STORE_TZ }).endOf("day");
 
-        return {
-            from,
-            to,
-        };
-    }, [fromParam, toParam]);
+    return {
+      from,
+      to,
+    };
+  }, [fromParam, toParam]);
 
   const setDateRange = async (range: DateRange | undefined) => {
     if (!range?.from || !range?.to) return;
     await setFromParam(range.from.toISOString());
     await setToParam(range.to.toISOString());
   };
-
-  /* =========================== */
 
   const [orderId, setOrderId] = useQueryState("order");
   const [productId, setProductId] = useQueryState("product");
@@ -131,151 +110,80 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
   const {
     stores,
     orders,
-    orderItems,
     alerts,
     inventory,
     products,
     returns,
     isLoading,
-      metrics: metricsSummary,
+    metrics: metricsSummary,
     isFetching,
-    refetch
+    refetch,
   } = useDashboardData({
     from: dateRange.from!,
     to: dateRange.to!,
   });
 
+  const onChannelClick = (storeId: string) => {
+    const store = stores.find((candidate) => candidate.id === storeId);
+    if (store) setActiveStore(store);
+  };
 
-    const metrics = useMemo(() => {
-        if (!metricsSummary?.length) {
-            return {
-                grossSales: 0,
-                totalOrders: 0,
-                unitsSold: 0,
-                avgOrderValue: 0,
-                cancelledCount: 0,
-                cancelledRevenue: 0,
-            };
-        }
+  const metrics = useMemo(
+    () =>
+      toDashboardMetricSummary(
+        metricsSummary,
+        activeStore?.id,
+        dateRangeTrends,
+        STORE_TZ,
+      ),
+    [metricsSummary, activeStore?.id, dateRangeTrends],
+  );
 
-        const filtered = metricsSummary.filter((m) => {
-            const metricDate = DateTime.fromISO(m.date, { zone: STORE_TZ });
+  const storeMetrics = useMemo(
+    () =>
+      toStoreMetricSummaries(stores, metricsSummary, dateRangeTrends, STORE_TZ),
+    [stores, metricsSummary, dateRangeTrends],
+  );
 
-            const inRange =
-                metricDate >= dateRangeTrends.from &&
-                metricDate <= dateRangeTrends.to;
+  const salesTrend = useMemo(
+    () => toSalesTrendRows(metricsSummary, dateRange, STORE_TZ),
+    [metricsSummary, dateRange],
+  );
 
-            const correctStore =
-                !activeStore || m.store_id === activeStore.id;
-
-            return inRange && correctStore;
-        });
-
-        const sum = (type: string) =>
-            filtered
-                .filter((m) => m.metric_type === type)
-                .reduce((acc, m) => acc + Number(m.value ?? 0), 0);
-
-        const grossSales = sum("sales");
-        const totalOrders = sum("orders_count");
-        const unitsSold = sum("units_sold");
-
-        return {
-            grossSales,
-            totalOrders,
-            unitsSold,
-            avgOrderValue: totalOrders > 0 ? grossSales / totalOrders : 0,
-            cancelledCount: 0,
-            cancelledRevenue: 0,
-        };
-    }, [metricsSummary, activeStore, dateRangeTrends.to, dateRangeTrends.from]);
-
-    const storeMetrics = useMemo(() => {
-        if (!metricsSummary?.length) return [];
-
-        return stores.map((store) => {
-            const filtered = metricsSummary.filter((m) => {
-                const metricDate = DateTime.fromISO(m.date, { zone: STORE_TZ });
-
-                const inRange =
-                    metricDate >= dateRangeTrends.from &&
-                    metricDate <= dateRangeTrends.to;
-
-                const correctStore = m.store_id === store.id;
-
-                return inRange && correctStore;
-            });
-
-            const sum = (type: string) =>
-                filtered
-                    .filter((m) => m.metric_type === type)
-                    .reduce((acc, m) => acc + Number(m.value ?? 0), 0);
-
-            const sales = sum("sales");
-            const orders = sum("orders_count");
-            const units = sum("units_sold");
-
-            return {
-                storeId: store.id,
-                sales,
-                orders,
-                units,
-            };
-        });
-    }, [stores, metricsSummary, dateRangeTrends]);
-
-
-    const salesTrend = useMemo(() => {
-        type DayBucket = {
-            date: string;
-        } & Record<string, number | string>;
-
-        const start = DateTime.fromJSDate(dateRange.from!, { zone: STORE_TZ }).startOf("day");
-        const end = DateTime.fromJSDate(dateRange.to!, { zone: STORE_TZ }).startOf("day");
-
-        const bucket = new Map<string, DayBucket>();
-        let cursor = start;
-        while (cursor <= end) {
-            const key = cursor.toFormat("yyyy-MM-dd");
-            bucket.set(key, { date: key });
-            cursor = cursor.plus({ days: 1 });
-        }
-
-        // Aggregate metrics per day per platform
-        metricsSummary?.forEach((m) => {
-            const date = DateTime.fromISO(m.date, { zone: STORE_TZ }).toFormat("yyyy-MM-dd");
-            const day = bucket.get(date);
-            if (!day) return;
-
-            const platform = m.platform ?? "unknown";
-            if (!day[platform]) day[platform] = 0;
-            if (m.metric_type === "sales") {
-                (day[platform] as number) += Number(m.value ?? 0);
-            }
-        });
-
-        return Array.from(bucket.values());
-    }, [metricsSummary, dateRange]);
+  const inventoryRows = useMemo(
+    () => toInventoryTableRows(inventory),
+    [inventory],
+  );
+  const orderRows = useMemo(() => toOrderTableRows(orders), [orders]);
+  const productRows = useMemo(() => toProductTableRows(products), [products]);
+  const returnRows = useMemo(() => toReturnTableRows(returns), [returns]);
+  const alertRows = useMemo(() => toAlertPanelItems(alerts), [alerts]);
+  const channelRows = useMemo(
+    () => toChannelViewModels(stores, storeMetrics),
+    [stores, storeMetrics],
+  );
 
   const successChannels = stores.filter(
-      (s) => s.auth_status === "active",
+    (s) => s.auth_status === "active",
   ).length;
 
   return (
     <PageContainer maxWidth="2xl" padding="lg" className="py-8 space-y-8">
       <DashboardHeader
-          actions={
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isFetching}
-            >
-              <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-            </Button>
-          }
-          dateRange={dateRange}
-          setDateRange={setDateRange}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw
+              className={cn("h-4 w-4", isFetching && "animate-spin")}
+            />
+          </Button>
+        }
+        dateRange={dateRange}
+        setDateRange={setDateRange}
       />
 
       <section className="card-base p-6 rounded-xl shadow-sm bg-linear-to-r from-primary/5 to-transparent">
@@ -335,14 +243,13 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           }
         />
         <MetricCard
-            title="Cancelled Orders"
-            value={formatNumber(metrics.cancelledCount)}
-            icon={RefreshCw}
-            loading={isLoading || isFetching}
-            description={
-                "Lost revenue: " +
-                formatCurrency(metrics.cancelledRevenue)
-            }
+          title="Cancelled Orders"
+          value={formatNumber(metrics.cancelledCount)}
+          icon={RefreshCw}
+          loading={isLoading || isFetching}
+          description={
+            "Lost revenue: " + formatCurrency(metrics.cancelledRevenue)
+          }
         />
         <MetricCard
           title="Avg Order Value"
@@ -358,38 +265,13 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           <div className="lg:col-span-8">
             <h2 className="text-lg font-semibold mb-4">Sales Channels</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {stores.map((store) => {
-                const sm = storeMetrics.find((m) => m.storeId === store.id) || {
-                  sales: 0,
-                  orders: 0,
-                  units: 0,
-                };
-                const channelData = {
-                  id: store.id,
-                  name: store.name,
-                  platform: store.platform,
-                  logo: PLATFORM_ICONS[store.platform] || "/images/default.svg",
-                  status: (store.auth_status === "active"
-                    ? "success"
-                    : "error") as ChannelStatus,
-                  metrics: {
-                    netSales: sm.sales,
-                    grossSales: sm.sales,
-                    orders: sm.orders,
-                    unitsSold: sm.units,
-                    avgOrderValue: sm.orders > 0 ? sm.sales / sm.orders : 0,
-                    contribution: 0,
-                    trend: 0,
-                  },
-                  lastSync: store.last_health_check || store.updated_at,
-                };
+              {channelRows.map((channel) => {
                 return (
                   <ChannelCard
-                    key={store.id}
-                    channel={channelData}
+                    key={channel.id}
+                    channel={channel}
                     loading={isLoading || isFetching}
                     onClick={onChannelClick}
-                    store={store}
                   />
                 );
               })}
@@ -405,7 +287,7 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
           </div>
         )}
         <div className={cn("lg:col-span-4", activeStore && "lg:col-span-12")}>
-          <AlertsPanel alerts={alerts} loading={isLoading || isFetching} />
+          <AlertsPanel alerts={alertRows} loading={isLoading || isFetching} />
         </div>
       </section>
 
@@ -413,26 +295,36 @@ export const DashboardView = ({ userDisplayName }: DashboardViewProps) => {
         <SalesChart data={salesTrend} loading={isLoading || isFetching} />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <InventoryTable inventory={inventory} loading={isLoading || isFetching} />
+        <InventoryTable
+          inventory={inventoryRows}
+          loading={isLoading || isFetching}
+        />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <OrdersTable orders={orders.filter((f) => {
-            const metricDate = DateTime.fromISO(f.ordered_at!, { zone: STORE_TZ });
+        <OrdersTable
+          orders={orderRows.filter((f) => {
+            const metricDate = DateTime.fromISO(f.orderedAt!, {
+              zone: STORE_TZ,
+            });
 
             const inRange =
-                metricDate >= dateRangeTrends.from &&
-                metricDate <= dateRangeTrends.to;
+              metricDate >= dateRangeTrends.from &&
+              metricDate <= dateRangeTrends.to;
 
             return inRange;
-
-        })} loading={isLoading || isFetching} />
+          })}
+          loading={isLoading || isFetching}
+        />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <ProductsTable products={products} loading={isLoading || isFetching} />
+        <ProductsTable
+          products={productRows}
+          loading={isLoading || isFetching}
+        />
       </section>
       <section className="grid gap-6 lg:grid-cols-1 overflow-scroll [&::-webkit-scrollbar]:hidden">
-        <ReturnsTable returns={returns} loading={isLoading || isFetching} />
+        <ReturnsTable returns={returnRows} loading={isLoading || isFetching} />
       </section>
 
       {orderId && (

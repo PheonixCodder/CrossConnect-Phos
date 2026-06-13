@@ -4,7 +4,7 @@ import { ResponsiveDialog } from "@/components/layout/responsive-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
-import { Clock, AlertTriangle, Info, CheckCircle2, XCircle } from "lucide-react";
+import { Clock, Info, CheckCircle2, XCircle } from "lucide-react";
 import type { AlertWithStore } from "../../hooks/use-alerts-data";
 
 // Helper for severity colors
@@ -59,14 +59,19 @@ export function AlertDetailsDialog({
               </span>
             </div>
           </div>
-          <Badge variant={getSeverityVariant(alert.severity)} className="capitalize">
+          <Badge
+            variant={getSeverityVariant(alert.severity)}
+            className="capitalize"
+          >
             {alert.severity}
           </Badge>
         </div>
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-muted-foreground block text-xs">Platform</span>
+            <span className="text-muted-foreground block text-xs">
+              Platform
+            </span>
             <span className="font-medium capitalize">{alert.platform}</span>
           </div>
           <div>
@@ -74,11 +79,15 @@ export function AlertDetailsDialog({
             <span className="font-medium">{alert.stores?.name}</span>
           </div>
           <div>
-            <span className="text-muted-foreground block text-xs">Alert Type</span>
+            <span className="text-muted-foreground block text-xs">
+              Alert Type
+            </span>
             <span className="font-medium">{alert.alert_type}</span>
           </div>
           <div>
-            <span className="text-muted-foreground block text-xs">Related Entity</span>
+            <span className="text-muted-foreground block text-xs">
+              Related Entity
+            </span>
             <span className="font-mono text-xs">
               {alert.related_entity_id || "N/A"}
             </span>

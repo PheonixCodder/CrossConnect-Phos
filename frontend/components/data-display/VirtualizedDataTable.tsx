@@ -9,7 +9,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 interface Props<T> {
-  columns: ColumnDef<T, any>[];
+  columns: ColumnDef<T, unknown>[];
   data: T[];
   onRowClick?: (row: T) => void;
 }
@@ -19,6 +19,7 @@ export function VirtualizedDataTable<T>({
   data,
   onRowClick,
 }: Props<T>) {
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable table helpers.
   const table = useReactTable({
     data,
     columns,

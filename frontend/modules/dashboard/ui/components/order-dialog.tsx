@@ -1,8 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/types/supabase.types";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,13 +7,14 @@ import { AlertTriangle, Package, Truck } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import { ResponsiveDialog } from "@/components/layout/responsive-dialog";
 import { DataTable } from "@/components/data-display/data-table";
+import { useOrderDialogData } from "../../hooks/use-dashboard-detail-dialogs";
+import {
+  FulfillmentDetailRow,
+  OrderItemDetailRow,
+  OrderReturnDetailRow,
+} from "../../domain/dialog-view-models";
 
-type Order = Database["public"]["Tables"]["orders"]["Row"];
-type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
-type Fulfillment = Database["public"]["Tables"]["fulfillments"]["Row"];
-type Return = Database["public"]["Tables"]["returns"]["Row"];
-
-const itemColumns: ColumnDef<OrderItem>[] = [
+const itemColumns: ColumnDef<OrderItemDetailRow>[] = [
   {
     accessorKey: "sku",
     header: "SKU",
@@ -28,24 +26,24 @@ const itemColumns: ColumnDef<OrderItem>[] = [
   {
     accessorKey: "price",
     header: "Price",
-    cell: ({ row }) => formatCurrency(row.original.price!),
+    cell: ({ row }) => formatCurrency(row.original.price),
   },
   {
     accessorKey: "total",
     header: "Total",
-    cell: ({ row }) => formatCurrency(row.original.total!),
+    cell: ({ row }) => formatCurrency(row.original.total),
   },
   {
-    accessorKey: "fulfilled_quantity",
+    accessorKey: "fulfilledQuantity",
     header: "Fulfilled",
   },
   {
-    accessorKey: "refunded_quantity",
+    accessorKey: "refundedQuantity",
     header: "Refunded",
   },
 ];
 
-const fulfillmentColumns: ColumnDef<Fulfillment>[] = [
+const fulfillmentColumns: ColumnDef<FulfillmentDetailRow>[] = [
   {
     accessorKey: "status",
     header: "Status",
@@ -55,30 +53,30 @@ const fulfillmentColumns: ColumnDef<Fulfillment>[] = [
     header: "Carrier",
   },
   {
-    accessorKey: "tracking_number",
+    accessorKey: "trackingNumber",
     header: "Tracking",
   },
   {
-    accessorKey: "updated_at",
+    accessorKey: "updatedAt",
     header: "Updated",
-    cell: ({ row }) => formatDateTime(row.original.updated_at),
+    cell: ({ row }) => formatDateTime(row.original.updatedAt),
   },
 ];
 
-const returnColumns: ColumnDef<Return>[] = [
+const returnColumns: ColumnDef<OrderReturnDetailRow>[] = [
   {
     accessorKey: "status",
     header: "Status",
   },
   {
-    accessorKey: "refund_amount",
+    accessorKey: "refundAmount",
     header: "Amount",
-    cell: ({ row }) => formatCurrency(row.original.refund_amount ?? 0),
+    cell: ({ row }) => formatCurrency(row.original.refundAmount),
   },
   {
-    accessorKey: "updated_at",
+    accessorKey: "updatedAt",
     header: "Updated",
-    cell: ({ row }) => formatDateTime(row.original.updated_at),
+    cell: ({ row }) => formatDateTime(row.original.updatedAt),
   },
 ];
 
@@ -89,75 +87,18 @@ interface OrderDialogProps {
 }
 
 export function OrderDialog({ open, onOpenChange, orderId }: OrderDialogProps) {
-  const supabase = createClient();
-
-  const { data: order, isLoading: loadingOrder } = useQuery({
-    queryKey: ["order_details", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("id", orderId)
-        .single();
-      if (error) throw error;
-      return data as Order;
-    },
-    enabled: !!orderId,
-  });
-
-  const { data: items = [], isLoading: loadingItems } = useQuery({
-    queryKey: ["order_items_details", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_items")
-        .select("*")
-        .eq("order_id", orderId);
-      if (error) throw error;
-      return data as OrderItem[];
-    },
-    enabled: !!orderId,
-  });
-
-  const { data: fulfillments = [], isLoading: loadingFulfillments } = useQuery({
-    queryKey: ["fulfillments_details", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("fulfillments")
-        .select("*")
-        .eq("order_id", orderId);
-      if (error) throw error;
-      return data as Fulfillment[];
-    },
-    enabled: !!orderId,
-  });
-
-  const { data: returns = [], isLoading: loadingReturns } = useQuery({
-    queryKey: ["returns_details", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("returns")
-        .select("*")
-        .eq("order_id", orderId);
-      if (error) throw error;
-      return data as Return[];
-    },
-    enabled: !!orderId,
-  });
-
-  const isLoading =
-    loadingOrder || loadingItems || loadingFulfillments || loadingReturns;
+  const { order, items, fulfillments, returns, isLoading } =
+    useOrderDialogData(orderId);
 
   return (
     <ResponsiveDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={
-        isLoading ? "Loading Order..." : `Order ${order?.external_order_id}`
-      }
+      title={isLoading ? "Loading Order..." : `Order ${order?.externalOrderId}`}
       description={
         isLoading
           ? "Fetching details..."
-          : `Placed on ${formatDate(order?.ordered_at ?? order?.created_at ?? null)}`
+          : `Placed on ${formatDate(order?.placedAt ?? null)}`
       }
     >
       {isLoading ? (
@@ -175,37 +116,15 @@ export function OrderDialog({ open, onOpenChange, orderId }: OrderDialogProps) {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/50 p-4 rounded-lg">
               <div>
-                Status:{" "}
-                <StatusBadge
-                  status={
-                    order?.status === "refunded" ||
-                    order?.status === "cancelled"
-                      ? "error"
-                      : order?.status === "pending"
-                        ? "warning"
-                        : "success"
-                  }
-                />
+                Status: <StatusBadge status={order?.status ?? "warning"} />
               </div>
               <div>
                 Fulfillment:{" "}
-                <StatusBadge
-                  status={
-                    order?.fulfillment_status === "fulfilled"
-                      ? "success"
-                      : "error"
-                  }
-                />
+                <StatusBadge status={order?.fulfillmentStatus ?? "warning"} />
               </div>
               <div>
                 Payment:{" "}
-                <StatusBadge
-                  status={
-                    order?.payment_status === "paid"
-                      ? "success"
-                      : "error"
-                  }
-                />
+                <StatusBadge status={order?.paymentStatus ?? "warning"} />
               </div>
               <div>
                 Total:{" "}
@@ -243,7 +162,7 @@ export function OrderDialog({ open, onOpenChange, orderId }: OrderDialogProps) {
             <DataTable
               columns={fulfillmentColumns}
               data={fulfillments}
-              searchKey="tracking_number"
+              searchKey="trackingNumber"
               placeholder="Search fulfillments..."
             />
           </section>

@@ -180,6 +180,9 @@ export class ProductV202502Api {
                             body = ObjectSerializer.deserialize(body, "Product202502SearchProductsResponse");
                             resolve({ response: response, body: body });
                         } else {
+                          console.log('Response: ', response)
+                          console.log('Body: ', body);
+                          console.log('StatusCode: ', response.statusCode);
                             reject(new HttpError(response, body, response.statusCode));
                         }
                     }

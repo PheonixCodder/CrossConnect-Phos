@@ -3,7 +3,6 @@
 import { useState, useMemo } from "react";
 import { Search, Plus } from "lucide-react";
 import { useQueryState } from "nuqs";
-import { PageContainer } from "@/components/layout/PageContainer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useTeamData } from "@/modules/team/hooks/use-team-data";
@@ -55,54 +54,54 @@ export function TeamsView() {
   };
 
   return (
-      <div className="flex flex-col gap-6">
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Team</h2>
-            <p className="text-muted-foreground">
-              Manage your team members and permissions.
-            </p>
-          </div>
-          <Button onClick={() => setIsAddDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Member
-          </Button>
+    <div className="flex flex-col gap-6">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Team</h2>
+          <p className="text-muted-foreground">
+            Manage your team members and permissions.
+          </p>
         </div>
-
-        {/* Search Toolbar */}
-        <div className="flex items-center space-x-2">
-          <div className="relative max-w-sm w-full">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8"
-            />
-          </div>
-        </div>
-
-        {/* Content Area */}
-        {isLoading ? (
-          <div className="flex justify-center py-10 text-muted-foreground">
-            Loading team...
-          </div>
-        ) : (
-          <TeamMembersTable
-            members={filteredMembers}
-            onUpdateRole={updateRole}
-            onRemoveMember={removeMember}
-          />
-        )}
-
-        {/* Add Member Dialog */}
-        <AddTeamMemberDialog
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          onAddMember={handleAddMember}
-          isSubmitting={isSubmitting}
-        />
+        <Button onClick={() => setIsAddDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Member
+        </Button>
       </div>
+
+      {/* Search Toolbar */}
+      <div className="flex items-center space-x-2">
+        <div className="relative max-w-sm w-full">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+      </div>
+
+      {/* Content Area */}
+      {isLoading ? (
+        <div className="flex justify-center py-10 text-muted-foreground">
+          Loading team...
+        </div>
+      ) : (
+        <TeamMembersTable
+          members={filteredMembers}
+          onUpdateRole={updateRole}
+          onRemoveMember={removeMember}
+        />
+      )}
+
+      {/* Add Member Dialog */}
+      <AddTeamMemberDialog
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        onAddMember={handleAddMember}
+        isSubmitting={isSubmitting}
+      />
+    </div>
   );
 }

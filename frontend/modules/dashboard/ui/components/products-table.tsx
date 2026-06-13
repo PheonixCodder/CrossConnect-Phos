@@ -3,15 +3,13 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
-import type { Database } from "@/types/supabase.types";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-display/data-table";
+import type { ProductTableRow } from "../../domain/product-view-models";
 
-type Product = Database["public"]["Tables"]["products"]["Row"];
-
-const columns: ColumnDef<Product>[] = [
+const columns: ColumnDef<ProductTableRow>[] = [
   {
     accessorKey: "title",
     header: ({ column }) => (
@@ -24,7 +22,7 @@ const columns: ColumnDef<Product>[] = [
       </Button>
     ),
     cell: ({ row }) => (
-      <span className="font-medium">{row.original.title ?? "Untitled"}</span>
+      <span className="font-medium">{row.original.title}</span>
     ),
   },
   {
@@ -45,22 +43,17 @@ const columns: ColumnDef<Product>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => formatCurrency(row.original.price ?? 0),
+    cell: ({ row }) => formatCurrency(row.original.price),
   },
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <StatusBadge
-        status={row.original.status === "active" ? "success" : "warning"}
-        size="sm"
-      />
-    ),
+    cell: ({ row }) => <StatusBadge status={row.original.status} size="sm" />,
   },
   {
-    accessorKey: "updated_at",
+    accessorKey: "updatedAt",
     header: "Updated",
-    cell: ({ row }) => formatDateTime(row.original.updated_at),
+    cell: ({ row }) => formatDateTime(row.original.updatedAt),
   },
   {
     accessorKey: "platform",
@@ -70,13 +63,13 @@ const columns: ColumnDef<Product>[] = [
     ),
   },
   {
-    accessorKey: "external_product_id",
+    accessorKey: "externalProductId",
     header: "External ID",
   },
 ];
 
 interface ProductsTableProps {
-  products: Product[];
+  products: ProductTableRow[];
   loading: boolean;
 }
 

@@ -1,0 +1,263 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { InjectSupabaseClient } from 'nestjs-supabase-js';
+import { Database } from '../supabase.types';
+import {
+  StoresAsQueuedResult,
+  StoresRepositoryPort,
+  SyncCursorDomain,
+} from '../../../../domain/repositories/repository-ports';
+
+@Injectable()
+export class StoresRepository implements StoresRepositoryPort {
+  constructor(
+    @InjectSupabaseClient()
+    private readonly supabaseClient: SupabaseClient<Database>,
+  ) {}
+  private logger = new Logger();
+
+  async getAllActiveStores(): Promise<
+    Database['public']['Tables']['stores']['Row'][]
+  > {
+    const { data, error } = await this.supabaseClient
+      .from('stores')
+      .select('*')
+      .eq('auth_status', 'active');
+
+    if (error) {
+      this.logger.error('Failed to fetch active stores', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async getStoreById(
+    storeId: string,
+  ): Promise<Database['public']['Tables']['stores']['Row']> {
+    const { data, error } = await this.supabaseClient
+      .from('stores')
+      .select('*')
+      .eq('id', storeId);
+
+    if (error) {
+      this.logger.error(`Failed to fetch store ${storeId}`, error);
+      throw error;
+    }
+
+    return data[0];
+  }
+  async getOrgById(
+    org_id: string,
+  ): Promise<Database['public']['Tables']['organizations']['Row']> {
+    const { data, error } = await this.supabaseClient
+      .from('organizations')
+      .select('*')
+      .eq('id', org_id)
+      .single();
+
+    if (error) {
+      this.logger.error(`Failed to fetch organization ${org_id}`, error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async updateStoreHealth(
+    storeId: string,
+    status: 'healthy' | 'unhealthy',
+    message?: string,
+  ): Promise<void> {
+    const { error } = await this.supabaseClient
+      .from('stores')
+      .update({
+        last_health_check: new Date().toISOString(),
+        auth_status: status === 'healthy' ? 'active' : 'inactive',
+      })
+      .eq('id', storeId);
+
+    if (error) {
+      this.logger.error(`Failed to update store health for ${storeId}`, error);
+    }
+
+    // Log alert if unhealthy
+    if (status === 'unhealthy') {
+      await this.createAlert(
+        storeId,
+        'store_health_check',
+        message || 'Store connection failed',
+        'high',
+      );
+    }
+  }
+  async updateWebhookStatus(storeId: string, status: boolean): Promise<void> {
+    const { error } = await this.supabaseClient
+      .from('stores')
+      .update({
+        webhook_status: status,
+        auth_status: status ? 'active' : 'inactive',
+      })
+      .eq('id', storeId);
+
+    if (error) {
+      this.logger.error(
+        `Failed to update store webhook status for ${storeId}`,
+        error,
+      );
+    }
+
+    // Log alert if unhealthy
+    if (!status) {
+      await this.createAlert(
+        storeId,
+        'webhook_status',
+        'Store Webhook Connection failed',
+        'high',
+      );
+    }
+  }
+
+  private async createAlert(
+    storeId: string,
+    alertType: string,
+    message: string,
+    severity: Database['public']['Enums']['alert_severity'],
+  ): Promise<void> {
+    const { error } = await this.supabaseClient.from('alerts').insert({
+      store_id: storeId,
+      alert_type: alertType,
+      message,
+      severity,
+      platform: (await this.getStoreById(storeId)).platform,
+    });
+
+    if (error) {
+      this.logger.error('Failed to create alert', error);
+    }
+  }
+
+  async getStore(
+    platform: string,
+  ): Promise<Database['public']['Tables']['stores']['Row']> {
+    const { data, error } = await this.supabaseClient
+      .from('stores')
+      .select('*')
+      .eq('platform', platform as Database['public']['Enums']['platform_types'])
+      .single();
+
+    if (error) {
+      this.logger.error(`Store not found for platform: ${platform}`, error);
+
+      throw new Error(`Store not found for platform: ${platform}`);
+    }
+
+    return data;
+  }
+
+  async upsertCredentials(storeId: string, encryptedCredentials: any) {
+    const { error } = await this.supabaseClient
+      .from('store_credentials')
+      .upsert({
+        store_id: storeId,
+        credentials: encryptedCredentials,
+      });
+
+    if (error) {
+      this.logger.error('Failed to upsert credentials', error);
+      throw error;
+    }
+  }
+
+  async storesAsQueued(storeIds: string[]): Promise<StoresAsQueuedResult> {
+    const now = new Date().toISOString();
+
+    return this.supabaseClient
+      .from('stores')
+      .update({
+        last_health_check: now,
+        auth_status: 'active',
+      })
+      .in('id', storeIds);
+  }
+
+  async updateSyncTimestamps(
+    storeId: string,
+    domain: SyncCursorDomain,
+    syncedAt: string,
+  ): Promise<void> {
+    const domainColumn = this.getDomainCursorColumn(domain);
+    const { error } = await this.supabaseClient
+      .from('stores')
+      .update({
+        last_synced_at: syncedAt,
+        [domainColumn]: syncedAt,
+      })
+      .eq('id', storeId);
+
+    if (error) {
+      this.logger.error(
+        `Failed to update ${domainColumn} sync timestamp for store ${storeId}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async getCredentials(
+    storeId: string,
+  ): Promise<Database['public']['Tables']['store_credentials']['Row']> {
+    const { data, error } = await this.supabaseClient
+      .from('store_credentials')
+      .select('*')
+      .eq('store_id', storeId);
+
+    if (error) {
+      this.logger.error('Failed to fetch credentials', error);
+      throw error;
+    }
+    return data[0];
+  }
+
+  async update(
+    id: string,
+    type: 'orders' | 'products' | 'returns',
+    param2: { last_synced_at: string },
+  ) {
+    // Map the type to the corresponding column name
+    const columnMap = {
+      products: 'last_products_synced_at',
+      orders: 'last_orders_synced_at',
+      returns: 'last_returns_synced_at',
+    };
+
+    const columnName = columnMap[type];
+    const dateValue = new Date(param2.last_synced_at).toISOString();
+
+    // Dynamically set the key using [columnName]
+    const { error } = await this.supabaseClient
+      .from('stores')
+      .update({ [columnName]: dateValue })
+      .eq('id', id);
+    if (error) {
+      this.logger.error(
+        `Failed to update ${columnName} for store ${id}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private getDomainCursorColumn(
+    domain: SyncCursorDomain,
+  ): keyof Database['public']['Tables']['stores']['Update'] {
+    switch (domain) {
+      case 'products':
+        return 'last_products_synced_at';
+      case 'orders':
+        return 'last_orders_synced_at';
+      case 'returns':
+        return 'last_returns_synced_at';
+    }
+  }
+}
