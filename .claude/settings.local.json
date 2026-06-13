@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"C:\\\\Users\\\\ubaid\\\\OneDrive\\\\Desktop\\\\CrossConnect-Phos\\\\backend\\\\src\" -type f -name \"*.ts\" -exec grep -l \"exception.filter\\\\|HttpException\\\\|throw new\" {})",
+      "Bash(ls -la \"C:\\\\Users\\\\ubaid\\\\OneDrive\\\\Desktop\\\\CrossConnect-Phos\\\\backend\"\" | grep -E \"Dockerfile)",
+      "Bash(docker-compose)",
+      "Bash(.github)",
+      "Bash(.circleci \")",
+      "Bash(find \"C:\\\\Users\\\\ubaid\\\\OneDrive\\\\Desktop\\\\CrossConnect-Phos\\\\backend\\\\test\" -type f -name \"*.spec.ts\" -exec wc -l {} +)"
+    ]
+  }
+}

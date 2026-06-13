@@ -14,9 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  AlertWithStore,
   useAlertsData,
   type AlertFilters,
+  type AlertWithStore,
 } from "../../hooks/use-alerts-data";
 import { AlertsTable } from "../components/alerts-table";
 import { AlertDetailsDialog } from "../components/alert-details-dialog";
@@ -25,8 +25,6 @@ import type { Database } from "@/types/supabase.types";
 // Extract Enums from Database
 type Platform = Database["public"]["Enums"]["platform_types"];
 type Severity = Database["public"]["Enums"]["alert_severity"];
-type Alert = Database["public"]["Tables"]["alerts"]["Row"];
-
 const PLATFORMS: Platform[] = [
   "shopify",
   "faire",

@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build && cp -R .api/apis/warehance-api/openapi.json dist/.api/apis/warehance-api",
+    "build": "nest build && node -e \"const fs=require('fs');const path=require('path');const src='.api/apis/warehance-api/openapi.json';const dest='dist/.api/apis/warehance-api/openapi.json';fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(src,dest);\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start:prod": "node -r newrelic dist/main",
     "start": "nest start",
@@ -49,6 +49,7 @@
     "@supabase/supabase-js": "^2.90.0",
     "@types/xml2js": "^0.4.14",
     "amazon-sp-api": "^1.2.0",
+    "bottleneck": "^2.19.5",
     "bullmq": "^5.66.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",

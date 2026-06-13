@@ -1,60 +1,46 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/types/supabase.types";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, Package, Bell } from "lucide-react";
+import { Package, Bell } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import { ResponsiveDialog } from "@/components/layout/responsive-dialog";
 import { DataTable } from "@/components/data-display/data-table";
+import { useProductDialogData } from "../../hooks/use-dashboard-detail-dialogs";
+import {
+  ProductAlertDetailRow,
+  ProductInventoryDetailRow,
+} from "../../domain/dialog-view-models";
 
-type Product = Database["public"]["Tables"]["products"]["Row"];
-type Inventory = Database["public"]["Tables"]["inventory"]["Row"];
-type Alert = Database["public"]["Tables"]["alerts"]["Row"];
-
-const inventoryColumns: ColumnDef<Inventory>[] = [
+const inventoryColumns: ColumnDef<ProductInventoryDetailRow>[] = [
   {
     accessorKey: "sku",
     header: "SKU",
   },
   {
-    accessorKey: "warehouse_quantity",
+    accessorKey: "warehouseQuantity",
     header: "Warehouse Qty",
   },
   {
-    accessorKey: "platform_quantity",
+    accessorKey: "platformQuantity",
     header: "Platform Qty",
   },
   {
-    accessorKey: "inventory_status",
+    accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <StatusBadge
-        status={
-          row.original.inventory_status === "backorder" ||
-          row.original.inventory_status === "discontinued"
-            ? "warning"
-            : row.original.inventory_status === "out_of_stock"
-              ? "error"
-              : "success"
-        }
-        size="sm"
-      />
-    ),
+    cell: ({ row }) => <StatusBadge status={row.original.status} size="sm" />,
   },
   {
-    accessorKey: "updated_at",
+    accessorKey: "updatedAt",
     header: "Updated",
-    cell: ({ row }) => formatDateTime(row.original.updated_at),
+    cell: ({ row }) => formatDateTime(row.original.updatedAt),
   },
 ];
 
-const alertColumns: ColumnDef<Alert>[] = [
+const alertColumns: ColumnDef<ProductAlertDetailRow>[] = [
   {
-    accessorKey: "alert_type",
+    accessorKey: "alertType",
     header: "Type",
   },
   {
@@ -62,25 +48,14 @@ const alertColumns: ColumnDef<Alert>[] = [
     header: "Message",
   },
   {
-    accessorKey: "severity",
+    accessorKey: "status",
     header: "Severity",
-    cell: ({ row }) => (
-      <StatusBadge
-        status={
-          row.original.severity === "low" || row.original.severity === "medium"
-            ? "warning"
-            : row.original.severity === "critical"
-              ? "error"
-              : "success"
-        }
-        size="sm"
-      />
-    ),
+    cell: ({ row }) => <StatusBadge status={row.original.status} size="sm" />,
   },
   {
-    accessorKey: "created_at",
+    accessorKey: "createdAt",
     header: "Created",
-    cell: ({ row }) => formatDateTime(row.original.created_at),
+    cell: ({ row }) => formatDateTime(row.original.createdAt),
   },
 ];
 
@@ -95,50 +70,8 @@ export function ProductDialog({
   onOpenChange,
   productId,
 }: ProductDialogProps) {
-  const supabase = createClient();
-
-  const { data: product, isLoading: loadingProduct } = useQuery({
-    queryKey: ["product_details", productId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("id", productId)
-        .single();
-      if (error) throw error;
-      return data as Product;
-    },
-    enabled: !!productId,
-  });
-
-  const { data: inventory = [], isLoading: loadingInventory } = useQuery({
-    queryKey: ["inventory_details", productId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("inventory")
-        .select("*")
-        .eq("product_id", productId);
-      if (error) throw error;
-      return data as Inventory[];
-    },
-    enabled: !!productId,
-  });
-
-  const { data: alerts = [], isLoading: loadingAlerts } = useQuery({
-    queryKey: ["alerts_details", productId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("alerts")
-        .select("*")
-        .eq("product_id", productId)
-        .eq("resolved", false);
-      if (error) throw error;
-      return data as Alert[];
-    },
-    enabled: !!productId,
-  });
-
-  const isLoading = loadingProduct || loadingInventory || loadingAlerts;
+  const { product, inventory, alerts, isLoading } =
+    useProductDialogData(productId);
 
   return (
     <ResponsiveDialog
@@ -170,16 +103,13 @@ export function ProductDialog({
                 </span>
               </div>
               <div>
-                Status:{" "}
-                <StatusBadge
-                  status={product?.status === "active" ? "success" : "warning"}
-                />
+                Status: <StatusBadge status={product?.status ?? "warning"} />
               </div>
               <div>
                 Platform:{" "}
                 <span className="capitalize">{product?.platform}</span>
               </div>
-              <div>Updated: {formatDateTime(product?.updated_at ?? null)}</div>
+              <div>Updated: {formatDateTime(product?.updatedAt ?? null)}</div>
               <div className="md:col-span-2">
                 Description:{" "}
                 {product?.description ?? "No description available."}

@@ -1,0 +1,79 @@
+# Version control and assistant/project metadata
+.git/
+.idea/
+.vscode/
+.claude/
+.codex/
+.agents/
+.sixth/
+
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Build output and generated app artifacts
+dist/
+**/dist/
+build/
+**/build/
+.next/
+**/.next/
+out/
+**/out/
+coverage/
+**/coverage/
+.nyc_output/
+**/.nyc_output/
+*.tsbuildinfo
+next-env.d.ts
+
+# Graphify output and local caches
+graphify-out/
+.graphify/
+.cache/
+**/.cache/
+.temp/
+.tmp/
+**/.temp/
+**/.tmp/
+
+# Logs and runtime files
+logs/
+**/logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+*.pid
+*.seed
+*.pid.lock
+pids/
+
+# Local secrets and environment files
+.env
+.env.*
+*.pem
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.sublime-workspace
+*.launch
+.project
+.classpath
+.settings/
+
+# Vendor/generated SDK code
+backend/.api/
+frontend/.api/
+backend/src/libs/tiktok/
+backend/src/connectors/shopify/graphql/generated/

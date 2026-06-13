@@ -2,21 +2,19 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
-import { formatCurrency, formatDateTime } from "@/lib/formatters";
-import type { Database } from "@/types/supabase.types";
-import { parseAsString, useQueryState } from "nuqs";
+import { formatCurrency } from "@/lib/formatters";
+import { useQueryState } from "nuqs";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-display/data-table";
-import {formatDistanceToNow} from "date-fns";
-import {DateTime} from "luxon";
+import { DateTime } from "luxon";
+import type { OrderTableRow } from "../../domain/product-view-models";
 
-type Order = Database["public"]["Tables"]["orders"]["Row"];
 const STORE_TZ = "America/Los_Angeles";
 
-const columns: ColumnDef<Order>[] = [
+const columns: ColumnDef<OrderTableRow>[] = [
   {
-    accessorKey: "external_order_id",
+    accessorKey: "externalOrderId",
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -28,26 +26,14 @@ const columns: ColumnDef<Order>[] = [
     ),
     cell: ({ row }) => (
       <span className="font-mono text-primary">
-        {row.original.external_order_id}
+        {row.original.externalOrderId}
       </span>
     ),
   },
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <StatusBadge
-        status={
-          row.original.status === "refunded" ||
-          row.original.status === "cancelled"
-            ? "warning"
-            : row.original.status === "pending"
-              ? "warning"
-              : "success"
-        }
-        size="sm"
-      />
-    ),
+    cell: ({ row }) => <StatusBadge status={row.original.status} size="sm" />,
     filterFn: (row, id, value) => value.includes(row.getValue(id)),
   },
   {
@@ -61,38 +47,33 @@ const columns: ColumnDef<Order>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => formatCurrency(row.original.total ?? 0),
+    cell: ({ row }) => formatCurrency(row.original.total),
   },
   {
-    accessorKey: "ordered_at",
+    accessorKey: "orderedAt",
     header: ({ column }) => (
-        <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Date
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Date
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
     ),
     cell: ({ row }) => {
-      const raw =
-          row.original.ordered_at ?? row.original.created_at;
+      const raw = row.original.orderedAt ?? row.original.createdAt;
 
       if (!raw) return "-";
 
-      const pacific = DateTime
-          .fromISO(raw, { zone: "utc" }) // assume DB is UTC
-          .setZone(STORE_TZ);
+      const pacific = DateTime.fromISO(raw, { zone: "utc" }).setZone(STORE_TZ);
 
       return (
-          <div className="flex flex-col">
-        <span>
-          {pacific.toFormat("MMM dd, yyyy")}
-        </span>
-            <span className="text-xs text-muted-foreground">
-          {pacific.toFormat("hh:mm a")} PT
-        </span>
-          </div>
+        <div className="flex flex-col">
+          <span>{pacific.toFormat("MMM dd, yyyy")}</span>
+          <span className="text-xs text-muted-foreground">
+            {pacific.toFormat("hh:mm a")} PT
+          </span>
+        </div>
       );
     },
   },
@@ -104,17 +85,17 @@ const columns: ColumnDef<Order>[] = [
     ),
   },
   {
-    accessorKey: "fulfillment_status",
+    accessorKey: "fulfillmentStatus",
     header: "Fulfillment",
   },
   {
-    accessorKey: "payment_status",
+    accessorKey: "paymentStatus",
     header: "Payment",
   },
 ];
 
 interface OrdersTableProps {
-  orders: Order[];
+  orders: OrderTableRow[];
   loading: boolean;
 }
 
@@ -129,8 +110,8 @@ export function OrdersTable({ orders, loading }: OrdersTableProps) {
           columns={columns}
           data={orders}
           isLoading={loading}
-          searchKey="external_order_id"
-          defaultSorting={[{ id: "ordered_at", desc: true }]}
+          searchKey="externalOrderId"
+          defaultSorting={[{ id: "orderedAt", desc: true }]}
           placeholder="Search by Order ID..."
           onRowClick={(row) => setOrderId(row.id)}
           emptyImage="/images/empty.svg"

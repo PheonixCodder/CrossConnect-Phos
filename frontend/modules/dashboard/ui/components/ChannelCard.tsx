@@ -4,35 +4,18 @@ import { TrendingUp, TrendingDown, Clock } from "lucide-react";
 import { formatCurrency, formatNumber, formatDateTime } from "@/lib/formatters";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Database } from "@/types/supabase.types";
-
-interface Channel {
-  id: string;
-  name: string;
-  logo: string;
-  status: "success" | "warning" | "error";
-  metrics: {
-    netSales: number;
-    orders: number;
-    unitsSold: number;
-    contribution: number;
-    trend: number;
-  };
-  lastSync: string | null;
-}
+import type { ChannelViewModel } from "../../domain/summary-view-models";
 
 interface ChannelCardProps {
-  channel: Channel;
-  onClick: (store: Database["public"]["Tables"]["stores"]["Row"]) => void;
+  channel: ChannelViewModel;
+  onClick: (channelId: string) => void;
   loading?: boolean;
-  store: Database["public"]["Tables"]["stores"]["Row"];
 }
 
 export function ChannelCard({
   channel,
   onClick,
   loading = false,
-  store,
 }: ChannelCardProps) {
   const trend = channel.metrics.trend;
   const isPositive = trend >= 0;
@@ -76,11 +59,11 @@ export function ChannelCard({
         "card-base p-6 rounded-xl shadow-sm cursor-pointer group transition-all hover:shadow-md",
         "relative overflow-hidden",
       )}
-      onClick={() => onClick(store)}
+      onClick={() => onClick(channel.id)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) =>
-        (e.key === "Enter" || e.key === " ") && onClick?.(store)
+        (e.key === "Enter" || e.key === " ") && onClick?.(channel.id)
       }
     >
       <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />

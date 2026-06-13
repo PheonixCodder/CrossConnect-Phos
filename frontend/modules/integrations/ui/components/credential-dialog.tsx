@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,22 +26,18 @@ interface Props {
 }
 
 const getMissingFields = (
-    fields: { key: string; label: string }[],
-    data: Record<string, string>,
-) =>
-    fields.filter(
-        (f) => !data[f.key] || data[f.key].trim().length === 0,
-    );
-
+  fields: { key: string; label: string }[],
+  data: Record<string, string>,
+) => fields.filter((f) => !data[f.key] || data[f.key].trim().length === 0);
 
 export function CredentialDialog({
-                                   open,
-                                   onOpenChange,
-                                   storeId,
-                                   platform,
-                                   isEdit,
-                                   existingCredentials,
-                                 }: Props) {
+  open,
+  onOpenChange,
+  storeId,
+  platform,
+  isEdit,
+  existingCredentials,
+}: Props) {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const config = CREDENTIALS_CONFIG[platform];
@@ -56,9 +52,9 @@ export function CredentialDialog({
       // 🔒 HARD SCHEMA GUARD
       if (missingFields.length > 0) {
         throw new Error(
-            `Missing required field(s): ${missingFields
-                .map((f) => f.label)
-                .join(", ")}`,
+          `Missing required field(s): ${missingFields
+            .map((f) => f.label)
+            .join(", ")}`,
         );
       }
 
@@ -69,8 +65,8 @@ export function CredentialDialog({
         const clientSecret = formData["shopifyClientSecret"];
 
         const cleanDomain = shopDomain
-            .replace(/^https?:\/\//, "")
-            .replace(/\/$/, "");
+          .replace(/^https?:\/\//, "")
+          .replace(/\/$/, "");
         const encryptedCredentials = await encryptPayload({
           shopifyClientId: clientId,
           shopifyClientSecret: clientSecret,
@@ -110,13 +106,14 @@ export function CredentialDialog({
 
       if (isEdit) {
         const { error } = await supabase
-            .from("store_credentials")
-            .update({
-              credentials: encryptedCredentials,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("store_id", storeId);
-        if (error) throw new Error(`Failed to update credentials: ${error.message}`);
+          .from("store_credentials")
+          .update({
+            credentials: encryptedCredentials,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("store_id", storeId);
+        if (error)
+          throw new Error(`Failed to update credentials: ${error.message}`);
       } else {
         const { error } = await supabase.from("store_credentials").insert({
           store_id: storeId,
@@ -124,13 +121,14 @@ export function CredentialDialog({
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
-        if (error) throw new Error(`Failed to update credentials: ${error.message}`);
+        if (error)
+          throw new Error(`Failed to update credentials: ${error.message}`);
 
         if (platform !== "warehance") {
           await supabase
-              .from("stores")
-              .update({ auth_status: "active" })
-              .eq("id", storeId);
+            .from("stores")
+            .update({ auth_status: "active" })
+            .eq("id", storeId);
         }
       }
     },
@@ -140,70 +138,67 @@ export function CredentialDialog({
 
         if (platform === "walmart") {
           await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/api/webhooks/walmart/connect/${storeId}`,
-              { method: "POST" },
+            `${process.env.NEXT_PUBLIC_API_URL}/api/webhooks/walmart/connect/${storeId}`,
+            { method: "POST" },
           );
         }
 
-        await queryClient.invalidateQueries({queryKey: ["stores"]});
+        await queryClient.invalidateQueries({ queryKey: ["stores"] });
         onOpenChange(false);
       }
     },
     onError: (error) =>
-        toast.error(error.message || "Failed to save credentials"),
+      toast.error(error.message || "Failed to save credentials"),
   });
 
   return (
-      <ResponsiveDialog
-          open={open}
-          onOpenChange={onOpenChange}
-          title={`${isEdit ? "Edit" : "Add"} Credentials`}
-          description={`Configure API credentials for ${config.label}`}
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`${isEdit ? "Edit" : "Add"} Credentials`}
+      description={`Configure API credentials for ${config.label}`}
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          mutation.mutate();
+        }}
+        className="space-y-4"
       >
-        <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              mutation.mutate();
-            }}
-            className="space-y-4"
-        >
-          {config.fields.map((f) => (
-              <div key={f.key} className="space-y-1">
-                <Label>{f.label}</Label>
-                <Input
-                    type={f.type}
-                    value={formData[f.key] ?? ""}
-                    onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          [f.key]: e.target.value,
-                        }))
-                    }
-                    required
-                />
-              </div>
-          ))}
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-
-            <Button
-                type="submit"
-                disabled={mutation.isPending || isFormInvalid}
-            >
-              {mutation.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              Save
-            </Button>
+        {config.fields.map((f) => (
+          <div key={f.key} className="space-y-1">
+            <Label>{f.label}</Label>
+            <Input
+              type={f.type}
+              value={formData[f.key] ?? ""}
+              onChange={(e) =>
+                setFormData((p) => ({
+                  ...p,
+                  [f.key]: e.target.value,
+                }))
+              }
+              required
+            />
           </div>
-        </form>
-      </ResponsiveDialog>
+        ))}
+
+        <div className="flex justify-end gap-2 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+
+          <Button type="submit" disabled={mutation.isPending || isFormInvalid}>
+            {mutation.isPending && (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            )}
+            Save
+          </Button>
+        </div>
+      </form>
+    </ResponsiveDialog>
   );
 }

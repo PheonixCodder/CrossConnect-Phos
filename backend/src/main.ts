@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { Logger as NestLogger } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
-import { ValidationPipe } from '@nestjs/common';
+import { configureHttpApplication } from './bootstrap/http/app-bootstrap';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -9,28 +10,7 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
-  // Enable CORS for frontend
-  app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-  });
-
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
-
-  // Use structured logging
-  app.useLogger(app.get(Logger));
-
-  // Global prefix for API routes
-  app.setGlobalPrefix('api', {
-    exclude: ['/'],
-  });
+  configureHttpApplication(app);
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
@@ -40,6 +20,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error) => {
-  console.error('Failed to bootstrap application:', error);
+  new NestLogger('Bootstrap').error('Failed to bootstrap application', error);
   process.exit(1);
 });

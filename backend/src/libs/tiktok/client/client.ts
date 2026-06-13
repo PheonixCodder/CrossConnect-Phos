@@ -1,7 +1,7 @@
 import { API_OPERATION_TYPE_MAP } from "../api";
 import { ClientConfiguration } from "./config";
 import { createApiInstance } from "./create-api-instance";
-import { AccessToken } from "./token";
+import { AccessToken } from './token';
 
 export class TikTokShopNodeApiClient {
   readonly config?: ClientConfiguration;

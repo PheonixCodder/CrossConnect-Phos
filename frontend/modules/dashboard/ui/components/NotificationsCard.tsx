@@ -1,7 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Check, X } from "lucide-react";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
-import { Button } from "@/components/ui/button";
 
 export type NotificationState = "success" | "warning" | "error";
 
@@ -17,13 +15,9 @@ export interface Notification {
 
 interface NotificationItemProps {
   notification: Notification;
-  onDismiss?: (id?: string) => void;
 }
 
-export function NotificationItem({
-  notification,
-  onDismiss,
-}: NotificationItemProps) {
+export function NotificationItem({ notification }: NotificationItemProps) {
   const {
     icon: Icon,
     state,

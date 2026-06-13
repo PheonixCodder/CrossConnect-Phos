@@ -1,6 +1,15 @@
 import * as crypto from "crypto";
+import type { Json } from "@/types/supabase.types";
 
 const ALGORITHM = "aes-256-gcm";
+
+export interface EncryptedPayload {
+  [key: string]: Json;
+  ciphertext: string;
+  iv: string;
+  tag: string;
+  keyVersion: number;
+}
 
 // Load key once outside the class/functions
 const getKey = () => {
@@ -8,11 +17,13 @@ const getKey = () => {
 
   if (!keyHex) {
     // This error will now show up in your SERVER logs, not the browser console
-    throw new Error("CREDENTIALS_ENCRYPTION_KEY environment variable is required");
+    throw new Error(
+      "CREDENTIALS_ENCRYPTION_KEY environment variable is required",
+    );
   }
 
   // Ensure we handle the "key" prefix if it exists in your string
-  const cleanHex = keyHex.startsWith('key') ? keyHex.slice(3) : keyHex;
+  const cleanHex = keyHex.startsWith("key") ? keyHex.slice(3) : keyHex;
   const key = Buffer.from(cleanHex, "hex");
 
   if (key.length !== 32) {
@@ -21,7 +32,7 @@ const getKey = () => {
   return key;
 };
 
-export const encrypt = (payload: any) => {
+export const encrypt = (payload: unknown): EncryptedPayload => {
   const key = getKey();
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
@@ -45,7 +56,7 @@ export const decrypt = (encrypted: {
   ciphertext: string;
   iv: string;
   tag: string;
-}) => {
+}): unknown => {
   if (!encrypted.ciphertext || !encrypted.iv || !encrypted.tag) {
     throw new Error("Invalid encrypted payload structure");
   }

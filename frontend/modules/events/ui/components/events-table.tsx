@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, ChevronRight, LucideIcon } from "lucide-react";
+import { Eye } from "lucide-react";
 import type { EventWithStore } from "../../hooks/use-events-data";
 import {
   Table,
@@ -13,10 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
-import { cn } from "@/lib/utils";
-
-// Simple icon mapper for platforms
-const iconMap: Record<string, LucideIcon> = {};
 
 interface EventsTableProps {
   events: EventWithStore[];
@@ -56,7 +52,10 @@ export function EventsTable({ events, onViewPayload }: EventsTableProps) {
                 </div>
               </TableCell>
               <TableCell>
-                <Badge variant="outline" className="capitalize font-mono text-[10px]">
+                <Badge
+                  variant="outline"
+                  className="capitalize font-mono text-[10px]"
+                >
                   {event.event_type}
                 </Badge>
               </TableCell>
@@ -80,7 +79,9 @@ export function EventsTable({ events, onViewPayload }: EventsTableProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onViewPayload(event.payload, event.external_event_id)}
+                  onClick={() =>
+                    onViewPayload(event.payload, event.external_event_id)
+                  }
                 >
                   <Eye className="h-4 w-4 mr-2" />
                   View Payload

@@ -3,22 +3,22 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { formatDateTime } from "@/lib/formatters";
-import type { Database } from "@/types/supabase.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DataTable } from "@/components/data-display/data-table";
+import type { InventoryTableRow } from "../../domain/product-view-models";
 
-type Inventory = Database["public"]["Tables"]["inventory"]["Row"];
-
-const columns: ColumnDef<Inventory>[] = [
+const columns: ColumnDef<InventoryTableRow>[] = [
   {
     accessorKey: "sku",
     header: "SKU",
-    cell: ({ row }) => <span className="font-mono text-primary">{row.original.sku}</span>,
+    cell: ({ row }) => (
+      <span className="font-mono text-primary">{row.original.sku}</span>
+    ),
   },
   {
-    accessorKey: "warehouse_quantity",
+    accessorKey: "warehouseQuantity",
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -29,46 +29,52 @@ const columns: ColumnDef<Inventory>[] = [
       </Button>
     ),
     cell: ({ row }) => {
-      const qty = row.original.warehouse_quantity ?? 0;
+      const qty = row.original.warehouseQuantity;
       return (
-        <span className={cn(
-          "font-medium",
-          qty < 5 ? "text-red-500" : qty < 15 ? "text-yellow-500" : "text-foreground"
-        )}>
+        <span
+          className={cn(
+            "font-medium",
+            qty < 5
+              ? "text-red-500"
+              : qty < 15
+                ? "text-yellow-500"
+                : "text-foreground",
+          )}
+        >
           {qty}
         </span>
       );
     },
   },
   {
-    accessorKey: "platform_quantity",
+    accessorKey: "platformQuantity",
     header: "Platform Qty",
-    cell: ({ row }) => row.original.platform_quantity ?? 0,
+    cell: ({ row }) => row.original.platformQuantity,
   },
   {
-    accessorKey: "reserved_quantity",
+    accessorKey: "reservedQuantity",
     header: "Reserved",
-    cell: ({ row }) => row.original.reserved_quantity ?? 0,
+    cell: ({ row }) => row.original.reservedQuantity,
   },
   {
-    accessorKey: "inventory_status",
+    accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => <StatusBadge status={row.original.inventory_status === "in_stock" ? "success" : row.original.inventory_status === "out_of_stock" ? "error" : "warning"} size="sm" />,
+    cell: ({ row }) => <StatusBadge status={row.original.status} size="sm" />,
   },
   {
-    accessorKey: "updated_at",
+    accessorKey: "updatedAt",
     header: "Updated",
-    cell: ({ row }) => formatDateTime(row.original.updated_at),
+    cell: ({ row }) => formatDateTime(row.original.updatedAt),
   },
   {
-    accessorKey: "last_synced_at",
+    accessorKey: "lastSyncedAt",
     header: "Last Sync",
-    cell: ({ row }) => formatDateTime(row.original.last_synced_at),
+    cell: ({ row }) => formatDateTime(row.original.lastSyncedAt),
   },
 ];
 
 interface InventoryTableProps {
-  inventory: Inventory[];
+  inventory: InventoryTableRow[];
   loading: boolean;
 }
 

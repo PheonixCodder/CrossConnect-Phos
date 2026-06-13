@@ -46,7 +46,7 @@ interface DataTableProps<TData, TValue> {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyImage?: string;
-  defaultSorting?: SortingState
+  defaultSorting?: SortingState;
 }
 
 export function DataTable<TData, TValue>({
@@ -60,7 +60,7 @@ export function DataTable<TData, TValue>({
   emptyTitle = "No data found",
   emptyDescription = "There are no records to display.",
   emptyImage = "/images/empty.svg",
-                                           defaultSorting = []
+  defaultSorting = [],
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(defaultSorting);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -70,6 +70,7 @@ export function DataTable<TData, TValue>({
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable table helpers.
   const table = useReactTable({
     data,
     columns,

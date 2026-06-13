@@ -3,17 +3,15 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
-import type { Database } from "@/types/supabase.types";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-display/data-table";
+import type { ReturnTableRow } from "../../domain/product-view-models";
 
-type Return = Database["public"]["Tables"]["returns"]["Row"];
-
-const columns: ColumnDef<Return>[] = [
+const columns: ColumnDef<ReturnTableRow>[] = [
   {
-    accessorKey: "external_return_id",
+    accessorKey: "externalReturnId",
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -25,22 +23,17 @@ const columns: ColumnDef<Return>[] = [
     ),
     cell: ({ row }) => (
       <span className="font-mono text-primary">
-        {row.original.external_return_id}
+        {row.original.externalReturnId}
       </span>
     ),
   },
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <StatusBadge
-        status={row.original.status === "completed" ? "success" : "warning"}
-        size="sm"
-      />
-    ),
+    cell: ({ row }) => <StatusBadge status={row.original.status} size="sm" />,
   },
   {
-    accessorKey: "refund_amount",
+    accessorKey: "refundAmount",
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -50,12 +43,12 @@ const columns: ColumnDef<Return>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => formatCurrency(row.original.refund_amount ?? 0),
+    cell: ({ row }) => formatCurrency(row.original.refundAmount),
   },
   {
-    accessorKey: "created_at",
+    accessorKey: "createdAt",
     header: "Date",
-    cell: ({ row }) => formatDateTime(row.original.created_at),
+    cell: ({ row }) => formatDateTime(row.original.createdAt),
   },
   {
     accessorKey: "platform",
@@ -67,7 +60,7 @@ const columns: ColumnDef<Return>[] = [
 ];
 
 interface ReturnsTableProps {
-  returns: Return[];
+  returns: ReturnTableRow[];
   loading: boolean;
 }
 
@@ -82,7 +75,7 @@ export function ReturnsTable({ returns, loading }: ReturnsTableProps) {
           columns={columns}
           data={returns}
           isLoading={loading}
-          searchKey="external_return_id"
+          searchKey="externalReturnId"
           placeholder="Search by Return ID..."
           onRowClick={(row) => setReturnId(row.id)}
           emptyImage="/images/empty.svg"

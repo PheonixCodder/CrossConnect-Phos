@@ -10,7 +10,7 @@ const config: CodegenConfig = {
       apiType: ApiType.Admin,
       apiVersion: '2026-01',
       documents: ['./src/**/*.ts'],
-      outputDir: './src/connectors/shopify/graphql/generated',
+      outputDir: './src/infrastructure/external/connectors/shopify/graphql/generated',
     }),
   },
 };

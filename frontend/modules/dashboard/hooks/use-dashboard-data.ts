@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDashboardStore } from "@/store/useStore";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase.types";
-import {useMemo} from "react";
+import { useMemo } from "react";
 import { DateTime } from "luxon";
 
 export interface DateRangeValue {
@@ -26,38 +26,36 @@ interface DashboardPayload {
   products: Database["public"]["Tables"]["products"]["Row"][];
   inventory: Database["public"]["Tables"]["inventory"]["Row"][];
   alerts: Database["public"]["Tables"]["alerts"]["Row"][];
-  metrics_summary : Database["public"]["Tables"]["metrics_summary"]["Row"][];
+  metrics_summary: Database["public"]["Tables"]["metrics_summary"]["Row"][];
 }
 
 export function useDashboardData(dateRange: DateRangeValue) {
   const supabase = useMemo(() => createClient(), []);
   const { activeOrg, activeStore } = useDashboardStore();
 
-    const STORE_TZ = "America/Los_Angeles";
+  const STORE_TZ = "America/Los_Angeles";
 
-    const startDateIso = useMemo(() => {
-        return DateTime
-            .fromJSDate(dateRange.from, { zone: STORE_TZ })
-            .startOf("day")
-            .toUTC()
-            .toISO();
-    }, [dateRange.from]);
+  const startDateIso = useMemo(() => {
+    return DateTime.fromJSDate(dateRange.from, { zone: STORE_TZ })
+      .startOf("day")
+      .toUTC()
+      .toISO();
+  }, [dateRange.from]);
 
-    const endDateIso = useMemo(() => {
-        return DateTime
-            .fromJSDate(dateRange.to, { zone: STORE_TZ })
-            .endOf("day")
-            .toUTC()
-            .toISO();
-    }, [dateRange.to]);
+  const endDateIso = useMemo(() => {
+    return DateTime.fromJSDate(dateRange.to, { zone: STORE_TZ })
+      .endOf("day")
+      .toUTC()
+      .toISO();
+  }, [dateRange.to]);
 
   const { data: stores = [] } = useQuery({
     queryKey: ["stores", activeOrg?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-          .from("stores")
-          .select("*")
-          .eq("org_id", activeOrg?.id as string);
+        .from("stores")
+        .select("*")
+        .eq("org_id", activeOrg?.id as string);
 
       if (error) throw error;
       return data;
@@ -66,45 +64,35 @@ export function useDashboardData(dateRange: DateRangeValue) {
     staleTime: 1000 * 60 * 5,
   });
 
-  const targetStoreIds = useMemo(() => {
-    if (activeStore?.id) return [activeStore.id];
-    return stores.map((s) => s.id);
-  }, [activeStore?.id, stores]);
+  const activeStoreId = activeStore?.id;
 
-  const storeIdsKey = useMemo(
-      () => targetStoreIds.join(","),
-      [targetStoreIds]
-  );
+  const targetStoreIds = useMemo(() => {
+    if (activeStoreId) return [activeStoreId];
+    return stores.map((s) => s.id);
+  }, [activeStoreId, stores]);
+
+  const storeIdsKey = useMemo(() => targetStoreIds.join(","), [targetStoreIds]);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: [
-      "dashboard_bundle",
-      storeIdsKey,
-      startDateIso,
-      endDateIso,
-    ],
+    queryKey: ["dashboard_bundle", storeIdsKey, startDateIso, endDateIso],
     queryFn: async (): Promise<DashboardPayload> => {
       const { data, error } = await supabase.rpc(
-          "get_complete_dashboard_data",
-          {
-            p_store_ids: targetStoreIds,
-            p_start_date: startDateIso!,
-            p_end_date: endDateIso!,
-          }
+        "get_complete_dashboard_data",
+        {
+          p_store_ids: targetStoreIds,
+          p_start_date: startDateIso!,
+          p_end_date: endDateIso!,
+        },
       );
 
       if (error) throw error;
-      return (data as unknown) as DashboardPayload;
+      return data as unknown as DashboardPayload;
     },
-    enabled:
-        !!storeIdsKey &&
-        !!startDateIso &&
-        !!endDateIso,
+    enabled: !!storeIdsKey && !!startDateIso && !!endDateIso,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
-
 
   return {
     stores,
